@@ -52,4 +52,28 @@ bool SortingProblem::isSolution(const std::vector<int>& input, const std::vector
     return output == expected;
 }
 
+double SortingProblem::partialScore(const std::vector<int>& input, const std::vector<int>& output) const {
+    if (output.size() != input.size()) return 0.0;
+    size_t n = output.size();
+    if (n <= 1) return 1.0;
+
+    // Must be a genuine rearrangement of the input -- otherwise inversions
+    // could look great (e.g. all zeros) while being a completely wrong
+    // answer.
+    std::vector<int> sortedOutput = output;
+    std::vector<int> sortedInput = input;
+    std::sort(sortedOutput.begin(), sortedOutput.end());
+    std::sort(sortedInput.begin(), sortedInput.end());
+    if (sortedOutput != sortedInput) return 0.0;
+
+    long inversions = 0;
+    for (size_t i = 0; i < n; ++i) {
+        for (size_t j = i + 1; j < n; ++j) {
+            if (output[i] > output[j]) inversions++;
+        }
+    }
+    long maxInversions = static_cast<long>(n) * static_cast<long>(n - 1) / 2;
+    return 1.0 - static_cast<double>(inversions) / static_cast<double>(maxInversions);
+}
+
 }  // namespace algosearch

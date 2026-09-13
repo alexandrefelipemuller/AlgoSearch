@@ -42,6 +42,17 @@ public:
     // Whether `output` is a correct solution for `input`.
     virtual bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const = 0;
 
+    // Continuous credit in [0, 1] for a WRONG_OUTPUT result: how close
+    // `output` is to a correct solution for `input`, 1.0 meaning correct.
+    // This is a search heuristic ONLY -- it never substitutes for
+    // isSolution() when deciding correctness/promotion, it exists purely to
+    // give beam search a gradient to climb when every candidate's exact
+    // solved-count is flat (e.g. 0/40), which a binary score cannot
+    // provide. Default: no partial credit (binary 0/1 via isSolution).
+    virtual double partialScore(const std::vector<int>& input, const std::vector<int>& output) const {
+        return isSolution(input, output) ? 1.0 : 0.0;
+    }
+
     // Number of scalar integer variables a generated program may use.
     virtual int numVars() const = 0;
 

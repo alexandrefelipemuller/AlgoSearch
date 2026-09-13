@@ -48,3 +48,21 @@ TEST(sorting_problem_next_level_increments) {
     SortingProblem problem;
     CHECK_EQ(problem.nextLevel(3), 4);
 }
+
+TEST(sorting_problem_partial_score_is_one_when_fully_sorted) {
+    SortingProblem problem;
+    CHECK_EQ(problem.partialScore({3, 1, 2}, {1, 2, 3}), 1.0);
+}
+
+TEST(sorting_problem_partial_score_penalizes_inversions) {
+    SortingProblem problem;
+    // {3,1,2} has 2 inversions out of a max of 3 -> 1 - 2/3
+    double score = problem.partialScore({3, 1, 2}, {3, 1, 2});
+    CHECK(score > 0.3 && score < 0.34);
+}
+
+TEST(sorting_problem_partial_score_zero_for_non_permutation) {
+    SortingProblem problem;
+    // Sorted-looking but not a rearrangement of the input -- must not get credit.
+    CHECK_EQ(problem.partialScore({3, 1, 2}, {0, 0, 0}), 0.0);
+}

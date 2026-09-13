@@ -20,6 +20,7 @@ struct CliArgs {
     int startLevel = 1;
     int candidatesPerSize = 800;
     int numVars = 4;
+    unsigned threads = 0;  // 0 = auto-detect
     std::string output = "solutions.json";
 };
 
@@ -42,6 +43,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--start-level") args.startLevel = std::stoi(next("--start-level"));
         else if (arg == "--candidates") args.candidatesPerSize = std::stoi(next("--candidates"));
         else if (arg == "--num-vars") args.numVars = std::stoi(next("--num-vars"));
+        else if (arg == "--threads") args.threads = static_cast<unsigned>(std::stoul(next("--threads")));
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -55,7 +57,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 void printUsage() {
     std::cout << "algorithm-discovery --problem sorting --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
-                 "[--start-level 1] [--candidates 800] [--num-vars 4] [--output solutions.json]\n";
+                 "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] [--output solutions.json]\n";
 }
 
 }  // namespace
@@ -83,6 +85,7 @@ int main(int argc, char** argv) {
     config.seed = args.seed;
     config.candidatesPerSize = args.candidatesPerSize;
     config.genConfig.numVars = args.numVars;
+    config.numThreads = args.threads;
 
     BeamSearch search(problem, config);
     std::vector<SolutionRecord> solutions = search.run();

@@ -1,6 +1,6 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++20 -Wall -Wextra -O2 -Isrc
-LDFLAGS ?=
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -O2 -Isrc -pthread
+LDFLAGS ?= -pthread
 
 SRC_DIR := src
 TEST_DIR := tests

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <thread>
 
 #include "core/Random.hpp"
 #include "interpreter/Interpreter.hpp"
@@ -15,9 +16,70 @@ namespace {
 struct CandidateRecord {
     Program program;
     int size = 0;
-    int score = 0;
+    int score = 0;       // exact instances solved -- the only thing ever used for
+                          // promotion decisions and reported as "score" in logs/records
+    double fitness = 0;  // score + inversions-based partial credit; search-internal
+                          // ranking heuristic only, never substitutes for `score`
     int totalTests = 0;
 };
+
+// Scores every candidate in `pool` against `instances`, writing results into
+// `scored` starting at `outOffset` (one CandidateRecord per candidate, same
+// order). Splits the work across threads: each candidate is evaluated fully
+// independently (Interpreter::run and Problem methods touch no shared
+// mutable state), so this is embarrassingly parallel and needs no locking.
+void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& instances, const Problem& problem,
+                      const Interpreter& interp, unsigned numThreads, std::vector<CandidateRecord>& scored, size_t outOffset,
+                      int& timeouts, int& errors) {
+    size_t n = pool.size();
+    for (size_t i = 0; i < n; ++i) {
+        scored[outOffset + i].program = std::move(pool[i]);
+        scored[outOffset + i].totalTests = static_cast<int>(instances.size());
+    }
+    if (n == 0) return;
+
+    unsigned workers = std::max(1u, numThreads);
+    workers = std::min<unsigned>(workers, static_cast<unsigned>(n));
+    std::vector<int> timeoutsPerThread(workers, 0), errorsPerThread(workers, 0);
+    size_t chunk = (n + workers - 1) / workers;
+
+    std::vector<std::thread> threads;
+    threads.reserve(workers);
+    for (unsigned t = 0; t < workers; ++t) {
+        size_t begin = t * chunk;
+        size_t end = std::min(n, begin + chunk);
+        if (begin >= end) continue;
+        threads.emplace_back([&, begin, end, t]() {
+            for (size_t i = begin; i < end; ++i) {
+                CandidateRecord& rec = scored[outOffset + i];
+                int score = 0;
+                double fitness = 0.0;
+                for (const auto& inst : instances) {
+                    EvalOutcome outcome = problem.evaluate(*rec.program, inst, interp);
+                    if (outcome.status == ExecStatus::SUCCESS) {
+                        score++;
+                        fitness += 1.0;
+                    } else if (outcome.status == ExecStatus::TIMEOUT) {
+                        timeoutsPerThread[t]++;
+                    } else if (outcome.status == ExecStatus::RUNTIME_ERROR) {
+                        errorsPerThread[t]++;
+                    } else {
+                        fitness += problem.partialScore(inst.input, outcome.output);
+                    }
+                }
+                rec.size = rec.program->size();
+                rec.score = score;
+                rec.fitness = fitness;
+            }
+        });
+    }
+    for (auto& th : threads) th.join();
+
+    for (unsigned t = 0; t < workers; ++t) {
+        timeouts += timeoutsPerThread[t];
+        errors += errorsPerThread[t];
+    }
+}
 
 std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfig& cfg) {
     return {
@@ -78,40 +140,27 @@ std::vector<SolutionRecord> BeamSearch::run() {
         }
 
         int timeouts = 0, errors = 0;
-        std::vector<CandidateRecord> scored;
-        scored.reserve(grownPool.size() + freshPool.size());
-        auto scoreAndCollect = [&](std::vector<Program>& pool) {
-            for (auto& prog : pool) {
-                int score = 0;
-                for (const auto& inst : instances) {
-                    EvalOutcome outcome = problem_.evaluate(*prog, inst, interp);
-                    if (outcome.status == ExecStatus::SUCCESS) {
-                        score++;
-                    } else if (outcome.status == ExecStatus::TIMEOUT) {
-                        timeouts++;
-                    } else if (outcome.status == ExecStatus::RUNTIME_ERROR) {
-                        errors++;
-                    }
-                }
-                CandidateRecord rec;
-                rec.size = prog->size();
-                rec.score = score;
-                rec.totalTests = static_cast<int>(instances.size());
-                rec.program = std::move(prog);
-                scored.push_back(std::move(rec));
-            }
-        };
-        scoreAndCollect(grownPool);
-        scoreAndCollect(freshPool);
+        unsigned threadCount = config_.numThreads != 0 ? config_.numThreads : std::thread::hardware_concurrency();
+        if (threadCount == 0) threadCount = 1;
+
+        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size());
+        scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
+        scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
 
         if (scored.empty()) {
             log::progress(0, 0, static_cast<int>(instances.size()), 0, timeouts, errors);
             continue;
         }
 
+        // Rank primarily by exact solved-count (the only metric that ever
+        // decides promotion), then by inversions-based partial fitness as a
+        // gradient when counts tie (crucial when every candidate solves 0
+        // instances and a binary score gives the beam nothing to climb),
+        // then prefer smaller programs to keep the beam diverse/simple.
         std::sort(scored.begin(), scored.end(), [](const CandidateRecord& a, const CandidateRecord& b) {
             if (a.score != b.score) return a.score > b.score;
-            return a.size < b.size;  // among equal scores, prefer smaller programs to keep the beam diverse/simple
+            if (a.fitness != b.fitness) return a.fitness > b.fitness;
+            return a.size < b.size;
         });
 
         int bestScore = scored.front().score;

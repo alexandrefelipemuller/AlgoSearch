@@ -18,6 +18,7 @@ struct SearchConfig {
     uint64_t seed = 1234;
     int candidatesPerSize = 500;  // how many candidates to generate/score per program size
     GenConfig genConfig;
+    unsigned numThreads = 0;  // 0 = auto-detect (std::thread::hardware_concurrency())
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.

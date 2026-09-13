@@ -21,6 +21,14 @@ public:
     std::string describeLevel(int level) const override;
     int nextLevel(int level) const override;
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
+
+    // 1.0 - (inversions in `output`) / (max possible inversions), gated to
+    // 0.0 if `output` isn't even a rearrangement of `input` (guards against
+    // e.g. a program that zeroes the whole array, which is trivially
+    // "inversion-free" but not a sort). Gives beam search a smooth signal
+    // towards full sortedness instead of a flat pass/fail count.
+    double partialScore(const std::vector<int>& input, const std::vector<int>& output) const override;
+
     int numVars() const override { return numVars_; }
 
 private:
