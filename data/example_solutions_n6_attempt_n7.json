@@ -1,0 +1,116 @@
+[
+  {
+    "program": "",
+    "program_size": 1,
+    "level_reached": 1,
+    "n_reached": 1,
+    "score": 1,
+    "total_tests": 1,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[v1], arr[arr[v1]]);\n",
+    "program_size": 5,
+    "level_reached": 2,
+    "n_reached": 2,
+    "score": 2,
+    "total_tests": 2,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[arr[v1]], arr[arr[arr[v3]]]);\nv1 = (1 + 2);\nif (((((3 + v0) + (3 - 3)) - 3) == 0)) {\n  swap(arr[arr[((v3 + v1) - 3)]], arr[(((0 - 1) + 2) + arr[1])]);\n  while ((arr[arr[(v1 - 1)]] == arr[arr[arr[v0]]])) {\n    v2 = (v3 - 2);\n  }\n} else {\n  swap(arr[v2], arr[arr[(3 - (v0 - 0))]]);\n  v0 = arr[arr[v2]];\n  swap(arr[(1 + 1)], arr[arr[((3 + v2) - 1)]]);\n}\n",
+    "program_size": 75,
+    "level_reached": 3,
+    "n_reached": 3,
+    "score": 6,
+    "total_tests": 6,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[0], arr[arr[arr[1]]]);\nswap(arr[(1 + ((1 + v2) - (v1 + 0)))], arr[arr[arr[v3]]]);\nswap(arr[v3], arr[arr[v1]]);\nswap(arr[v1], arr[(arr[v3] - v1)]);\nv3 = 2;\nswap(arr[arr[arr[arr[v1]]]], arr[0]);\n",
+    "program_size": 37,
+    "level_reached": 4,
+    "n_reached": 4,
+    "score": 24,
+    "total_tests": 24,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[arr[arr[v1]]], arr[arr[v3]]);\nswap(arr[v1], arr[arr[(arr[0] + v1)]]);\nswap(arr[1], arr[arr[arr[arr[0]]]]);\nswap(arr[arr[((v3 + 0) + arr[v2])]], arr[3]);\nswap(arr[(1 + ((1 + v2) - (v1 + 0)))], arr[arr[arr[v3]]]);\nswap(arr[v3], arr[arr[v1]]);\nswap(arr[v1], arr[(arr[v3] - v1)]);\nswap(arr[0], arr[arr[v1]]);\nv0 = arr[(arr[v1] + (v2 - 0))];\nwhile ((((arr[0] + arr[v0]) + v3) < arr[((v0 - v3) + v3)])) {\n  v2 = (1 + (v1 + arr[v3]));\n  swap(arr[arr[arr[arr[3]]]], arr[arr[arr[arr[1]]]]);\n  arr[(0 + v2)] = (arr[arr[v1]] + arr[(v1 + v3)]);\n  v1 = arr[((v1 - v1) - (0 + v0))];\n}\nv3 = 2;\nswap(arr[arr[arr[arr[v1]]]], arr[0]);\n",
+    "program_size": 124,
+    "level_reached": 5,
+    "n_reached": 5,
+    "score": 120,
+    "total_tests": 120,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[arr[arr[v1]]], arr[arr[v3]]);\nswap(arr[arr[arr[arr[v3]]]], arr[v2]);\nwhile ((arr[arr[(v2 - 0)]] > v2)) {\n  swap(arr[arr[arr[(v2 - 0)]]], arr[v2]);\n  v0 = arr[arr[(v3 + 0)]];\n  v0 = v0;\n  v0 = arr[3];\n}\nswap(arr[arr[(1 + 2)]], arr[1]);\nv1 = (0 + ((v1 + v2) + v3));\nswap(arr[1], arr[arr[arr[arr[0]]]]);\nswap(arr[arr[(arr[2] - arr[2])]], arr[((arr[3] - arr[3]) - (arr[3] - arr[3]))]);\nswap(arr[arr[((v3 + 0) + arr[v2])]], arr[3]);\nswap(arr[arr[((v3 - 2) + (2 - v1))]], arr[v2]);\nswap(arr[(1 + ((1 + v2) - (v1 + 0)))], arr[arr[arr[v3]]]);\nswap(arr[v3], arr[arr[v1]]);\nv0 = v1;\nswap(arr[v1], arr[(arr[v3] - v1)]);\nswap(arr[0], arr[arr[v1]]);\nv0 = arr[(arr[v1] + (v2 - 0))];\nswap(arr[(v2 + arr[v1])], arr[v3]);\nv1 = v2;\nwhile ((((arr[0] + arr[v0]) + v3) < arr[((v0 - v3) + v3)])) {\n  swap(arr[(arr[(v1 - 0)] - (arr[v1] - arr[2]))], arr[((arr[2] + arr[v0]) + v1)]);\n  swap(arr[v3], arr[arr[arr[3]]]);\n  v3 = arr[arr[arr[0]]];\n  v0 = 0;\n  arr[1] = 3;\n  v0 = arr[v2];\n  swap(arr[1], arr[arr[3]]);\n  v1 = v3;\n  v2 = 1;\n}\nv3 = 2;\nswap(arr[((arr[2] + arr[2]) + 1)], arr[arr[((v3 + v2) + 3)]]);\nswap(arr[arr[arr[arr[v1]]]], arr[0]);\n",
+    "program_size": 222,
+    "level_reached": 6,
+    "n_reached": 6,
+    "score": 720,
+    "total_tests": 720,
+    "final_status": "SUCCESS",
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "7",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  }
+]
