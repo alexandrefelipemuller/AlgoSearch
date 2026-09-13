@@ -1,4 +1,13 @@
+# Build output (this project uses a plain Makefile, not CMake)
 build/
 algosearch
 algosearch_tests
 solutions.json
+*.o
+*.d
+*.gch
+
+# Editor/OS cruft
+*.swp
+*.bak
+.cache/
