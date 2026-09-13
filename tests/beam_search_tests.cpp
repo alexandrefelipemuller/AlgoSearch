@@ -32,7 +32,7 @@ public:
 
 }  // namespace
 
-TEST(invariance_gate_rejects_a_program_that_only_works_at_one_level) {
+TEST(invariance_gate_marks_a_one_level_fit_as_unconfirmed) {
     GambiarraTrapProblem problem;
     SearchConfig cfg;
     cfg.beamWidth = 20;
@@ -42,15 +42,19 @@ TEST(invariance_gate_rejects_a_program_that_only_works_at_one_level) {
     cfg.seed = 1;
     cfg.candidatesPerSize = 50;
     cfg.genConfig.numVars = 3;
-    cfg.invarianceLookahead = 1;  // must also hold at level 2 to count
+    cfg.invarianceLookahead = 1;  // must also hold at level 2 to count as confirmed
 
     BeamSearch search(problem, cfg);
     auto solutions = search.run();
 
     // The empty/no-op program solves level 1 outright but can never solve
-    // level 2 (needs a 99999 constant no small random program will hit) --
-    // with the gate on, that must never be credited as a solution.
-    CHECK(solutions.empty());
+    // level 2 (needs a 99999 constant no small random program will hit).
+    // Search progression still advances (so the engine keeps a chance at
+    // finding something that DOES work at level 2), but the level-1 record
+    // must be labeled unconfirmed rather than a validated SUCCESS.
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.front().levelReached, 1);
+    CHECK_EQ(solutions.front().finalStatus, std::string("UNCONFIRMED"));
 }
 
 TEST(invariance_gate_disabled_falls_back_to_old_single_level_promotion) {
@@ -69,10 +73,11 @@ TEST(invariance_gate_disabled_falls_back_to_old_single_level_promotion) {
     auto solutions = search.run();
 
     // Same gambiarra, same seed -- but without the gate it gets credited
-    // for level 1 immediately, exactly like the pre-invariance-gate engine
-    // would have.
+    // (SUCCESS) for level 1 immediately, exactly like the pre-invariance-gate
+    // engine would have.
     CHECK(!solutions.empty());
     CHECK_EQ(solutions.front().levelReached, 1);
+    CHECK_EQ(solutions.front().finalStatus, std::string("SUCCESS"));
 }
 
 TEST(beam_search_finds_solution_for_trivial_levels) {

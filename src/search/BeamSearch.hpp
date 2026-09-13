@@ -20,15 +20,20 @@ struct SearchConfig {
     GenConfig genConfig;
     unsigned numThreads = 0;  // 0 = auto-detect (std::thread::hardware_concurrency())
 
-    // Structural invariance gate: a full solve at the current level is only
-    // accepted (recorded + promoted) if the SAME unmutated program also
-    // fully solves the next `invarianceLookahead` levels. This never
-    // touches how candidates are generated or mutated -- it only changes
-    // what counts as "done" -- but it directly targets programs that fit
-    // one N's exact instance family (a "gambiarra") without generalizing:
-    // those get rejected and the search keeps looking, instead of
-    // rewarding the overfit with a promotion. 0 disables the gate
-    // (original behavior: promote on any single-level full solve).
+    // Structural invariance check: a full solve at the current level is
+    // labeled a confirmed SolutionRecord (finalStatus "SUCCESS") only if
+    // the SAME unmutated program also fully solves the next
+    // `invarianceLookahead` levels; otherwise it's recorded as
+    // "UNCONFIRMED" -- evidence the program fits this N's exact instance
+    // family (a "gambiarra") rather than a real algorithm. This is
+    // bookkeeping only: it never changes candidate generation/mutation,
+    // and search progression (which level gets scored against next) always
+    // advances on the cascade actually reached, confirmed or not --
+    // blocking progression on an unconfirmed result was tried and starves
+    // the search (it never gets to score against the harder level where a
+    // genuinely generalizing program might be found; see BeamSearch.cpp).
+    // 0 disables the check (every full solve is labeled SUCCESS, as before
+    // this feature existed).
     int invarianceLookahead = 3;
 
 };

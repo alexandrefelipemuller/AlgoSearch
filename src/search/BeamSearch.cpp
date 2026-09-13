@@ -205,40 +205,52 @@ std::vector<SolutionRecord> BeamSearch::run() {
             int requiredLevel = std::min(currentLevel + config_.invarianceLookahead, config_.maxLevel);
             bool invarianceHolds = config_.invarianceLookahead <= 0 || level >= requiredLevel;
 
+            // Search progression ALWAYS advances on the cascade reached here
+            // (exactly like before the gate existed): the engine still needs
+            // to score candidates against harder levels to have any chance
+            // of finding a program that generalizes to them. Gating this
+            // would starve the search -- confirmed by experiment: even
+            // ContainsProblem's genuinely-generalizing 92-node program (see
+            // data/champion_logs/log_contains.txt) never got discovered when
+            // currentLevel was blocked from advancing past a rejected level,
+            // because it's only findable while scoring against level 2's
+            // instances. What the gate actually changes is which cascades
+            // get labeled a confirmed, validated algorithm vs. a provisional
+            // fit -- pure bookkeeping on top of unchanged search dynamics.
+            std::string status = invarianceHolds ? "SUCCESS" : "UNCONFIRMED";
             if (!invarianceHolds) {
-                log::info("  REJECTED (fails structural invariance): solves N=" + std::to_string(currentLevel) +
-                           " but breaks before N=" + std::to_string(requiredLevel) +
-                           " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
-            } else {
-                for (const auto& lr : cascade) {
-                    int advPassed = -1, advTotal = -1;
-                    std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lr.level);
-                    if (!adversarial.empty()) {
-                        advTotal = static_cast<int>(adversarial.size());
-                        advPassed = 0;
-                        for (const auto& inst : adversarial) {
-                            if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
-                        }
-                    }
-                    if (lr.level != currentLevel) log::advancingToLevel(lr.level);
-                    log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal);
-
-                    SolutionRecord rec;
-                    rec.programText = programText;
-                    rec.programSize = programSize;
-                    rec.levelReached = lr.level;
-                    rec.nReached = lr.level;
-                    rec.score = lr.score;
-                    rec.totalTests = lr.total;
-                    rec.finalStatus = "SUCCESS";
-                    rec.adversarialPassed = advPassed;
-                    rec.adversarialTotal = advTotal;
-                    rec.seed = config_.seed;
-                    rec.config = configToPairs(config_);
-                    solutions.push_back(std::move(rec));
-                }
-                currentLevel = problem_.nextLevel(level);
+                log::info("  UNCONFIRMED (fails structural invariance): solves N=" + std::to_string(currentLevel) +
+                          " but breaks before N=" + std::to_string(requiredLevel) +
+                          " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
             }
+            for (const auto& lr : cascade) {
+                int advPassed = -1, advTotal = -1;
+                std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lr.level);
+                if (!adversarial.empty()) {
+                    advTotal = static_cast<int>(adversarial.size());
+                    advPassed = 0;
+                    for (const auto& inst : adversarial) {
+                        if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
+                    }
+                }
+                if (lr.level != currentLevel) log::advancingToLevel(lr.level);
+                log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal);
+
+                SolutionRecord rec;
+                rec.programText = programText;
+                rec.programSize = programSize;
+                rec.levelReached = lr.level;
+                rec.nReached = lr.level;
+                rec.score = lr.score;
+                rec.totalTests = lr.total;
+                rec.finalStatus = status;
+                rec.adversarialPassed = advPassed;
+                rec.adversarialTotal = advTotal;
+                rec.seed = config_.seed;
+                rec.config = configToPairs(config_);
+                solutions.push_back(std::move(rec));
+            }
+            currentLevel = problem_.nextLevel(level);
         }
     }
 
