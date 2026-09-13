@@ -17,6 +17,12 @@ struct SolutionRecord {
     int score = 0;
     int totalTests = 0;
     std::string finalStatus;
+    // Diagnostic-only: how this program fared on out-of-distribution
+    // instances (duplicates/negatives/wide-range/sorted/reversed) never
+    // used to select or promote it. -1/-1 means no adversarial instances
+    // were available for this level.
+    int adversarialPassed = -1;
+    int adversarialTotal = -1;
     uint64_t seed = 0;
     // Free-form key/value search configuration, stored verbatim for repro.
     std::vector<std::pair<std::string, std::string>> config;

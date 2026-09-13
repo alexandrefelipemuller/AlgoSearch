@@ -20,6 +20,12 @@ public:
     std::vector<Instance> generateInstances(int level) const override;
     std::string describeLevel(int level) const override;
     int nextLevel(int level) const override;
+
+    // Duplicates, negatives, a wide random range and an already-sorted
+    // array, all at the same N as `level` -- none of which
+    // generateInstances() ever produces (it only uses permutations of
+    // {0..N-1} or small non-negative random samples).
+    std::vector<Instance> generateAdversarialInstances(int level) const override;
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
 
     // 1.0 - (inversions in `output`) / (max possible inversions), gated to

@@ -45,6 +45,47 @@ std::string SortingProblem::describeLevel(int level) const {
 
 int SortingProblem::nextLevel(int level) const { return level + 1; }
 
+std::vector<Instance> SortingProblem::generateAdversarialInstances(int level) const {
+    int n = level;
+    if (n <= 0) return {};
+    std::vector<Instance> instances;
+    auto add = [&](std::vector<int> values) {
+        std::vector<int> expected = values;
+        std::sort(expected.begin(), expected.end());
+        instances.push_back({std::move(values), std::move(expected)});
+    };
+
+    add(std::vector<int>(static_cast<size_t>(n), 7));  // all-equal
+    {
+        std::vector<int> dup(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) dup[static_cast<size_t>(i)] = i / 2;  // heavy duplicates
+        add(dup);
+    }
+    {
+        std::vector<int> neg(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) neg[static_cast<size_t>(i)] = (i % 2 == 0 ? -1 : 1) * (i + 1);  // negatives
+        add(neg);
+    }
+    {
+        std::vector<int> sorted(static_cast<size_t>(n));
+        std::iota(sorted.begin(), sorted.end(), 0);
+        add(sorted);  // already sorted
+    }
+    {
+        std::vector<int> reversed(static_cast<size_t>(n));
+        std::iota(reversed.begin(), reversed.end(), 0);
+        std::reverse(reversed.begin(), reversed.end());
+        add(reversed);  // worst-case reverse order
+    }
+    {
+        Random rng(seed_ + 999983ULL);
+        std::vector<int> wide(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i) wide[static_cast<size_t>(i)] = rng.uniformInt(-100, 100);  // wide range
+        add(wide);
+    }
+    return instances;
+}
+
 bool SortingProblem::isSolution(const std::vector<int>& input, const std::vector<int>& output) const {
     if (output.size() != input.size()) return false;
     std::vector<int> expected = input;

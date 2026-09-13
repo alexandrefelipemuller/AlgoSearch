@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++20 -Wall -Wextra -O2 -Isrc -pthread
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -O2 -Isrc -pthread -MMD -MP
 LDFLAGS ?= -pthread
 
 SRC_DIR := src
@@ -37,3 +37,5 @@ $(BUILD_DIR)/tests/%.o: $(TEST_DIR)/%.cpp
 
 clean:
 	rm -rf $(BUILD_DIR) algosearch algosearch_tests
+
+-include $(LIB_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d)

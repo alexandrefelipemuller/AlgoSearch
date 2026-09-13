@@ -39,6 +39,15 @@ public:
     // The next (harder) level after `level`.
     virtual int nextLevel(int level) const = 0;
 
+    // Extra, deliberately out-of-distribution instances for a level (e.g.
+    // duplicates, negative values, wide ranges) that generateInstances()
+    // never exercises. Purely diagnostic: never used for scoring or
+    // promotion, only to honestly report whether a "solution" generalizes
+    // beyond the exact instance family it was searched against, per the
+    // project's stance that passing a level's tests is not proof of
+    // correctness for all inputs. Default: none.
+    virtual std::vector<Instance> generateAdversarialInstances(int /*level*/) const { return {}; }
+
     // Whether `output` is a correct solution for `input`.
     virtual bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const = 0;
 

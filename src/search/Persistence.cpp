@@ -36,6 +36,8 @@ void saveSolutions(const std::string& path, const std::vector<SolutionRecord>& r
             << "    \"score\": " << r.score << ",\n"
             << "    \"total_tests\": " << r.totalTests << ",\n"
             << "    \"final_status\": \"" << jsonEscape(r.finalStatus) << "\",\n"
+            << "    \"adversarial_passed\": " << r.adversarialPassed << ",\n"
+            << "    \"adversarial_total\": " << r.adversarialTotal << ",\n"
             << "    \"seed\": " << r.seed << ",\n"
             << "    \"config\": {\n";
         for (size_t j = 0; j < r.config.size(); ++j) {

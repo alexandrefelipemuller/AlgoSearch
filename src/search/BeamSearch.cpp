@@ -197,6 +197,24 @@ std::vector<SolutionRecord> BeamSearch::run() {
 
             log::solutionFound(beam.front().size, provenProgram->toString());
 
+            // Diagnostic only: check the proven program against
+            // out-of-distribution instances (duplicates, negatives, wide
+            // range, sorted, reversed) that generateInstances() never
+            // produces. This never affects score/promotion -- it exists so
+            // "SOLUTION FOUND" doesn't get mistaken for "this generalizes to
+            // any array", which it may well not.
+            int advPassed = -1, advTotal = -1;
+            std::vector<Instance> adversarial = problem_.generateAdversarialInstances(level);
+            if (!adversarial.empty()) {
+                advTotal = static_cast<int>(adversarial.size());
+                advPassed = 0;
+                for (const auto& inst : adversarial) {
+                    if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
+                }
+                log::info("  generalization check (out-of-distribution) = " + std::to_string(advPassed) + "/" +
+                          std::to_string(advTotal));
+            }
+
             SolutionRecord rec;
             rec.programText = provenProgram->toString();
             rec.programSize = beam.front().size;
@@ -205,6 +223,8 @@ std::vector<SolutionRecord> BeamSearch::run() {
             rec.score = reachedScore;
             rec.totalTests = reachedTotal;
             rec.finalStatus = "SUCCESS";
+            rec.adversarialPassed = advPassed;
+            rec.adversarialTotal = advTotal;
             rec.seed = config_.seed;
             rec.config = configToPairs(config_);
             solutions.push_back(std::move(rec));
