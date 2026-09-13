@@ -1,0 +1,65 @@
+[
+  {
+    "program": "",
+    "program_size": 1,
+    "level_reached": 1,
+    "n_reached": 1,
+    "score": 1,
+    "total_tests": 1,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "swap(arr[1], arr[v2]);\nv2 = v2;\nwhile ((v2 == ((arr[1] - v2) - 1))) {\n  v2 = 1;\n  if (((arr[(v0 - 2)] - ((2 + v3) + (v1 + v1))) == 3)) {\n    if ((v0 > v1)) {\n      v0 = 3;\n      if ((v2 == (arr[v0] + arr[2]))) {\n        swap(arr[(arr[2] - v3)], arr[2]);\n        v2 = 2;\n        arr[3] = (arr[v3] + (2 - arr[v0]));\n      }\n      v1 = arr[arr[(v3 - 0)]];\n    }\n    if ((0 < ((v3 + arr[0]) - (v1 - (0 + v3))))) {\n      v3 = v1;\n      v0 = ((arr[v3] + v1) - arr[arr[3]]);\n      v1 = 3;\n    }\n  } else {\n    swap(arr[arr[arr[1]]], arr[0]);\n    v2 = arr[v2];\n  }\n  while ((1 < 0)) {\n    arr[2] = (arr[(1 + v3)] + (arr[v1] + (3 + 0)));\n  }\n}\nv2 = (v2 - v2);\n",
+    "program_size": 124,
+    "level_reached": 2,
+    "n_reached": 2,
+    "score": 10,
+    "total_tests": 10,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 9,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "while ((v3 == arr[0])) {\n  v0 = (((v1 - v0) - v0) + arr[(0 + 1)]);\n  v1 = arr[arr[v3]];\n  arr[(v3 + (2 + (v3 - 2)))] = (arr[(v1 + 0)] + (arr[2] + 0));\n}\nv1 = arr[1];\nif (((3 - ((v2 + 2) - (0 + 2))) < v1)) {\n  v0 = v0;\n  v0 = 0;\n  swap(arr[2], arr[1]);\n} else {\n  while ((arr[((v2 - v2) - (v3 - v2))] < v1)) {\n    if ((1 == ((arr[v3] - (0 + 3)) - 3))) {\n      v3 = v3;\n      v3 = v0;\n    } else {\n      if ((2 == arr[v2])) {\n        v2 = 0;\n        if ((2 > arr[v1])) {\n          v0 = 0;\n          if ((3 > 3)) {\n            v3 = (arr[arr[3]] + arr[(v1 + 0)]);\n          }\n        }\n        v0 = 0;\n      }\n    }\n    v0 = v2;\n    arr[0] = v2;\n    v2 = (arr[(1 - v3)] - v2);\n  }\n  if ((arr[v3] == 1)) {\n    swap(arr[arr[arr[arr[1]]]], arr[(2 + (arr[v1] - arr[0]))]);\n  } else {\n    v0 = v1;\n  }\n}\n",
+    "program_size": 146,
+    "level_reached": 3,
+    "n_reached": 3,
+    "score": 14,
+    "total_tests": 14,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 7,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  }
+]
