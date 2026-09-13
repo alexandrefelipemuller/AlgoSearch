@@ -35,3 +35,21 @@ TEST(dedup_accepts_structurally_different_programs) {
     CHECK(dedup.insertIfNew(*p2));
     CHECK_EQ(dedup.size(), static_cast<size_t>(2));
 }
+
+TEST(dedup_caps_memory_by_resetting_past_max_entries) {
+    Dedup dedup(/*maxEntries=*/3);
+
+    for (int i = 0; i < 3; ++i) {
+        auto p = makeBlock();
+        p->body.push_back(makeAssign(0, makeIntConst(i)));
+        CHECK(dedup.insertIfNew(*p));
+    }
+    CHECK_EQ(dedup.size(), static_cast<size_t>(3));
+
+    // One more distinct entry pushes past the cap: the set resets instead
+    // of growing without bound.
+    auto p4 = makeBlock();
+    p4->body.push_back(makeAssign(0, makeIntConst(999)));
+    CHECK(dedup.insertIfNew(*p4));
+    CHECK_EQ(dedup.size(), static_cast<size_t>(1));
+}
