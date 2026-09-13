@@ -171,52 +171,24 @@ std::vector<SolutionRecord> BeamSearch::run() {
         beam = std::move(scored);
 
         if (bestScore > 0 && bestScore == static_cast<int>(instances.size())) {
-            // Full solve of the current level: promote as far as possible,
-            // recording ONE champion record per level actually reached
-            // (not just the final one). This is purely observational -- it
-            // changes nothing about scoring, selection, or promotion -- but
-            // it's what lets you compare the SAME program's text across
-            // consecutive N: identical text at every N is evidence of a
-            // real generalizing algorithm (this is what ContainsProblem
-            // did spontaneously); a brand new, bigger program appearing at
-            // some N is evidence the previous one was fit to that specific
-            // instance family rather than N-independent logic.
+            // Full solve of the current level. First, a dry run: how far
+            // does the SAME unmutated program cascade forward without ever
+            // touching score/selection/mutation? This is the structural
+            // invariance check -- a program that only fits this exact
+            // level's instance family (a "gambiarra") will fail the very
+            // next level and get rejected below; only a program that keeps
+            // working across a window of levels gets credited as a real
+            // solve. Nothing here changes how candidates are generated.
             const Program& provenProgram = beam.front().program;
             std::string programText = provenProgram->toString();
             int programSize = beam.front().size;
-            int level = currentLevel;
-            int reachedScore = bestScore;
-            int reachedTotal = static_cast<int>(instances.size());
 
-            auto recordChampion = [&](int lvl, int score, int total) {
-                int advPassed = -1, advTotal = -1;
-                std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lvl);
-                if (!adversarial.empty()) {
-                    advTotal = static_cast<int>(adversarial.size());
-                    advPassed = 0;
-                    for (const auto& inst : adversarial) {
-                        if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
-                    }
-                }
-                log::championAtLevel(lvl, score, total, programSize, programText, advPassed, advTotal);
-
-                SolutionRecord rec;
-                rec.programText = programText;
-                rec.programSize = programSize;
-                rec.levelReached = lvl;
-                rec.nReached = lvl;
-                rec.score = score;
-                rec.totalTests = total;
-                rec.finalStatus = "SUCCESS";
-                rec.adversarialPassed = advPassed;
-                rec.adversarialTotal = advTotal;
-                rec.seed = config_.seed;
-                rec.config = configToPairs(config_);
-                solutions.push_back(std::move(rec));
+            struct LevelResult {
+                int level, score, total;
             };
+            std::vector<LevelResult> cascade = {{currentLevel, bestScore, static_cast<int>(instances.size())}};
 
-            recordChampion(level, reachedScore, reachedTotal);
-
+            int level = currentLevel;
             while (true) {
                 int next = problem_.nextLevel(level);
                 if (next > config_.maxLevel) break;
@@ -225,18 +197,48 @@ std::vector<SolutionRecord> BeamSearch::run() {
                 for (const auto& inst : nextInstances) {
                     if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) s++;
                 }
-                if (s == static_cast<int>(nextInstances.size())) {
-                    level = next;
-                    reachedScore = s;
-                    reachedTotal = static_cast<int>(nextInstances.size());
-                    log::advancingToLevel(level);
-                    recordChampion(level, reachedScore, reachedTotal);
-                } else {
-                    break;
-                }
+                if (s != static_cast<int>(nextInstances.size())) break;
+                level = next;
+                cascade.push_back({level, s, static_cast<int>(nextInstances.size())});
             }
 
-            currentLevel = problem_.nextLevel(level);
+            int requiredLevel = std::min(currentLevel + config_.invarianceLookahead, config_.maxLevel);
+            bool invarianceHolds = config_.invarianceLookahead <= 0 || level >= requiredLevel;
+
+            if (!invarianceHolds) {
+                log::info("  REJECTED (fails structural invariance): solves N=" + std::to_string(currentLevel) +
+                           " but breaks before N=" + std::to_string(requiredLevel) +
+                           " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
+            } else {
+                for (const auto& lr : cascade) {
+                    int advPassed = -1, advTotal = -1;
+                    std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lr.level);
+                    if (!adversarial.empty()) {
+                        advTotal = static_cast<int>(adversarial.size());
+                        advPassed = 0;
+                        for (const auto& inst : adversarial) {
+                            if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
+                        }
+                    }
+                    if (lr.level != currentLevel) log::advancingToLevel(lr.level);
+                    log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal);
+
+                    SolutionRecord rec;
+                    rec.programText = programText;
+                    rec.programSize = programSize;
+                    rec.levelReached = lr.level;
+                    rec.nReached = lr.level;
+                    rec.score = lr.score;
+                    rec.totalTests = lr.total;
+                    rec.finalStatus = "SUCCESS";
+                    rec.adversarialPassed = advPassed;
+                    rec.adversarialTotal = advTotal;
+                    rec.seed = config_.seed;
+                    rec.config = configToPairs(config_);
+                    solutions.push_back(std::move(rec));
+                }
+                currentLevel = problem_.nextLevel(level);
+            }
         }
     }
 

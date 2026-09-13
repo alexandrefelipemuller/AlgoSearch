@@ -19,6 +19,18 @@ struct SearchConfig {
     int candidatesPerSize = 500;  // how many candidates to generate/score per program size
     GenConfig genConfig;
     unsigned numThreads = 0;  // 0 = auto-detect (std::thread::hardware_concurrency())
+
+    // Structural invariance gate: a full solve at the current level is only
+    // accepted (recorded + promoted) if the SAME unmutated program also
+    // fully solves the next `invarianceLookahead` levels. This never
+    // touches how candidates are generated or mutated -- it only changes
+    // what counts as "done" -- but it directly targets programs that fit
+    // one N's exact instance family (a "gambiarra") without generalizing:
+    // those get rejected and the search keeps looking, instead of
+    // rewarding the overfit with a promotion. 0 disables the gate
+    // (original behavior: promote on any single-level full solve).
+    int invarianceLookahead = 3;
+
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
