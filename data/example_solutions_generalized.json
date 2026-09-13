@@ -11,34 +11,34 @@
     "adversarial_total": 13,
     "seed": 7,
     "config": {
-      "beam_width": "1500",
-      "max_program_size": "300",
-      "step_limit": "8000",
+      "beam_width": "3000",
+      "max_program_size": "500",
+      "step_limit": "10000",
       "start_level": "1",
       "max_level": "5",
       "seed": "7",
-      "candidates_per_size": "3000"
+      "candidates_per_size": "6000"
     }
   },
   {
-    "program": "if ((((arr[v1] - (v2 + v3)) + 1) > arr[1])) {\n  swap(arr[v1], arr[1]);\n}\nv2 = 2;\n",
-    "program_size": 18,
+    "program": "if ((arr[v3] > (1 - arr[v2]))) {\n  v1 = ((v1 + 0) + arr[v2]);\n  v2 = v0;\n  swap(arr[0], arr[1]);\n}\n",
+    "program_size": 21,
     "level_reached": 2,
     "n_reached": 2,
     "score": 10,
     "total_tests": 10,
     "final_status": "SUCCESS",
-    "adversarial_passed": 13,
+    "adversarial_passed": 11,
     "adversarial_total": 13,
     "seed": 7,
     "config": {
-      "beam_width": "1500",
-      "max_program_size": "300",
-      "step_limit": "8000",
+      "beam_width": "3000",
+      "max_program_size": "500",
+      "step_limit": "10000",
       "start_level": "1",
       "max_level": "5",
       "seed": "7",
-      "candidates_per_size": "3000"
+      "candidates_per_size": "6000"
     }
   }
 ]
