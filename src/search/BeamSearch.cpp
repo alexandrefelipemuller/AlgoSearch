@@ -171,11 +171,51 @@ std::vector<SolutionRecord> BeamSearch::run() {
         beam = std::move(scored);
 
         if (bestScore > 0 && bestScore == static_cast<int>(instances.size())) {
-            // Full solve of the current level: promote as far as possible.
+            // Full solve of the current level: promote as far as possible,
+            // recording ONE champion record per level actually reached
+            // (not just the final one). This is purely observational -- it
+            // changes nothing about scoring, selection, or promotion -- but
+            // it's what lets you compare the SAME program's text across
+            // consecutive N: identical text at every N is evidence of a
+            // real generalizing algorithm (this is what ContainsProblem
+            // did spontaneously); a brand new, bigger program appearing at
+            // some N is evidence the previous one was fit to that specific
+            // instance family rather than N-independent logic.
             const Program& provenProgram = beam.front().program;
+            std::string programText = provenProgram->toString();
+            int programSize = beam.front().size;
             int level = currentLevel;
             int reachedScore = bestScore;
             int reachedTotal = static_cast<int>(instances.size());
+
+            auto recordChampion = [&](int lvl, int score, int total) {
+                int advPassed = -1, advTotal = -1;
+                std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lvl);
+                if (!adversarial.empty()) {
+                    advTotal = static_cast<int>(adversarial.size());
+                    advPassed = 0;
+                    for (const auto& inst : adversarial) {
+                        if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
+                    }
+                }
+                log::championAtLevel(lvl, score, total, programSize, programText, advPassed, advTotal);
+
+                SolutionRecord rec;
+                rec.programText = programText;
+                rec.programSize = programSize;
+                rec.levelReached = lvl;
+                rec.nReached = lvl;
+                rec.score = score;
+                rec.totalTests = total;
+                rec.finalStatus = "SUCCESS";
+                rec.adversarialPassed = advPassed;
+                rec.adversarialTotal = advTotal;
+                rec.seed = config_.seed;
+                rec.config = configToPairs(config_);
+                solutions.push_back(std::move(rec));
+            };
+
+            recordChampion(level, reachedScore, reachedTotal);
 
             while (true) {
                 int next = problem_.nextLevel(level);
@@ -190,44 +230,11 @@ std::vector<SolutionRecord> BeamSearch::run() {
                     reachedScore = s;
                     reachedTotal = static_cast<int>(nextInstances.size());
                     log::advancingToLevel(level);
+                    recordChampion(level, reachedScore, reachedTotal);
                 } else {
                     break;
                 }
             }
-
-            log::solutionFound(beam.front().size, provenProgram->toString());
-
-            // Diagnostic only: check the proven program against
-            // out-of-distribution instances (duplicates, negatives, wide
-            // range, sorted, reversed) that generateInstances() never
-            // produces. This never affects score/promotion -- it exists so
-            // "SOLUTION FOUND" doesn't get mistaken for "this generalizes to
-            // any array", which it may well not.
-            int advPassed = -1, advTotal = -1;
-            std::vector<Instance> adversarial = problem_.generateAdversarialInstances(level);
-            if (!adversarial.empty()) {
-                advTotal = static_cast<int>(adversarial.size());
-                advPassed = 0;
-                for (const auto& inst : adversarial) {
-                    if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
-                }
-                log::info("  generalization check (out-of-distribution) = " + std::to_string(advPassed) + "/" +
-                          std::to_string(advTotal));
-            }
-
-            SolutionRecord rec;
-            rec.programText = provenProgram->toString();
-            rec.programSize = beam.front().size;
-            rec.levelReached = level;
-            rec.nReached = level;
-            rec.score = reachedScore;
-            rec.totalTests = reachedTotal;
-            rec.finalStatus = "SUCCESS";
-            rec.adversarialPassed = advPassed;
-            rec.adversarialTotal = advTotal;
-            rec.seed = config_.seed;
-            rec.config = configToPairs(config_);
-            solutions.push_back(std::move(rec));
 
             currentLevel = problem_.nextLevel(level);
         }

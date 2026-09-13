@@ -4,6 +4,7 @@
 #include <string>
 
 #include "problems/ContainsProblem.hpp"
+#include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
 #include "problems/SortingProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
@@ -67,6 +68,7 @@ void printUsage() {
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
     if (name == "sorting") return std::make_unique<SortingProblem>(6, 40, numVars, seed);
     if (name == "min") return std::make_unique<MinArrayProblem>(6, 40, numVars, seed);
+    if (name == "max") return std::make_unique<MaxArrayProblem>(6, 40, numVars, seed);
     if (name == "sum") return std::make_unique<SumArrayProblem>(6, 40, numVars, seed);
     if (name == "contains") return std::make_unique<ContainsProblem>(6, 40, numVars, seed);
     return nullptr;
@@ -83,7 +85,7 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {
-        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, sum, contains)\n";
+        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, max, sum, contains)\n";
         return 1;
     }
 

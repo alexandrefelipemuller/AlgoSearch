@@ -1,11 +1,27 @@
 #include <algorithm>
 
 #include "problems/ContainsProblem.hpp"
+#include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
 #include "test_framework.hpp"
 
 using namespace algosearch;
+
+// ---- MaxArrayProblem ----
+
+TEST(max_problem_is_solution_checks_maximum) {
+    MaxArrayProblem problem;
+    CHECK(problem.isSolution({3, 1, 2}, {3, 0, 0}));
+    CHECK(!problem.isSolution({3, 1, 2}, {2, 0, 0}));
+}
+
+TEST(max_problem_partial_score_rewards_closeness) {
+    MaxArrayProblem problem;
+    CHECK_EQ(problem.partialScore({1, 5, 9}, {9, 0, 0}), 1.0);
+    double near = problem.partialScore({1, 5, 9}, {8, 0, 0});
+    CHECK(near > 0.8 && near < 0.9);
+}
 
 // ---- MinArrayProblem ----
 

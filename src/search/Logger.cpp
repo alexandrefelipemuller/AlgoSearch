@@ -18,17 +18,22 @@ void progress(size_t numCandidates, int bestScore, int totalTests, int bestProgr
               << "\n";
 }
 
-void solutionFound(int programSize, const std::string& programText) {
-    std::cout << "\nSOLUTION FOUND\n"
-              << "program size = " << programSize << "\n\n"
-              << programText << "\n";
-}
-
 void advancingToLevel(int level) { std::cout << "ADVANCING TO LEVEL " << level << "\n"; }
 
 void searchFinished(double totalSeconds) { std::cout << "\nSearch finished in " << totalSeconds << "s\n"; }
 
 void info(const std::string& msg) { std::cout << msg << "\n"; }
+
+void championAtLevel(int level, int score, int total, int programSize, const std::string& programText, int advPassed,
+                      int advTotal) {
+    std::cout << "\nN=" << level << "\n"
+              << "  score " << score << "/" << total << "\n"
+              << "  size " << programSize;
+    if (advTotal >= 0) {
+        std::cout << "  held-out " << advPassed << "/" << advTotal;
+    }
+    std::cout << "\n  programa:\n" << programText << "\n";
+}
 
 }  // namespace log
 }  // namespace algosearch
