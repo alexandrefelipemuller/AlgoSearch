@@ -35,6 +35,18 @@ std::vector<Instance> SortingProblem::generateInstances(int level) const {
             instances.push_back({values, expected});
         }
     }
+
+    // Permutations of {0..n-1} alone let a program "sort" by exploiting
+    // that the values ARE the correct target indices (e.g. using arr[i] to
+    // index directly into the sorted position), without doing anything
+    // resembling comparison-based sorting. Folding duplicates/negatives/
+    // wide-range/already-sorted/reversed instances into the actual scored
+    // set closes that loophole: full marks on a level now requires
+    // generalizing past "the input happens to be 0..n-1 shuffled".
+    if (n >= 2) {
+        auto structural = generateStructuralInstances(n, /*seedOffset=*/555555ULL, /*wideRangeSamples=*/3);
+        instances.insert(instances.end(), std::make_move_iterator(structural.begin()), std::make_move_iterator(structural.end()));
+    }
     return instances;
 }
 
@@ -46,8 +58,14 @@ std::string SortingProblem::describeLevel(int level) const {
 int SortingProblem::nextLevel(int level) const { return level + 1; }
 
 std::vector<Instance> SortingProblem::generateAdversarialInstances(int level) const {
-    int n = level;
-    if (n <= 0) return {};
+    if (level <= 0) return {};
+    // Different seed offset than generateInstances()'s structural
+    // instances, and more wide-range random samples, so this stays a
+    // genuinely held-out check rather than re-measuring training data.
+    return generateStructuralInstances(level, /*seedOffset=*/999983ULL, /*wideRangeSamples=*/8);
+}
+
+std::vector<Instance> SortingProblem::generateStructuralInstances(int n, uint64_t seedOffset, int wideRangeSamples) const {
     std::vector<Instance> instances;
     auto add = [&](std::vector<int> values) {
         std::vector<int> expected = values;
@@ -55,7 +73,7 @@ std::vector<Instance> SortingProblem::generateAdversarialInstances(int level) co
         instances.push_back({std::move(values), std::move(expected)});
     };
 
-    add(std::vector<int>(static_cast<size_t>(n), 7));  // all-equal
+    add(std::vector<int>(static_cast<size_t>(n), n));  // all-equal
     {
         std::vector<int> dup(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) dup[static_cast<size_t>(i)] = i / 2;  // heavy duplicates
@@ -77,10 +95,11 @@ std::vector<Instance> SortingProblem::generateAdversarialInstances(int level) co
         std::reverse(reversed.begin(), reversed.end());
         add(reversed);  // worst-case reverse order
     }
-    {
-        Random rng(seed_ + 999983ULL);
+
+    Random rng(seed_ + seedOffset + static_cast<uint64_t>(n) * 7919ULL);
+    for (int s = 0; s < wideRangeSamples; ++s) {
         std::vector<int> wide(static_cast<size_t>(n));
-        for (int i = 0; i < n; ++i) wide[static_cast<size_t>(i)] = rng.uniformInt(-100, 100);  // wide range
+        for (int i = 0; i < n; ++i) wide[static_cast<size_t>(i)] = rng.uniformInt(-3 * n - 10, 3 * n + 10);
         add(wide);
     }
     return instances;

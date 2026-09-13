@@ -38,6 +38,15 @@ public:
     int numVars() const override { return numVars_; }
 
 private:
+    // Shared builder for "structurally varied" instances at size n: heavy
+    // duplicates, negatives, already-sorted, reversed, an all-equal array,
+    // and a few wide-range random arrays drawn from a seed offset by
+    // `seedOffset`. Used with two different offsets so the instances
+    // levels are actually searched/scored against (generateInstances) and
+    // the ones used for the post-hoc held-out check
+    // (generateAdversarialInstances) don't collapse into the same data.
+    std::vector<Instance> generateStructuralInstances(int n, uint64_t seedOffset, int wideRangeSamples) const;
+
     int exhaustiveMaxN_;
     int randomInstancesPerLevel_;
     int numVars_;
