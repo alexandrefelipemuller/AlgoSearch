@@ -1,0 +1,65 @@
+[
+  {
+    "program": "",
+    "program_size": 1,
+    "level_reached": 1,
+    "n_reached": 1,
+    "score": 1,
+    "total_tests": 1,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "if ((((arr[v1] - (v2 + v3)) + 1) > arr[1])) {\n  swap(arr[v1], arr[1]);\n}\nv1 = v3;\n",
+    "program_size": 18,
+    "level_reached": 2,
+    "n_reached": 2,
+    "score": 10,
+    "total_tests": 10,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program": "if ((((arr[v1] - (v2 + v3)) + 1) > arr[1])) {\n  swap(arr[v1], arr[1]);\n} else {\n  arr[(0 + (arr[v1] - (1 - 2)))] = (0 + arr[2]);\n}\nv1 = v3;\nwhile (((v0 - arr[v2]) == arr[1])) {\n  while (((v1 - ((v3 + v3) - arr[0])) < v0)) {\n    v0 = arr[arr[arr[v1]]];\n    v2 = arr[((0 + v3) + arr[v3])];\n  }\n  v3 = arr[arr[1]];\n  arr[v1] = arr[((0 + 1) + arr[v0])];\n}\n",
+    "program_size": 76,
+    "level_reached": 3,
+    "n_reached": 3,
+    "score": 14,
+    "total_tests": 14,
+    "final_status": "SUCCESS",
+    "adversarial_passed": 8,
+    "adversarial_total": 13,
+    "seed": 7,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "7",
+      "candidates_per_size": "3000"
+    }
+  }
+]
