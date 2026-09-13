@@ -1,8 +1,12 @@
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <string>
 
+#include "problems/ContainsProblem.hpp"
+#include "problems/MinArrayProblem.hpp"
 #include "problems/SortingProblem.hpp"
+#include "problems/SumArrayProblem.hpp"
 #include "search/BeamSearch.hpp"
 #include "search/Persistence.hpp"
 
@@ -55,9 +59,17 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|sum|contains --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] [--output solutions.json]\n";
+}
+
+std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
+    if (name == "sorting") return std::make_unique<SortingProblem>(6, 40, numVars, seed);
+    if (name == "min") return std::make_unique<MinArrayProblem>(6, 40, numVars, seed);
+    if (name == "sum") return std::make_unique<SumArrayProblem>(6, 40, numVars, seed);
+    if (name == "contains") return std::make_unique<ContainsProblem>(6, 40, numVars, seed);
+    return nullptr;
 }
 
 }  // namespace
@@ -69,12 +81,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (args.problem != "sorting") {
-        std::cerr << "Unknown problem: " << args.problem << " (only 'sorting' is available in V1)\n";
+    std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
+    if (!problem) {
+        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, sum, contains)\n";
         return 1;
     }
-
-    SortingProblem problem(/*exhaustiveMaxN=*/6, /*randomInstancesPerLevel=*/40, args.numVars, args.seed);
 
     SearchConfig config;
     config.beamWidth = args.beamWidth;
@@ -87,7 +98,7 @@ int main(int argc, char** argv) {
     config.genConfig.numVars = args.numVars;
     config.numThreads = args.threads;
 
-    BeamSearch search(problem, config);
+    BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();
 
     if (solutions.empty()) {
