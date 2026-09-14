@@ -1,0 +1,60 @@
+[
+  {
+    "program_id": "553e93901e462a6e",
+    "program": "",
+    "program_size": 1,
+    "level_found": 1,
+    "level_reached": 1,
+    "n_reached": 1,
+    "first_level": 1,
+    "confirmed_levels": 1,
+    "score": 1,
+    "total_tests": 1,
+    "training_score": "1/1",
+    "heldout_score": "13/13",
+    "final_status": "UNCONFIRMED",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "beam_diversity": 1,
+    "beam_size": 1,
+    "seed": 5,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "5",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program_id": "74e4a9e8d257c12a",
+    "program": "if ((arr[((1 - v1) + v3)] < arr[v3])) {\n  swap(arr[1], arr[v3]);\n}\nif ((1 == (arr[(0 - v2)] + v1))) {\n  arr[(v3 + arr[v0])] = (arr[1] - arr[3]);\n  while ((arr[v2] < arr[0])) {\n    v1 = (0 - 3);\n    v1 = v0;\n    if ((v0 == (arr[2] - arr[arr[0]]))) {\n      v1 = arr[v3];\n      swap(arr[arr[((1 + 0) - arr[v3])]], arr[(((v0 - v3) + arr[0]) - arr[v1])]);\n      if ((2 < arr[((3 + v2) + arr[1])])) {\n        if ((v3 < 1)) {\n          v0 = 1;\n        }\n        arr[v3] = arr[(0 - arr[v0])];\n      }\n    }\n  }\n  swap(arr[1], arr[v2]);\n}\n",
+    "program_size": 100,
+    "level_found": 2,
+    "level_reached": 2,
+    "n_reached": 2,
+    "first_level": 2,
+    "confirmed_levels": 1,
+    "score": 10,
+    "total_tests": 10,
+    "training_score": "10/10",
+    "heldout_score": "12/13",
+    "final_status": "UNCONFIRMED",
+    "adversarial_passed": 12,
+    "adversarial_total": 13,
+    "beam_diversity": 38,
+    "beam_size": 1500,
+    "seed": 5,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "5",
+      "candidates_per_size": "3000"
+    }
+  }
+]

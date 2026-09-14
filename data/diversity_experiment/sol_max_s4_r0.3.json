@@ -1,0 +1,60 @@
+[
+  {
+    "program_id": "553e93901e462a6e",
+    "program": "",
+    "program_size": 1,
+    "level_found": 1,
+    "level_reached": 1,
+    "n_reached": 1,
+    "first_level": 1,
+    "confirmed_levels": 1,
+    "score": 1,
+    "total_tests": 1,
+    "training_score": "1/1",
+    "heldout_score": "13/13",
+    "final_status": "UNCONFIRMED",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "beam_diversity": 1,
+    "beam_size": 451,
+    "seed": 4,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "4",
+      "candidates_per_size": "3000"
+    }
+  },
+  {
+    "program_id": "eb11e53db649b08c",
+    "program": "v3 = arr[v1];\nwhile ((v2 < v2)) {\n  v3 = (3 + arr[(v3 - v0)]);\n  if (((arr[arr[v0]] + 3) > ((arr[1] - (v3 - 3)) - 2))) {\n    arr[(2 + ((0 - v1) + (1 - v3)))] = arr[arr[v0]];\n    if (((2 + v3) == 1)) {\n      v2 = v0;\n    } else {\n      v2 = 1;\n      arr[arr[arr[1]]] = ((arr[0] - (0 - v1)) - arr[(0 - v2)]);\n    }\n    if ((arr[arr[2]] == (arr[v0] + v3))) {\n      v3 = v0;\n      v3 = 0;\n      v1 = 2;\n      v2 = (arr[(v2 + v3)] - (arr[2] + v0));\n    } else {\n      v2 = arr[(arr[2] - arr[v3])];\n      v1 = 2;\n      swap(arr[2], arr[((v2 + arr[v0]) + arr[(v3 + v1)])]);\n      v0 = v1;\n    }\n  }\n}\nv0 = v2;\nswap(arr[1], arr[0]);\nv0 = v2;\nwhile ((v3 > arr[0])) {\n  v2 = v2;\n  arr[v2] = arr[((v1 + 1) - v0)];\n}\n",
+    "program_size": 137,
+    "level_found": 2,
+    "level_reached": 2,
+    "n_reached": 2,
+    "first_level": 2,
+    "confirmed_levels": 1,
+    "score": 10,
+    "total_tests": 10,
+    "training_score": "10/10",
+    "heldout_score": "13/13",
+    "final_status": "UNCONFIRMED",
+    "adversarial_passed": 13,
+    "adversarial_total": 13,
+    "beam_diversity": 396,
+    "beam_size": 1500,
+    "seed": 4,
+    "config": {
+      "beam_width": "1500",
+      "max_program_size": "300",
+      "step_limit": "8000",
+      "start_level": "1",
+      "max_level": "8",
+      "seed": "4",
+      "candidates_per_size": "3000"
+    }
+  }
+]
