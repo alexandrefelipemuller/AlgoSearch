@@ -34,7 +34,8 @@ ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     return makeCompare(k, genValueExpr(rng, depthBudget, cfg), genValueExpr(rng, depthBudget, cfg));
 }
 
-std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts);
+std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts,
+                                    bool insideIf = false, bool insideWhile = false);
 
 // One canonical accumulation body for the counting-loop skeleton below.
 // `vi` is the loop index variable, `acc` a second variable seeded before
@@ -101,7 +102,16 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     return root;
 }
 
-StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed) {
+// A self-increment `v = v + 1` for a random variable -- the specific
+// idiom the forensic analysis found in 94.5% of generalizing programs
+// (100% for min/max/sum) vs. 37.7% of non-generalizers.
+StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
+    int v = rng.uniformInt(0, cfg.numVars - 1);
+    return makeAssign(v, makeBinOp(ExprKind::Add, makeVar(v), makeIntConst(1)));
+}
+
+StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, bool insideIf = false,
+                bool insideWhile = false) {
     // Weighted choice among available statement kinds.
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
@@ -115,23 +125,35 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
 
     switch (choice) {
         case 0:
+            if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
+                return genIndexIncrementStmt(rng, cfg);
+            }
             return makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
-        case 1:
-            if (rng.chance(0.5)) {
+        case 1: {
+            double swapChance = insideIf ? 0.5 : std::max(0.05, 0.5 - cfg.bareSwapPenalty);
+            if (!rng.chance(swapChance)) {
                 return makeAssignArray(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
             }
             return makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+        }
         case 2: {
-            auto thenBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock);
+            auto thenBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
+                                           /*insideWhile=*/false);
             std::vector<StmtPtr> elseBody;
-            if (rng.chance(0.4)) elseBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock);
+            if (rng.chance(0.4))
+                elseBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
+                                          /*insideWhile=*/false);
             return makeIf(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(thenBody), std::move(elseBody));
         }
         case 3:
+            if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
+                return genIndexIncrementStmt(rng, cfg);
+            }
             return makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
         case 4: {
             loopsUsed++;
-            auto body = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock);
+            auto body = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/false,
+                                       /*insideWhile=*/true);
             return makeWhile(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(body));
         }
         default:
@@ -139,11 +161,12 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     }
 }
 
-std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts) {
+std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts,
+                                    bool insideIf, bool insideWhile) {
     std::vector<StmtPtr> stmts;
     int n = rng.uniformInt(1, std::max(1, maxStmts));
     for (int i = 0; i < n; ++i) {
-        stmts.push_back(genStmt(rng, depthBudget, cfg, loopsUsed));
+        stmts.push_back(genStmt(rng, depthBudget, cfg, loopsUsed, insideIf, insideWhile));
     }
     return stmts;
 }
@@ -155,17 +178,27 @@ int countLoops(const Stmt& s) {
     return total;
 }
 
+// A growProgram() insertion target: the block itself, plus what kind of
+// statement it's the direct body of, so an inserted statement can be
+// generated with the right insideIf/insideWhile context (see genStmt) --
+// without this, growProgram would silently bypass the structural priors
+// for every statement it inserts, since context can't be inferred later.
+struct BlockTarget {
+    std::vector<StmtPtr>* block;
+    StmtKind parentKind;
+};
+
 // Collects mutable references to every block-like statement vector in the
 // tree (the root's body, plus every if/while body and if's else-body).
-void collectBlocks(Stmt& s, std::vector<std::vector<StmtPtr>*>& out) {
+void collectBlocks(Stmt& s, std::vector<BlockTarget>& out) {
     // Only Block/If/While actually execute and print their `body`; only If
     // uses `elseBody`. Registering any other vector as an insertion target
     // would make inserted statements invisible to both execution and print.
     if (s.kind == StmtKind::Block || s.kind == StmtKind::If || s.kind == StmtKind::While) {
-        out.push_back(&s.body);
+        out.push_back({&s.body, s.kind});
     }
     if (s.kind == StmtKind::If) {
-        out.push_back(&s.elseBody);
+        out.push_back({&s.elseBody, s.kind});
     }
     for (auto& c : s.body) collectBlocks(*c, out);
     for (auto& c : s.elseBody) collectBlocks(*c, out);
@@ -191,12 +224,15 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
     int guard = 0;
     while (root->size() < targetSize && guard < 200) {
         guard++;
-        std::vector<std::vector<StmtPtr>*> blocks;
+        std::vector<BlockTarget> blocks;
         collectBlocks(*root, blocks);
         if (blocks.empty()) break;
-        auto* target = blocks[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(blocks.size()) - 1))];
+        const BlockTarget& targetInfo = blocks[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(blocks.size()) - 1))];
+        auto* target = targetInfo.block;
         size_t pos = target->empty() ? 0 : static_cast<size_t>(rng.uniformInt(0, static_cast<int>(target->size())));
-        target->insert(target->begin() + static_cast<long>(pos), genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed));
+        target->insert(target->begin() + static_cast<long>(pos),
+                        genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed, /*insideIf=*/targetInfo.parentKind == StmtKind::If,
+                                /*insideWhile=*/targetInfo.parentKind == StmtKind::While));
     }
 
     // Point-mutate: replace one existing statement in place. This is what
@@ -204,17 +240,19 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
     // insertion can only ever add code, never correct a wrong comparison or
     // wrong index deep inside an already-large candidate.
     if (rng.chance(0.6)) {
-        std::vector<std::vector<StmtPtr>*> blocks;
+        std::vector<BlockTarget> blocks;
         collectBlocks(*root, blocks);
-        std::vector<std::vector<StmtPtr>*> nonEmpty;
-        for (auto* b : blocks) {
-            if (!b->empty()) nonEmpty.push_back(b);
+        std::vector<BlockTarget> nonEmpty;
+        for (const auto& b : blocks) {
+            if (!b.block->empty()) nonEmpty.push_back(b);
         }
         if (!nonEmpty.empty()) {
-            auto* target = nonEmpty[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(nonEmpty.size()) - 1))];
+            const BlockTarget& targetInfo = nonEmpty[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(nonEmpty.size()) - 1))];
+            auto* target = targetInfo.block;
             size_t idx = static_cast<size_t>(rng.uniformInt(0, static_cast<int>(target->size()) - 1));
             int loopsUsed = countLoops(*root);
-            (*target)[idx] = genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed);
+            (*target)[idx] = genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed, /*insideIf=*/targetInfo.parentKind == StmtKind::If,
+                                      /*insideWhile=*/targetInfo.parentKind == StmtKind::While);
         }
     }
     return root;

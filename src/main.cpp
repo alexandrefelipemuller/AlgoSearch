@@ -29,6 +29,8 @@ struct CliArgs {
     int invarianceLookahead = 3;
     double diversityRate = 0.0;
     double loopBias = 0.0;
+    double indexIncrementBias = 0.0;
+    double bareSwapPenalty = 0.0;
     std::string output = "solutions.json";
 };
 
@@ -55,6 +57,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--invariance-lookahead") args.invarianceLookahead = std::stoi(next("--invariance-lookahead"));
         else if (arg == "--diversity-rate") args.diversityRate = std::stod(next("--diversity-rate"));
         else if (arg == "--loop-bias") args.loopBias = std::stod(next("--loop-bias"));
+        else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
+        else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -69,7 +73,8 @@ void printUsage() {
     std::cout << "algorithm-discovery --problem sorting|min|sum|contains --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
-                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.0] [--output solutions.json]\n";
+                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.0] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--output solutions.json]\n";
 }
 
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
@@ -109,6 +114,8 @@ int main(int argc, char** argv) {
     config.invarianceLookahead = args.invarianceLookahead;
     config.diversityRate = args.diversityRate;
     config.genConfig.loopAccumulatorBias = args.loopBias;
+    config.genConfig.indexIncrementBias = args.indexIncrementBias;
+    config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();

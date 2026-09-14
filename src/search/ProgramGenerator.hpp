@@ -28,6 +28,33 @@ struct GenConfig {
     // emerge from unbiased mutation alone. 0.0 (default) disables it and
     // reproduces the original unbiased generator exactly.
     double loopAccumulatorBias = 0.0;
+
+    // Structural prior, layer 2 (independent of loopAccumulatorBias):
+    // targets the two specific patterns the forensic AST analysis flagged
+    // as discriminating generalizers from non-generalizers on their own,
+    // rather than only via the fixed counting-loop template.
+    //
+    // When generating a generic assignment INSIDE a while body, with this
+    // probability emit the self-increment idiom `v = v + 1` for a random
+    // variable instead of a fully random expression -- every generalizing
+    // min/max/sum program found so far contained this idiom (94.5%
+    // overall, 100% for min/max/sum specifically; see
+    // data/structural_features.csv), so nudging the *generic* generator
+    // (not just the dedicated loop template) to produce it more often is
+    // a direct test of whether that correlation is causal.
+    double indexIncrementBias = 0.0;
+
+    // Reduces (never eliminates -- a prior should shrink probability, not
+    // remove expressiveness) the chance of generating a swap OUTSIDE an
+    // if's body, i.e. one not immediately guarded by a comparison.
+    // Non-generalizers used swap almost twice as often as generalizers
+    // (0.74 vs 0.39 mean occurrences) -- this tests whether that's because
+    // ungated/unconditional swaps are a marker of unstructured search, not
+    // whether swap itself is bad (a guarded compare-and-swap is exactly
+    // what sorting needs, and stays at its original probability). Applied
+    // as `effective swap chance = 0.5 - bareSwapPenalty` when not directly
+    // inside an if; capped so at least a 0.05 residual chance remains.
+    double bareSwapPenalty = 0.0;
 };
 
 // Generates a brand-new random program (a Block) with approximately
