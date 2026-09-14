@@ -14,6 +14,20 @@ struct GenConfig {
     int maxBlockDepth = 3;   // nesting depth of if/while
     int maxLoops = 2;        // max number of while-loops in a whole program
     int maxConst = 3;        // generated integer literals are in [0, maxConst]
+
+    // Grammar-level bias, in [0, 1], toward directly emitting a canonical
+    // "counting loop" skeleton --
+    //   acc = 0 (or arr[0]);  i = 0;  while (i < n) { <body>; i = i + 1; }
+    // -- instead of a fully unstructured random statement, whenever a loop
+    // is being generated. <body> is itself one of a few canonical
+    // accumulation shapes (running sum, running min/max via if, target
+    // membership check, adjacent-swap) rather than arbitrary code, so the
+    // *skeleton* that real array algorithms need (an index that starts at
+    // 0, is compared against n, and increments exactly once) is handed to
+    // the generator directly with higher probability, rather than left to
+    // emerge from unbiased mutation alone. 0.0 (default) disables it and
+    // reproduces the original unbiased generator exactly.
+    double loopAccumulatorBias = 0.0;
 };
 
 // Generates a brand-new random program (a Block) with approximately

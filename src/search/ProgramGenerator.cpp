@@ -36,10 +36,79 @@ ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
 
 std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts);
 
+// One canonical accumulation body for the counting-loop skeleton below.
+// `vi` is the loop index variable, `acc` a second variable seeded before
+// the loop. All five shapes touch arr[vi] -- the one thing every array
+// algorithm (min/max/sum/contains/sort) actually needs a loop for.
+StmtPtr genAccumulatorBodyStmt(Random& rng, int vi, int acc, const GenConfig& cfg) {
+    int choice = rng.uniformInt(0, 4);
+    switch (choice) {
+        case 0:  // running sum: acc = acc + arr[vi]
+            return makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeArrayAccess(makeVar(vi))));
+        case 1:  // running min: if (arr[vi] < acc) acc = arr[vi]
+        {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
+            return makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
+        }
+        case 2:  // running max: if (arr[vi] > acc) acc = arr[vi]
+        {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
+            return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
+        }
+        case 3:  // membership: if (arr[vi] == arr[0]) arr[0] = 1
+        {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));
+            return makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(makeVar(vi)), makeArrayAccess(makeIntConst(0))), std::move(then));
+        }
+        default:  // adjacent compare-and-swap: if (arr[vi] > arr[vi+1]) swap(arr[vi], arr[vi+1])
+        {
+            auto next = makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1));
+            auto cond = makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeArrayAccess(next->clone()));
+            std::vector<StmtPtr> then;
+            then.push_back(makeSwap(makeVar(vi), next->clone()));
+            (void)cfg;
+            return makeIf(std::move(cond), std::move(then));
+        }
+    }
+}
+
+// The canonical "counting loop" skeleton every array algorithm needs:
+// an index that starts at 0, is bounds-checked against n (var 0, by
+// interpreter convention initialized to the array length), and
+// increments exactly once per iteration -- wrapped as a single Block so
+// it can be generated/inserted anywhere a single statement is expected.
+StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    // Reserve var 0 (the array length) and pick two distinct scalar
+    // variables for the index and accumulator from the rest.
+    int vi = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    int acc = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    if (acc == vi) acc = 1 + (vi % (cfg.numVars - 1));
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(acc, rng.chance(0.5) ? makeIntConst(0) : makeArrayAccess(makeIntConst(0))));
+    root->body.push_back(makeAssign(vi, makeIntConst(0)));
+
+    std::vector<StmtPtr> body;
+    body.push_back(genAccumulatorBodyStmt(rng, vi, acc, cfg));
+    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmt(rng, vi, acc, cfg));
+    body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
+
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(vi), makeVar(0)), std::move(body)));
+    return root;
+}
+
 StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed) {
     // Weighted choice among available statement kinds.
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
+
+    if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
+        return genCountingLoopBlock(rng, cfg, loopsUsed);
+    }
 
     int maxChoice = canNest ? (canLoop ? 4 : 3) : 1;
     int choice = rng.uniformInt(0, maxChoice);
