@@ -79,6 +79,46 @@ TEST(champion_records_share_program_id_and_horizon_across_a_cascade) {
     }
 }
 
+TEST(diversity_rate_zero_reproduces_original_behavior) {
+    SortingProblem problem(6, 20, 3, 99);
+    SearchConfig cfg;
+    cfg.beamWidth = 50;
+    cfg.maxProgramSize = 8;
+    cfg.stepLimit = 2000;
+    cfg.maxLevel = 1;
+    cfg.seed = 99;
+    cfg.candidatesPerSize = 100;
+    cfg.genConfig.numVars = 3;
+    cfg.diversityRate = 0.0;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.back().score, solutions.back().totalTests);
+}
+
+TEST(diversity_rate_never_loses_the_best_candidate) {
+    // With a large diversityRate, most of the beam is replaced by random
+    // immigrants every round -- but the champion (best-by-score) must
+    // never be one of the discarded slots, so a full solve should still
+    // be found and reported just like with diversityRate == 0.
+    SortingProblem problem(6, 20, 3, 99);
+    SearchConfig cfg;
+    cfg.beamWidth = 50;
+    cfg.maxProgramSize = 8;
+    cfg.stepLimit = 2000;
+    cfg.maxLevel = 1;
+    cfg.seed = 99;
+    cfg.candidatesPerSize = 100;
+    cfg.genConfig.numVars = 3;
+    cfg.diversityRate = 0.5;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.back().score, solutions.back().totalTests);
+}
+
 TEST(invariance_gate_marks_a_one_level_fit_as_unconfirmed) {
     GambiarraTrapProblem problem;
     SearchConfig cfg;

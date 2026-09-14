@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <sstream>
 #include <thread>
@@ -212,8 +213,45 @@ std::vector<SolutionRecord> BeamSearch::run() {
         int bestSize = scored.front().size;
         log::progress(scored.size(), bestScore, static_cast<int>(instances.size()), bestSize, timeouts, errors);
 
-        if (static_cast<int>(scored.size()) > config_.beamWidth) scored.resize(static_cast<size_t>(config_.beamWidth));
+        int immigrantCount = 0;
+        int eliteCount = config_.beamWidth;
+        if (config_.diversityRate > 0.0) {
+            immigrantCount = static_cast<int>(std::lround(config_.diversityRate * config_.beamWidth));
+            immigrantCount = std::clamp(immigrantCount, 0, config_.beamWidth);
+            eliteCount = config_.beamWidth - immigrantCount;
+        }
+        if (static_cast<int>(scored.size()) > eliteCount) scored.resize(static_cast<size_t>(eliteCount));
         beam = std::move(scored);
+
+        if (immigrantCount > 0) {
+            // Random immigrants: fill the rest of the beam with brand-new
+            // random programs regardless of their score, instead of the
+            // next-best-by-fitness candidates that would otherwise take
+            // those slots. Scored the same way as every other candidate
+            // (so their timeouts/errors/score still show up in stats and
+            // they're eligible to trigger a full solve like anything
+            // else) -- the only thing that changed is which candidates get
+            // to occupy the tail of the beam.
+            std::vector<Program> immigrantPool;
+            immigrantPool.reserve(static_cast<size_t>(immigrantCount));
+            for (int i = 0; i < immigrantCount; ++i) immigrantPool.push_back(generateRandomProgram(rng, size, config_.genConfig));
+            std::vector<CandidateRecord> immigrantScored(immigrantPool.size());
+            int immTimeouts = 0, immErrors = 0;
+            scoreCandidates(immigrantPool, instances, problem_, interp, threadCount, immigrantScored, 0, immTimeouts, immErrors);
+            timeouts += immTimeouts;
+            errors += immErrors;
+            for (auto& rec : immigrantScored) beam.push_back(std::move(rec));
+            // Re-sort so beam.front() (relied on below as "the champion")
+            // stays correct: elite is already in score order, but an
+            // immigrant could in principle tie or (if eliteCount==0, i.e.
+            // diversityRate==1.0) be the actual best of what's left.
+            std::sort(beam.begin(), beam.end(), [](const CandidateRecord& a, const CandidateRecord& b) {
+                if (a.score != b.score) return a.score > b.score;
+                if (a.fitness != b.fitness) return a.fitness > b.fitness;
+                return a.size < b.size;
+            });
+            if (!beam.empty()) bestScore = beam.front().score;
+        }
 
         if (bestScore > 0 && bestScore == static_cast<int>(instances.size())) {
             // Full solve of the current level. First, a dry run: how far

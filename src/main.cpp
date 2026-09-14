@@ -27,6 +27,7 @@ struct CliArgs {
     int numVars = 4;
     unsigned threads = 0;  // 0 = auto-detect
     int invarianceLookahead = 3;
+    double diversityRate = 0.0;
     std::string output = "solutions.json";
 };
 
@@ -51,6 +52,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--num-vars") args.numVars = std::stoi(next("--num-vars"));
         else if (arg == "--threads") args.threads = static_cast<unsigned>(std::stoul(next("--threads")));
         else if (arg == "--invariance-lookahead") args.invarianceLookahead = std::stoi(next("--invariance-lookahead"));
+        else if (arg == "--diversity-rate") args.diversityRate = std::stod(next("--diversity-rate"));
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -65,7 +67,7 @@ void printUsage() {
     std::cout << "algorithm-discovery --problem sorting|min|sum|contains --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
-                 "[--invariance-lookahead 3] [--output solutions.json]\n";
+                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--output solutions.json]\n";
 }
 
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
@@ -103,6 +105,7 @@ int main(int argc, char** argv) {
     config.genConfig.numVars = args.numVars;
     config.numThreads = args.threads;
     config.invarianceLookahead = args.invarianceLookahead;
+    config.diversityRate = args.diversityRate;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();

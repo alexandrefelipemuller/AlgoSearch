@@ -36,6 +36,19 @@ struct SearchConfig {
     // this feature existed).
     int invarianceLookahead = 3;
 
+    // Random immigrants: after ranking candidates by score/fitness for
+    // this size step, the bottom `diversityRate` fraction of beamWidth
+    // slots is replaced with brand-new random programs (same
+    // generateRandomProgram() used everywhere else -- this changes beam
+    // SELECTION, never candidate generation or mutation) instead of the
+    // next-best-by-fitness candidates. The elite (top 1-diversityRate of
+    // beamWidth) is always kept, so the current best is never lost. This
+    // is the cheapest possible test of whether the beam is converging
+    // prematurely onto one family of near-identical solutions: forcing a
+    // steady trickle of unrelated fresh candidates into the population
+    // costs nothing to implement and doesn't touch the search operator.
+    // 0.0 (default) disables it and reproduces the original behavior.
+    double diversityRate = 0.0;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
