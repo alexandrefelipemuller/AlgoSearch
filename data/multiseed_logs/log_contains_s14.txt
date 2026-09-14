@@ -1,0 +1,273 @@
+
+LEVEL 1
+haystack N = 1
+instances = 2
+beam = 1500
+  candidates = 1 | best score = 0/2 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+haystack N = 1
+instances = 2
+beam = 1500
+  candidates = 3002 | best score = 2/2 | best size = 12 | timeouts = 58 | errors = 3777
+  beam diversity at full solve: 22 distinct shapes / 1500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 2/2
+  size 12  held-out 8/26
+  program_id 887bd9a8cae3696f  first_level 1  confirmed_levels 1
+  programa:
+arr[v3] = ((v0 - (v3 + 1)) - arr[arr[1]]);
+
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 10/20 | best size = 4 | timeouts = 1050 | errors = 65562
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 989 | errors = 50131
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 877 | errors = 54228
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1020 | errors = 57187
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1037 | errors = 59963
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1023 | errors = 60442
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 984 | errors = 57881
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1015 | errors = 59924
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1173 | errors = 58197
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 974 | errors = 55173
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1181 | errors = 52334
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1012 | errors = 56323
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1089 | errors = 57142
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1080 | errors = 59961
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1227 | errors = 63261
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1094 | errors = 64256
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 11/20 | best size = 10 | timeouts = 1347 | errors = 66305
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 13/20 | best size = 235 | timeouts = 1208 | errors = 67224
+
+LEVEL 2
+haystack N = 2
+instances = 20
+beam = 1500
+  candidates = 6000 | best score = 20/20 | best size = 64 | timeouts = 1141 | errors = 68947
+  beam diversity at full solve: 373 distinct shapes / 1500 candidates
+
+N=2
+  score 20/20
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 28/28
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 64/64
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 256/256
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 1456/1456
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 96/96
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 96/96
+  size 64  held-out 26/26
+  program_id 303ec56063b2a9bf  first_level 2  confirmed_levels 7
+  programa:
+if (((arr[2] + arr[v3]) > 2)) {
+  if ((3 > 3)) {
+    arr[(arr[arr[v0]] - arr[(v2 + v1)])] = arr[arr[(v3 + 3)]];
+    v0 = (arr[(v3 + 0)] + v1);
+  }
+  v2 = arr[(3 - 3)];
+}
+if ((arr[1] == arr[((3 - 3) + 0)])) {
+  v1 = (v3 - 1);
+}
+arr[0] = (1 + ((2 - 3) - (v3 + v1)));
+
+
+Search finished in 3.60256s
+
+Saved 11 solution record(s) to /tmp/claude-1000/-home-alexandre-Projects-AlgoSearch/27a6deab-ba1e-4db7-9e6c-9e18c2ad90f1/scratchpad/multiseed/sol_contains_s14.json
