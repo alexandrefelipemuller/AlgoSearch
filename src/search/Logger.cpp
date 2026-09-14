@@ -25,14 +25,16 @@ void searchFinished(double totalSeconds) { std::cout << "\nSearch finished in " 
 void info(const std::string& msg) { std::cout << msg << "\n"; }
 
 void championAtLevel(int level, int score, int total, int programSize, const std::string& programText, int advPassed,
-                      int advTotal) {
+                      int advTotal, const std::string& programId, int firstLevel, int confirmedLevels) {
     std::cout << "\nN=" << level << "\n"
               << "  score " << score << "/" << total << "\n"
               << "  size " << programSize;
     if (advTotal >= 0) {
         std::cout << "  held-out " << advPassed << "/" << advTotal;
     }
-    std::cout << "\n  programa:\n" << programText << "\n";
+    std::cout << "\n  program_id " << programId << "  first_level " << firstLevel << "  confirmed_levels " << confirmedLevels
+              << "\n  programa:\n"
+              << programText << "\n";
 }
 
 }  // namespace log

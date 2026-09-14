@@ -2,7 +2,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <sstream>
 #include <thread>
+#include <unordered_set>
 
 #include "core/Random.hpp"
 #include "interpreter/Interpreter.hpp"
@@ -12,6 +15,48 @@
 namespace algosearch {
 
 namespace {
+
+// Stable, short id for a program: a hex hash of its canonical text. Every
+// per-N row produced by one promotion cascade shares this id, since they
+// all describe the exact same unmutated program.
+std::string programIdOf(const std::string& programText) {
+    std::ostringstream oss;
+    oss << std::hex << std::hash<std::string>{}(programText);
+    return oss.str();
+}
+
+// A coarse "shape" signature: counts of each statement kind plus the
+// deepest while-nesting, ignoring literal constants and variable/array
+// indices entirely. Two programs that differ only in which constant or
+// variable they poke are the same shape here; two programs with a
+// different number of loops or branches are not. Used only to measure
+// beam diversity (how many distinct shapes survive to the moment a full
+// solve is found) -- never for scoring or selection.
+void tallyShape(const Stmt& s, int depth, int counts[6], int& maxDepth) {
+    switch (s.kind) {
+        case StmtKind::Assign: counts[0]++; break;
+        case StmtKind::AssignArray: counts[1]++; break;
+        case StmtKind::If: counts[2]++; break;
+        case StmtKind::While: counts[3]++; break;
+        case StmtKind::Swap: counts[4]++; break;
+        case StmtKind::Return: counts[5]++; break;
+        case StmtKind::Block: break;
+    }
+    int childDepth = depth + (s.kind == StmtKind::While ? 1 : 0);
+    maxDepth = std::max(maxDepth, childDepth);
+    for (const auto& c : s.body) tallyShape(*c, childDepth, counts, maxDepth);
+    for (const auto& c : s.elseBody) tallyShape(*c, childDepth, counts, maxDepth);
+}
+
+std::string structuralShape(const Stmt& program) {
+    int counts[6] = {0, 0, 0, 0, 0, 0};
+    int maxDepth = 0;
+    tallyShape(program, 0, counts, maxDepth);
+    std::ostringstream oss;
+    for (int c : counts) oss << c << ",";
+    oss << maxDepth;
+    return oss.str();
+}
 
 struct CandidateRecord {
     Program program;
@@ -182,6 +227,22 @@ std::vector<SolutionRecord> BeamSearch::run() {
             const Program& provenProgram = beam.front().program;
             std::string programText = provenProgram->toString();
             int programSize = beam.front().size;
+            std::string programId = programIdOf(programText);
+
+            // Diversity snapshot, purely observational: how many distinct
+            // coarse "shapes" survive in the beam right now, at the exact
+            // moment a full solve is found? A beam saturated with minor
+            // variants of one shape (diversity close to 1) is evidence of
+            // premature convergence -- the population narrowed onto a
+            // single lineage before it had a chance to discover a more
+            // general structure, which may be exactly why min/max/sum keep
+            // hitting a wall while contains did not.
+            std::unordered_set<std::string> shapes;
+            for (const auto& b : beam) shapes.insert(structuralShape(*b.program));
+            int beamDiversity = static_cast<int>(shapes.size());
+            int beamSizeNow = static_cast<int>(beam.size());
+            log::info("  beam diversity at full solve: " + std::to_string(beamDiversity) + " distinct shapes / " +
+                      std::to_string(beamSizeNow) + " candidates");
 
             struct LevelResult {
                 int level, score, total;
@@ -201,6 +262,9 @@ std::vector<SolutionRecord> BeamSearch::run() {
                 level = next;
                 cascade.push_back({level, s, static_cast<int>(nextInstances.size())});
             }
+
+            int firstLevel = currentLevel;
+            int confirmedLevels = static_cast<int>(cascade.size());
 
             int requiredLevel = std::min(currentLevel + config_.invarianceLookahead, config_.maxLevel);
             bool invarianceHolds = config_.invarianceLookahead <= 0 || level >= requiredLevel;
@@ -234,18 +298,24 @@ std::vector<SolutionRecord> BeamSearch::run() {
                     }
                 }
                 if (lr.level != currentLevel) log::advancingToLevel(lr.level);
-                log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal);
+                log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal, programId,
+                                      firstLevel, confirmedLevels);
 
                 SolutionRecord rec;
+                rec.programId = programId;
                 rec.programText = programText;
                 rec.programSize = programSize;
                 rec.levelReached = lr.level;
                 rec.nReached = lr.level;
+                rec.firstLevel = firstLevel;
+                rec.confirmedLevels = confirmedLevels;
                 rec.score = lr.score;
                 rec.totalTests = lr.total;
                 rec.finalStatus = status;
                 rec.adversarialPassed = advPassed;
                 rec.adversarialTotal = advTotal;
+                rec.beamDiversity = beamDiversity;
+                rec.beamSize = beamSizeNow;
                 rec.seed = config_.seed;
                 rec.config = configToPairs(config_);
                 solutions.push_back(std::move(rec));

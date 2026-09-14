@@ -30,7 +30,54 @@ public:
     int numVars() const override { return 3; }
 };
 
+// A problem the empty/no-op program solves at every level (output[0] must
+// be 0, and the no-op leaves the all-zero input untouched) -- used to
+// verify that a genuinely generalizing program produces one row per level
+// with a consistent programId/firstLevel/confirmedLevels.
+class AlwaysZeroProblem : public Problem {
+public:
+    std::vector<Instance> generateInstances(int level) const override {
+        return {Instance{std::vector<int>(static_cast<size_t>(level), 0), {0}}};
+    }
+    std::string describeLevel(int level) const override { return "N = " + std::to_string(level); }
+    int nextLevel(int level) const override { return level + 1; }
+    bool isSolution(const std::vector<int>&, const std::vector<int>& output) const override {
+        return !output.empty() && output[0] == 0;
+    }
+    int numVars() const override { return 3; }
+};
+
 }  // namespace
+
+TEST(champion_records_share_program_id_and_horizon_across_a_cascade) {
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 5;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    // The no-op program solves every level from 1 to 5 in one shot, so
+    // this must be a single cascade producing exactly 5 rows.
+    CHECK_EQ(solutions.size(), static_cast<size_t>(5));
+    const std::string& id = solutions.front().programId;
+    CHECK(!id.empty());
+    for (size_t i = 0; i < solutions.size(); ++i) {
+        CHECK_EQ(solutions[i].programId, id);
+        CHECK_EQ(solutions[i].firstLevel, 1);
+        CHECK_EQ(solutions[i].confirmedLevels, 5);
+        CHECK_EQ(solutions[i].levelReached, static_cast<int>(i) + 1);
+        CHECK_EQ(solutions[i].finalStatus, std::string("SUCCESS"));
+        CHECK(solutions[i].beamDiversity >= 1);
+    }
+}
 
 TEST(invariance_gate_marks_a_one_level_fit_as_unconfirmed) {
     GambiarraTrapProblem problem;

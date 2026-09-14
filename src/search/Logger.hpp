@@ -22,7 +22,7 @@ void info(const std::string& msg);
 // text at each N). advPassed/advTotal may be -1 if no held-out instances
 // were available for that level.
 void championAtLevel(int level, int score, int total, int programSize, const std::string& programText, int advPassed,
-                      int advTotal);
+                      int advTotal, const std::string& programId, int firstLevel, int confirmedLevels);
 
 }  // namespace log
 }  // namespace algosearch
