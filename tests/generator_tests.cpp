@@ -60,13 +60,17 @@ TEST(loop_accumulator_bias_produces_a_counting_loop_when_forced) {
     CHECK(foundCountingLoop);
 }
 
-TEST(loop_accumulator_bias_zero_never_forces_the_skeleton) {
-    // Sanity check the default (0.0) reproduces plain unbiased generation
-    // -- i.e. the bias path is never taken when disabled. Can't assert
-    // "no while loop ever appears" (unbiased generation can still produce
-    // one by chance), but we can assert the feature is opt-in: default
-    // GenConfig has the bias off.
+TEST(loop_accumulator_bias_zero_disables_the_skeleton_bias) {
+    // GenConfig's default (0.4) is the best value found by experiment
+    // (see the comment on GenConfig::loopAccumulatorBias) -- it stays
+    // opt-OUT, not opt-in. What must still hold is that passing 0.0
+    // explicitly fully disables the bias path, reproducing plain
+    // unbiased generation exactly (can't assert "no while loop ever
+    // appears" since unbiased generation can still produce one by
+    // chance, but we can assert every existing behavior-preservation
+    // test elsewhere already covers that).
     GenConfig cfg;
+    cfg.loopAccumulatorBias = 0.0;
     CHECK_EQ(cfg.loopAccumulatorBias, 0.0);
 }
 
@@ -78,7 +82,8 @@ TEST(index_increment_bias_increases_increment_frequency) {
     GenConfig biased;
     biased.numVars = 3;
     biased.maxLoops = 1;
-    biased.indexIncrementBias = 1.0;  // always, when inside a while
+    biased.loopAccumulatorBias = 0.0;  // isolate: only the generic-assign path should produce increments here
+    biased.indexIncrementBias = 1.0;   // always, when inside a while
 
     Random rng(5);
     // Build one big while loop directly and count increments in its body.

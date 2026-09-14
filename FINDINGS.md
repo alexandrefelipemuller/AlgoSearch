@@ -1,0 +1,202 @@
+# Findings log
+
+This file summarizes what has actually been learned running this project,
+in the order it was learned, with pointers to the raw data backing each
+claim. It exists so a new session (human or Claude) doesn't have to
+re-derive context that's already been paid for. Update it when an
+experiment produces a real conclusion; don't restate obvious code
+behavior that's already documented at the call site.
+
+## 1. V1 worked, but "solved" needs care
+
+Beam search over Mini-C programs can discover real sorting algorithms for
+small, exhaustively-tested N (found solutions for N=1..6 sorting,
+exhaustive permutations). But a program that scores 100% on one N's exact
+instance family can be a total non-generalizer -- see "generalization
+horizon" below. Passing a level's tests is not proof of correctness for
+all inputs; this was true from the start and got confirmed hard by
+experiment.
+
+## 2. Parallelism and a real memory bug
+
+Scoring is embarrassingly parallel (each candidate vs. each instance is
+independent) -- `BeamSearch::scoreCandidates` splits it across
+`std::thread`, ~3x wall-clock speedup on 8 cores, deterministic results
+(RNG stays single-threaded).
+
+Real bug found and fixed: `Dedup` used to store full canonical program
+text forever, unbounded. A run with max-program-size=2000 grew to >10GB
+RSS and had to be killed mid-run. Fixed by storing a 64-bit hash instead
+of the string, plus a hard cap (`maxEntries`, default 2M) that resets the
+set instead of growing past it.
+
+## 3. Sorting overfits badly on a naive instance set
+
+`SortingProblem::generateInstances()` originally only produced
+permutations of `{0..n-1}`. A program can hit 100% on that by exploiting
+that the *values themselves* are the correct target indices -- without
+doing anything like comparison-based sorting. Confirmed directly: the
+"solutions" for N>=2 scored ~100% exact / ~30-50% on adversarial
+instances (duplicates, negatives, wide range, reversed, sorted).
+
+Fix: `generateInstances()` now folds in `generateStructuralInstances()`
+(duplicates/negatives/sorted/reversed/all-equal/wide-range) for n>=2, so
+passing a level requires generalizing past the permutation-shape
+loophole. `generateAdversarialInstances()` uses a *different* seed offset
+for a genuinely held-out post-hoc check (never used for scoring/
+promotion).
+
+## 4. Generalization horizon > single SUCCESS/FAIL
+
+Every level-promotion event now records one row per level actually
+reached, not just the final one, each with: `program_id` (stable hash),
+`first_level` (where this program was found), `confirmed_levels` (the
+generalization horizon -- how many consecutive levels the SAME
+unmutated program held), plus training/held-out scores. See
+`SolutionRecord` in `src/search/Persistence.hpp`.
+
+**Structural invariance gate** (`SearchConfig::invarianceLookahead`,
+default 3): a level is only labeled a confirmed `SUCCESS` if the same
+program also holds `invarianceLookahead` levels ahead; otherwise
+`UNCONFIRMED`. Important pitfall found and fixed: an early version
+*blocked* level progression on an unconfirmed result -- this deadlocked
+the search on EVERY problem tested, including one (`contains`) known to
+generalize perfectly, because blocking progression means the engine
+never gets to score against the harder level where the real solution is
+findable. Fixed: progression always advances on the cascade reached;
+the gate only changes the record's label, never search dynamics.
+
+## 5. The core discovery: grammar prior >> population diversity
+
+**The headline result of this project so far.**
+
+Four step-back problems (`min`, `max`, `sum`, `contains` -- simpler than
+sorting, same unmodified search engine) were used to isolate the
+bottleneck for algorithm discovery.
+
+Without any bias, min/max/sum essentially never generalize (0/20 each
+across 20 independent seeds); `contains` generalizes ~9/20 (45%,
+corrected after expanding from an initial unlucky 1/5 sample -- always
+check more seeds before trusting a rate estimate).
+
+**Diversity experiment** (`diversity_rate` = fraction of the beam
+replaced by brand-new random "immigrant" programs each round,
+independent of fitness): raising it up to 30% measurably increased beam
+structural diversity 3.5x (130 -> 448 mean distinct shapes) but had
+**zero** effect on min/max/sum's generalization rate (flat 0/60 combined
+across all rates). Diversity was not the bottleneck.
+
+**Grammar bias experiment** (`GenConfig::loopAccumulatorBias`: directly
+emit a canonical `i=0; while(i<n){...; i=i+1;}` skeleton with probability
+p instead of a fully random statement, whenever a loop would be
+generated): a 160-run sweep (5 seeds x 4 problems x 8 bias values, see
+`data/bias_map/` + `data/bias_map_summary.csv`) found a clear peak at
+**bias=0.4** (18/20 combined, vs 1/20 at bias=0) -- not monotonic, a real
+optimum. min went from 0/20 to 20/20. Per-problem curves diverge
+interestingly: min/max saturate cleanly and stay saturated; `contains`
+peaks early (bias=0.05, 5/5) and is non-monotonic, consistent with its
+solution needing only a light nudge rather than a strong one. **This is
+now the default** (`loopAccumulatorBias = 0.4`).
+
+Conclusion to hold onto: **exploration, representation, and prior are
+three different things.** The 80-run diversity experiment attacked
+exploration and found nothing. The bias experiment attacked the prior
+(what's *probable* to generate, not what's *possible*) and fixed three
+problems that 160 prior runs across two other mechanisms never solved
+once.
+
+## 6. Forensic structural analysis: why the bias works
+
+Parsed all 443 unique programs from the bias-map sweep (deterministic
+Mini-C pretty-printer -> tree, see the analysis script's logic folded
+into `data/structural_features.csv`) and compared generalizers (n=109)
+vs. non-generalizers (n=334):
+
+- `has_increment_pattern` (`v=v+1` idiom): **94.5% of generalizers, 37.7%
+  of non-generalizers** -- 100%/100%/100% for min/max/sum specifically,
+  zero exceptions across 80 programs. The single strongest discriminator
+  found.
+- More `while` (2.1x), more `while` directly containing an `if` (1.9x),
+  deeper nesting (1.9x), more distinct variables (1.9x).
+- **Fewer** swaps in generalizers (0.39 vs 0.74) -- non-generalizers lean
+  on swap-based index tricks where a real algorithm would just assign;
+  the earlier qualitative "swap madness" finding in overfit sort/min
+  programs, now quantified.
+- Loop position: generalizers' loop sits earlier/more centrally in the
+  program (mean position 0.60 vs 0.82 on a 0=first/1=last scale) -- it's
+  the backbone, not a bolted-on afterthought.
+
+## 7. A single feature isn't independently causal -- the skeleton is
+
+Two follow-up experiments, in order:
+
+**A/B** (`loop-bias=0.4` alone vs. `+indexIncrementBias=0.3
++bareSwapPenalty=0.3`): small, mixed win (17/20 -> 18/20). `contains`
+improved on both generalization and speed (2/5->4/5, ~2.4x faster,
+plausibly because the swap penalty suits its comparison-guarded
+solution); min/sum produced smaller programs without more successes;
+max/sum got *slower*. Not the clean "same power, less time" result
+hoped for -- see `data/prior_ab/`.
+
+**Falsification** (critical, and the more interesting result): does
+`indexIncrementBias` alone -- with `loopAccumulatorBias=0.0`, i.e. the
+atomic skeleton template fully disabled -- rescue `min`? Tested at
+strength 0.0/0.3/0.6/0.9, 5 seeds each. **Flat 0/5 at every strength**,
+see `data/falsification2/`. The increment idiom correlating with success
+(finding #6) does NOT mean marginally upweighting that one ingredient is
+causally sufficient. What `loopAccumulatorBias` actually provides is
+init (`i=0`), bound (`i<n`), and increment (`i=i+1`) **atomically, as one
+coordinated unit** -- upweighting any single ingredient without raising
+the joint probability of the other two doesn't compose into a working
+loop. The causal unit is the skeleton, not any one statement pattern
+within it.
+
+Practical upshot: `indexIncrementBias`/`bareSwapPenalty` stay **off by
+default** (mixed evidence, not a clean win) while `loopAccumulatorBias`
+is on by default (clean, large, replicated win). Future grammar-prior
+work should bias *composite patterns* (a template, like
+`loopAccumulatorBias` already is), not marginal per-statement
+probabilities.
+
+## 8. Sorting: promising, but budget-mismatched so far
+
+A single well-resourced run (loop-bias=0.3, max-program-size=500, 682s,
+no time cutoff) reached N=1-4 all **confirmed** with perfect 13/13
+held-out generalization -- better than any pre-bias sorting result in
+this project. It plateaued at N=5 (123/128) for the rest of the budget.
+
+At the standard 300s-per-run budget used for min/max/sum/contains
+comparisons, 4/5 sorting seeds timed out mid-search without producing
+any output at all (`solutions.json` is only written on normal
+completion). Sorting's instance count grows factorially with N (128 at
+N=5, 728 at N=6) where the other problems stay small/linear, so equal
+wall-clock budgets are not a fair comparison across problems --
+sorting needs either more time or a smaller max-n ceiling matched to
+what 300s can actually afford. Not yet run as a proper multi-seed sweep
+at a matched budget.
+
+## Current defaults (as of this entry)
+
+```
+SearchConfig::invarianceLookahead   = 3     (bookkeeping only, never blocks progression)
+SearchConfig::diversityRate         = 0.0   (confirmed: raising it doesn't help, can hurt)
+GenConfig::loopAccumulatorBias      = 0.4   (confirmed peak, 160-run sweep)
+GenConfig::indexIncrementBias       = 0.0   (opt-in; mixed A/B evidence, not a clean win alone)
+GenConfig::bareSwapPenalty          = 0.0   (opt-in; same as above, be careful not to hurt sorting)
+```
+
+## Open threads, roughly in the order they were flagged as next steps
+
+1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
+   600-900s, 5 seeds) -- measure max confirmed N / max exact N / held-out
+   / time, not "how many problems solved." If several seeds hit N=4
+   confirmed and stop, the interesting question becomes *why* N=4->N=5
+   specifically breaks, not "give it more time."
+2. Composite/template-shaped priors (per finding #7) instead of
+   per-statement probability nudges, if the sorting stress test also
+   plateaus.
+3. Contextual swap analysis before touching swap priors further (swap
+   inside a loop vs. outside, after a comparison vs. not, involving the
+   index vs. the accumulator) -- sorting may need swap to be *common* in
+   exactly the contexts min/max/sum don't need it at all, so a naive
+   "swap=bad" prior would be actively harmful there.

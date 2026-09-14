@@ -48,6 +48,15 @@ struct SearchConfig {
     // steady trickle of unrelated fresh candidates into the population
     // costs nothing to implement and doesn't touch the search operator.
     // 0.0 (default) disables it and reproduces the original behavior.
+    //
+    // Kept at 0.0: an 80-run sweep (5 seeds x 4 problems x rates in
+    // {0, 0.1, 0.2, 0.3}) with loop_bias disabled found random immigrants
+    // never helped min/max/sum (flat 0/20 at every rate -- the bottleneck
+    // turned out to be the generator's grammar, not population diversity;
+    // see data/diversity_experiment/). A repeat of the same sweep WITH
+    // loopAccumulatorBias=0.3 found 0.0 was the best rate overall (17/20)
+    // and diversity_rate > 0 actively hurt SumArrayProblem (4/5 -> 2/5 at
+    // 0.2-0.3); see data/diversity_experiment_with_bias/.
     double diversityRate = 0.0;
 };
 

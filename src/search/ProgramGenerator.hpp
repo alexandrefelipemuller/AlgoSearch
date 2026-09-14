@@ -25,9 +25,15 @@ struct GenConfig {
     // *skeleton* that real array algorithms need (an index that starts at
     // 0, is compared against n, and increments exactly once) is handed to
     // the generator directly with higher probability, rather than left to
-    // emerge from unbiased mutation alone. 0.0 (default) disables it and
-    // reproduces the original unbiased generator exactly.
-    double loopAccumulatorBias = 0.0;
+    // emerge from unbiased mutation alone.
+    //
+    // Default 0.4: the peak of a 160-run sweep (5 seeds x 4 problems x 8
+    // bias values in [0, 0.7], see data/bias_map/ and
+    // data/bias_map_summary.csv) -- combined generalization rate went
+    // 1/20 (bias=0) -> 18/20 (bias=0.4) -> 17/20 (bias=0.7), a clear peak,
+    // not a monotonic "more is better" curve. Pass 0.0 to fully restore
+    // the original unbiased generator.
+    double loopAccumulatorBias = 0.4;
 
     // Structural prior, layer 2 (independent of loopAccumulatorBias):
     // targets the two specific patterns the forensic AST analysis flagged
@@ -42,6 +48,19 @@ struct GenConfig {
     // data/structural_features.csv), so nudging the *generic* generator
     // (not just the dedicated loop template) to produce it more often is
     // a direct test of whether that correlation is causal.
+    //
+    // Default stays 0.0 (opt-in): an A/B test at 0.3 (+ bareSwapPenalty
+    // 0.3, on top of loopAccumulatorBias=0.4) moved combined
+    // generalization only 17/20 -> 18/20 with mixed per-problem effects
+    // (contains clearly better and faster; max/sum slower), and a
+    // follow-up falsification test (this alone, loopAccumulatorBias=0.0,
+    // strength up to 0.9) never rescued MinArrayProblem on its own --
+    // flat 0/5 at every strength. The idiom alone isn't causally
+    // sufficient; it has to co-occur with correct init and bound
+    // generation, which is exactly what loopAccumulatorBias's atomic
+    // template provides and this marginal per-statement nudge doesn't.
+    // See data/prior_ab/ and data/falsification2/. Left available for
+    // further experimentation, not promoted to a default.
     double indexIncrementBias = 0.0;
 
     // Reduces (never eliminates -- a prior should shrink probability, not

@@ -28,7 +28,7 @@ struct CliArgs {
     unsigned threads = 0;  // 0 = auto-detect
     int invarianceLookahead = 3;
     double diversityRate = 0.0;
-    double loopBias = 0.0;
+    double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
     std::string output = "solutions.json";
@@ -73,7 +73,7 @@ void printUsage() {
     std::cout << "algorithm-discovery --problem sorting|min|sum|contains --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
-                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.0] "
+                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--output solutions.json]\n";
 }
 
