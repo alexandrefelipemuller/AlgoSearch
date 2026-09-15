@@ -28,7 +28,29 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     }
 }
 
+// Grammar completeness fix: Mini-C has no native "!=" operator, and
+// genValueExpr (which builds Add/Sub operands) never nests a comparison
+// inside itself, so a compound condition was previously the *only* way
+// this generator could ever produce inequality -- and it never did,
+// because this function only ever emitted a single Lt/Gt/Eq. That means
+// "while (a != b)" was structurally unreachable at any bias or budget, not
+// merely rare -- confirmed the hard blocker behind GcdProblem's search
+// getting stuck flat on a lucky size-4 program for a full 10-minute run at
+// generous beam-width/candidates (subtractive Euclidean GCD needs exactly
+// this condition). Comparisons are ints (0/1) and mutually exclusive, so
+// (x<y)+(x>y) is 1 iff x != y and 0 iff x == y -- a valid "not equal" built
+// entirely from the existing primitives. Included as one of the four
+// standard condition shapes (25% each) rather than an opt-in bias knob,
+// since it's closing a representational gap, not a search preference --
+// pure superset of what the grammar could already express.
 ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
+    if (rng.uniformInt(0, 3) == 3) {
+        auto x = genValueExpr(rng, depthBudget, cfg);
+        auto y = genValueExpr(rng, depthBudget, cfg);
+        auto lt = makeCompare(ExprKind::Lt, x->clone(), y->clone());
+        auto gt = makeCompare(ExprKind::Gt, std::move(x), std::move(y));
+        return makeBinOp(ExprKind::Add, std::move(lt), std::move(gt));
+    }
     ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq};
     ExprKind k = kinds[rng.uniformInt(0, 2)];
     return makeCompare(k, genValueExpr(rng, depthBudget, cfg), genValueExpr(rng, depthBudget, cfg));
@@ -102,6 +124,86 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     return root;
 }
 
+// Dedicated nested skeleton for trial-division-by-subtraction primality
+// testing -- see GenConfig::nestedDivisorLoopBias for the full rationale
+// and the shape being generated. Reserves var 0 (array length, unused
+// here) and picks three distinct scalars for x (the value under test), d
+// (candidate divisor), and r (repeated-subtraction remainder).
+StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int x = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    int d = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    if (d == x) d = 1 + (x % (cfg.numVars - 1));
+    int r = -1;
+    for (int cand = 1; cand < cfg.numVars; ++cand) {
+        if (cand != x && cand != d) {
+            r = cand;
+            break;
+        }
+    }
+    if (r < 0) r = x;  // numVars too small to give r its own slot; reuse x's (degenerate but safe)
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(x, makeArrayAccess(makeIntConst(0))));    // x = arr[0]
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));  // arr[0] = 1 (assume prime)
+    {
+        std::vector<StmtPtr> guardBody;
+        guardBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+        root->body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(x), makeIntConst(2)), std::move(guardBody)));
+    }
+    root->body.push_back(makeAssign(d, makeIntConst(2)));  // d = 2
+
+    std::vector<StmtPtr> outerBody;
+    outerBody.push_back(makeAssign(r, makeVar(x)));  // r = x
+    {
+        std::vector<StmtPtr> innerBody;
+        innerBody.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), makeVar(d))));
+        loopsUsed++;
+        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(d), makeVar(r)), std::move(innerBody)));
+    }
+    {
+        std::vector<StmtPtr> foundBody;
+        foundBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+        outerBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(r), makeVar(d)), std::move(foundBody)));
+    }
+    outerBody.push_back(makeAssign(d, makeBinOp(ExprKind::Add, makeVar(d), makeIntConst(1))));  // d = d + 1
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(d), makeVar(x)), std::move(outerBody)));
+
+    return root;
+}
+
+// Dedicated skeleton for the subtractive Euclidean GCD algorithm -- see
+// GenConfig::gcdEuclidSkeletonBias for the full rationale and shape.
+// Reserves var 0 (array length, unused for this 2-scalar-input problem)
+// and picks two distinct scalars for a, b.
+StmtPtr genGcdEuclidSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    if (b == a) b = 1 + (a % (cfg.numVars - 1));
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
+    root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
+
+    std::vector<StmtPtr> body;
+    {
+        std::vector<StmtPtr> thenBody;
+        thenBody.push_back(makeAssign(a, makeBinOp(ExprKind::Sub, makeVar(a), makeVar(b))));
+        std::vector<StmtPtr> elseBody;
+        elseBody.push_back(makeAssign(b, makeBinOp(ExprKind::Sub, makeVar(b), makeVar(a))));
+        body.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(a), makeVar(b)), std::move(thenBody), std::move(elseBody)));
+    }
+    auto lt = makeCompare(ExprKind::Lt, makeVar(a), makeVar(b));
+    auto gt = makeCompare(ExprKind::Gt, makeVar(a), makeVar(b));
+    auto cond = makeBinOp(ExprKind::Add, std::move(lt), std::move(gt));  // a != b
+
+    loopsUsed++;
+    root->body.push_back(makeWhile(std::move(cond), std::move(body)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
+
+    return root;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -115,6 +217,15 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // Weighted choice among available statement kinds.
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
+    bool canNestedLoop = canNest && (cfg.maxLoops - loopsUsed) >= 2;
+
+    if (canNestedLoop && cfg.numVars >= 3 && cfg.nestedDivisorLoopBias > 0.0 && rng.chance(cfg.nestedDivisorLoopBias)) {
+        return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
+    }
+
+    if (canLoop && cfg.numVars >= 3 && cfg.gcdEuclidSkeletonBias > 0.0 && rng.chance(cfg.gcdEuclidSkeletonBias)) {
+        return genGcdEuclidSkeletonBlock(rng, cfg, loopsUsed);
+    }
 
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
         return genCountingLoopBlock(rng, cfg, loopsUsed);

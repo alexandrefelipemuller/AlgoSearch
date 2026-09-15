@@ -74,6 +74,72 @@ struct GenConfig {
     // as `effective swap chance = 0.5 - bareSwapPenalty` when not directly
     // inside an if; capped so at least a 0.05 residual chance remains.
     double bareSwapPenalty = 0.0;
+
+    // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
+    // instead of leaving loopAccumulatorBias fixed for the whole run, let
+    // BeamSearch nudge it each round toward the fraction of the current
+    // beam's survivors that already contain the full atomic skeleton (init
+    // + bound + increment together -- see hasCountingLoopSkeleton in
+    // BeamSearch.cpp, the same causal unit identified in finding #7 of
+    // FINDINGS.md, not a marginal per-statement pattern). This tests
+    // whether adapting at runtime can match/beat a value found by a manual
+    // 160-run sweep, and -- more informatively even if it doesn't beat it
+    // here -- whether it converges to different steady-state values on
+    // different problems, consistent with the per-problem peaks the sweep
+    // found (contains peaked early/non-monotonically at 0.05; min/max
+    // stayed saturated at higher values). See the design in FINDINGS.md's
+    // adaptive-bias experiment section once run.
+    double adaptiveSkeletonBiasRate = 0.0;
+    // Floor: never let the adapted bias reach exactly 0 -- a prior should
+    // shrink probability, not remove expressiveness (same principle as
+    // bareSwapPenalty's residual floor).
+    double adaptiveSkeletonBiasMin = 0.05;
+    // Ceiling: avoid the beam collapsing onto skeleton-only generation.
+    double adaptiveSkeletonBiasMax = 0.8;
+
+    // Second dedicated skeleton, structurally different from
+    // loopAccumulatorBias's flat single-loop template: a nested "trial
+    // division by repeated subtraction" primality test --
+    //   x = arr[0]; arr[0] = 1; if (x < 2) arr[0] = 0;
+    //   d = 2;
+    //   while (d < x) {
+    //     r = x;
+    //     while (d < r) { r = r - d; }
+    //     if (r == d) { arr[0] = 0; }
+    //     d = d + 1;
+    //   }
+    // -- added for IsPrimeProblem, whose generalizing solution needs a
+    // genuine nested loop (outer candidate-divisor loop, inner
+    // repeated-subtraction remainder loop), a shape genCountingLoopBlock
+    // never produces (it only ever emits one flat loop). Without this,
+    // getting two loops to nest correctly by chance is exactly the kind of
+    // wall the sorting N=4 plateau hit before beam-width/candidates was
+    // raised -- this gives the generator the same kind of direct "muleta"
+    // loopAccumulatorBias gives array algorithms, for this different shape.
+    // Consumes both of maxLoops' slots at once (needs maxLoops - loopsUsed
+    // >= 2 to fire). Opt-in, default 0.0 (no effect on existing problems).
+    double nestedDivisorLoopBias = 0.0;
+
+    // Third dedicated skeleton: subtractive Euclidean GCD --
+    //   a = arr[0]; b = arr[1];
+    //   while ((a<b)+(a>b)) {         // a != b, via the compound "not
+    //                                 // equal" genCondExpr can now emit
+    //     if (a > b) { a = a - b; } else { b = b - a; }
+    //   }
+    //   arr[0] = a;
+    // -- added for GcdProblem, whose generalizing solution needs a loop
+    // condition ("a != b") that's only reachable at all since genCondExpr
+    // gained the compound not-equal case (see ProgramGenerator.cpp), and
+    // even after that fix a 10-minute run at generous beam-width/candidates
+    // never found it by chance (stuck flat at 72/100 the whole time; see
+    // data/new_problems/). Same rationale as nestedDivisorLoopBias: give
+    // the generator a direct route to the exact shape rather than relying
+    // on unbiased composition to stumble into a 2-in-4 condition-kind
+    // draw landing correctly nested inside an if/else that also has to be
+    // generated right. Opt-in, default 0.0 (no effect on existing
+    // problems). Only needs one loop slot (unlike nestedDivisorLoopBias's
+    // two).
+    double gcdEuclidSkeletonBias = 0.0;
 };
 
 // Generates a brand-new random program (a Block) with approximately

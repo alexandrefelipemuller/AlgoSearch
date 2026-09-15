@@ -4,6 +4,8 @@
 #include <string>
 
 #include "problems/ContainsProblem.hpp"
+#include "problems/GcdProblem.hpp"
+#include "problems/IsPrimeProblem.hpp"
 #include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
 #include "problems/SortingProblem.hpp"
@@ -31,6 +33,10 @@ struct CliArgs {
     double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
+    double adaptiveSkeletonBiasRate = 0.0;
+    std::string adaptiveBiasLog;
+    double nestedDivisorLoopBias = 0.0;
+    double gcdEuclidSkeletonBias = 0.0;
     std::string output = "solutions.json";
 };
 
@@ -59,6 +65,10 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--loop-bias") args.loopBias = std::stod(next("--loop-bias"));
         else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
         else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
+        else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
+        else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
+        else if (arg == "--nested-divisor-loop-bias") args.nestedDivisorLoopBias = std::stod(next("--nested-divisor-loop-bias"));
+        else if (arg == "--gcd-euclid-skeleton-bias") args.gcdEuclidSkeletonBias = std::stod(next("--gcd-euclid-skeleton-bias"));
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -70,11 +80,13 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|sum|contains --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|is_prime|gcd --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--output solutions.json]\n";
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] "
+                 "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
+                 "[--nested-divisor-loop-bias 0.0] [--gcd-euclid-skeleton-bias 0.0] [--output solutions.json]\n";
 }
 
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
@@ -83,6 +95,8 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "max") return std::make_unique<MaxArrayProblem>(6, 40, numVars, seed);
     if (name == "sum") return std::make_unique<SumArrayProblem>(6, 40, numVars, seed);
     if (name == "contains") return std::make_unique<ContainsProblem>(6, 40, numVars, seed);
+    if (name == "is_prime") return std::make_unique<IsPrimeProblem>(30, 40, numVars, seed);
+    if (name == "gcd") return std::make_unique<GcdProblem>(12, 40, numVars, seed);
     return nullptr;
 }
 
@@ -97,7 +111,7 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {
-        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, max, sum, contains)\n";
+        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, max, sum, contains, is_prime, gcd)\n";
         return 1;
     }
 
@@ -116,6 +130,10 @@ int main(int argc, char** argv) {
     config.genConfig.loopAccumulatorBias = args.loopBias;
     config.genConfig.indexIncrementBias = args.indexIncrementBias;
     config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
+    config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
+    config.adaptiveBiasLogPath = args.adaptiveBiasLog;
+    config.genConfig.nestedDivisorLoopBias = args.nestedDivisorLoopBias;
+    config.genConfig.gcdEuclidSkeletonBias = args.gcdEuclidSkeletonBias;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();

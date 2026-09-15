@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "problems/Problem.hpp"
@@ -58,6 +59,13 @@ struct SearchConfig {
     // and diversity_rate > 0 actively hurt SumArrayProblem (4/5 -> 2/5 at
     // 0.2-0.3); see data/diversity_experiment_with_bias/.
     double diversityRate = 0.0;
+
+    // Where to write the per-round adaptive-bias CSV log (round, level,
+    // bias_before, skeleton_rate, bias_after, best_score). Only written
+    // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure
+    // diagnostics for the adaptive-bias experiment, never read back by the
+    // search itself.
+    std::string adaptiveBiasLogPath;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.

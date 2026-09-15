@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <fstream>
 #include <functional>
 #include <sstream>
 #include <thread>
@@ -57,6 +58,62 @@ std::string structuralShape(const Stmt& program) {
     for (int c : counts) oss << c << ",";
     oss << maxDepth;
     return oss.str();
+}
+
+// Detects the atomic counting-loop skeleton (finding #7 of FINDINGS.md:
+// init + bound + increment as ONE coordinated unit, not any ingredient in
+// isolation -- a falsification test showed upweighting the increment idiom
+// alone never rescues a stuck problem). Mirrors exactly what
+// genCountingLoopBlock() in ProgramGenerator.cpp emits: within some block,
+// an `vi = 0` assignment followed later by a `while (vi < var0) { ...;
+// vi = vi + 1; }`. Used only to drive the adaptive-bias experiment
+// (GenConfig::adaptiveSkeletonBiasRate) -- never affects scoring/selection.
+bool blockHasSelfIncrement(const std::vector<StmtPtr>& body, int vi) {
+    for (const auto& s : body) {
+        if (s->kind == StmtKind::Assign && s->varIndex == vi && s->valueExpr &&
+            s->valueExpr->kind == ExprKind::Add && s->valueExpr->lhs && s->valueExpr->rhs &&
+            s->valueExpr->lhs->kind == ExprKind::Var && s->valueExpr->lhs->varIndex == vi &&
+            s->valueExpr->rhs->kind == ExprKind::IntConst && s->valueExpr->rhs->intValue == 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isCountingWhile(const Stmt& s, int vi) {
+    if (s.kind != StmtKind::While || !s.cond || s.cond->kind != ExprKind::Lt) return false;
+    const Expr& lhs = *s.cond->lhs;
+    const Expr& rhs = *s.cond->rhs;
+    if (lhs.kind != ExprKind::Var || lhs.varIndex != vi) return false;
+    if (rhs.kind != ExprKind::Var || rhs.varIndex != 0) return false;
+    return blockHasSelfIncrement(s.body, vi);
+}
+
+bool blockHasSkeleton(const std::vector<StmtPtr>& body) {
+    for (size_t i = 0; i < body.size(); ++i) {
+        const Stmt& s = *body[i];
+        if (s.kind != StmtKind::Assign || s.varIndex == 0 || !s.valueExpr) continue;
+        if (s.valueExpr->kind != ExprKind::IntConst || s.valueExpr->intValue != 0) continue;
+        int vi = s.varIndex;
+        for (size_t j = i + 1; j < body.size(); ++j) {
+            if (isCountingWhile(*body[j], vi)) return true;
+        }
+    }
+    return false;
+}
+
+bool hasCountingLoopSkeleton(const Stmt& s) {
+    if ((s.kind == StmtKind::Block || s.kind == StmtKind::If || s.kind == StmtKind::While) && blockHasSkeleton(s.body)) {
+        return true;
+    }
+    if (s.kind == StmtKind::If && blockHasSkeleton(s.elseBody)) return true;
+    for (const auto& c : s.body) {
+        if (hasCountingLoopSkeleton(*c)) return true;
+    }
+    for (const auto& c : s.elseBody) {
+        if (hasCountingLoopSkeleton(*c)) return true;
+    }
+    return false;
 }
 
 struct CandidateRecord {
@@ -136,6 +193,8 @@ std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfi
         {"max_level", std::to_string(cfg.maxLevel)},
         {"seed", std::to_string(cfg.seed)},
         {"candidates_per_size", std::to_string(cfg.candidatesPerSize)},
+        {"loop_bias", std::to_string(cfg.genConfig.loopAccumulatorBias)},
+        {"adaptive_skeleton_bias_rate", std::to_string(cfg.genConfig.adaptiveSkeletonBiasRate)},
     };
 }
 
@@ -153,6 +212,13 @@ std::vector<SolutionRecord> BeamSearch::run() {
     std::vector<SolutionRecord> solutions;
 
     auto searchStart = std::chrono::steady_clock::now();
+
+    std::ofstream adaptiveLog;
+    bool adaptiveBiasOn = config_.genConfig.adaptiveSkeletonBiasRate > 0.0;
+    if (adaptiveBiasOn && !config_.adaptiveBiasLogPath.empty()) {
+        adaptiveLog.open(config_.adaptiveBiasLogPath);
+        adaptiveLog << "round,level,bias_before,skeleton_rate,bias_after,best_score\n";
+    }
 
     for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
         std::vector<Instance> instances = problem_.generateInstances(currentLevel);
@@ -222,6 +288,26 @@ std::vector<SolutionRecord> BeamSearch::run() {
         }
         if (static_cast<int>(scored.size()) > eliteCount) scored.resize(static_cast<size_t>(eliteCount));
         beam = std::move(scored);
+
+        if (adaptiveBiasOn) {
+            // Measured on the fitness-selected elite only (before random
+            // immigrants are added below), since those are the survivors
+            // whose structure the search is actually converging on.
+            int withSkeleton = 0;
+            for (const auto& b : beam) {
+                if (hasCountingLoopSkeleton(*b.program)) withSkeleton++;
+            }
+            double skeletonRate = beam.empty() ? 0.0 : static_cast<double>(withSkeleton) / static_cast<double>(beam.size());
+            double biasBefore = config_.genConfig.loopAccumulatorBias;
+            double rate = config_.genConfig.adaptiveSkeletonBiasRate;
+            double biasAfter = biasBefore + rate * (skeletonRate - biasBefore);
+            biasAfter = std::clamp(biasAfter, config_.genConfig.adaptiveSkeletonBiasMin, config_.genConfig.adaptiveSkeletonBiasMax);
+            config_.genConfig.loopAccumulatorBias = biasAfter;
+            if (adaptiveLog.is_open()) {
+                adaptiveLog << size << "," << currentLevel << "," << biasBefore << "," << skeletonRate << "," << biasAfter << ","
+                            << bestScore << "\n";
+            }
+        }
 
         if (immigrantCount > 0) {
             // Random immigrants: fill the rest of the beam with brand-new
