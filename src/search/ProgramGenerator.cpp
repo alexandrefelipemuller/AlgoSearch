@@ -60,21 +60,26 @@ std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig
                                     bool insideIf = false, bool insideWhile = false);
 
 // Which of the five accumulator shapes a genAccumulatorBodyStmtOfKind call
-// produced. Sum/Min/Max accumulate into the scalar `acc` variable and need
-// a write-back into arr[0] after the loop (the interpreter's output is the
-// array, not scalars -- see genCountingLoopBlock); Membership/Swap already
-// write their result straight into the array inside the loop body and must
-// NOT get an extra write-back (it would silently clobber a correct result
-// with acc's stale/unrelated value).
+// produced. Sum/Min/Max/Membership accumulate into the scalar `acc`
+// variable and need a write-back into arr[0] after the loop (the
+// interpreter's output is the array, not scalars -- see
+// genCountingLoopBlock); Swap already writes its result straight into the
+// array inside the loop body and must NOT get an extra write-back (it
+// would silently clobber a correct result with acc's stale/unrelated
+// value).
 enum class AccumKind { Sum, Min, Max, Membership, Swap };
 
-bool accumKindNeedsWriteBack(AccumKind k) { return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max; }
+bool accumKindNeedsWriteBack(AccumKind k) {
+    return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max || k == AccumKind::Membership;
+}
 
 // One canonical accumulation body for the counting-loop skeleton below.
 // `vi` is the loop index variable, `acc` a second variable seeded before
-// the loop. All five shapes touch arr[vi] -- the one thing every array
-// algorithm (min/max/sum/contains/sort) actually needs a loop for.
-StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, const GenConfig& cfg) {
+// the loop. `targetVar` is only used by Membership (see below); pass -1
+// for every other kind. All five shapes touch arr[vi] -- the one thing
+// every array algorithm (min/max/sum/contains/sort) actually needs a loop
+// for.
+StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, int targetVar, const GenConfig& cfg) {
     switch (kind) {
         case AccumKind::Sum:  // running sum: acc = acc + arr[vi]
             return makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeArrayAccess(makeVar(vi))));
@@ -90,11 +95,20 @@ StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, const GenC
             then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
             return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
         }
-        case AccumKind::Membership:  // if (arr[vi] == arr[0]) arr[0] = 1
+        case AccumKind::Membership:  // if (arr[vi] == target) acc = 1
         {
+            // Compares against a scalar `target` (captured from arr[0]
+            // BEFORE the loop starts, by genCountingLoopBlock) rather than
+            // arr[0] directly, and writes the found-flag into `acc`
+            // (write-back to arr[0] happens once, after the loop) --
+            // comparing directly against arr[0] here would be comparing
+            // against a slot the loop itself scans over and that a match
+            // immediately overwrites, self-corrupting on the very first
+            // iteration regardless of the real answer. See the long
+            // comment in genCountingLoopBlock for the full story.
             std::vector<StmtPtr> then;
-            then.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));
-            return makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(makeVar(vi)), makeArrayAccess(makeIntConst(0))), std::move(then));
+            then.push_back(makeAssign(acc, makeIntConst(1)));
+            return makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
         }
         default:  // adjacent compare-and-swap: if (arr[vi] > arr[vi+1]) swap(arr[vi], arr[vi+1])
         {
@@ -121,10 +135,10 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     if (acc == vi) acc = 1 + (vi % (cfg.numVars - 1));
 
     // Kind is decided up front (not per-call) so init, body, and write-back
-    // all agree on what's being computed -- two bugs, found by
-    // investigating why SumArrayProblem sometimes never converged even
-    // with loopAccumulatorBias saturated at 1.0 and 20000 sampled
-    // programs, fixed together here:
+    // all agree on what's being computed -- bugs, found by investigating
+    // why SumArrayProblem sometimes never converged even with
+    // loopAccumulatorBias saturated at 1.0 and 20000 sampled programs,
+    // fixed together here:
     //  1. Init was a random 50/50 coin flip between acc=0 and acc=arr[0]
     //     regardless of kind, but that choice is only ever correct for ONE
     //     of Sum (needs 0) vs Min/Max (needs arr[0] -- 0 is not a valid
@@ -141,21 +155,47 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     //     A direct probe generating 20000 programs with
     //     loopAccumulatorBias=1.0 found zero -- not rare, never -- correct
     //     standalone sum programs before this fix.
-    AccumKind kind = static_cast<AccumKind>(rng.uniformInt(0, 4));
+    //  3. Membership originally compared `arr[vi] == arr[0]` with `vi`
+    //     starting at 0, same as every other kind -- but a target-style
+    //     problem (ContainsProblem's convention: arr[0] = target,
+    //     arr[1..] = haystack) treats index 0 as special, not ordinary
+    //     data. On the very first iteration (vi=0) that compared arr[0] to
+    //     itself, always true, and immediately overwrote arr[0]=1 --
+    //     corrupting the target and reporting "found" unconditionally,
+    //     regardless of whether it actually was. Membership now captures
+    //     `target = arr[0]` into its own scalar before the loop and starts
+    //     `vi` at 1 (skipping the target slot) instead of 0, exactly the
+    //     kind of ordinary-data-vs-special-slot distinction only this one
+    //     kind needs -- every other kind still starts at 0 as before.
+    //     Needs one more scratch variable (target) than the other kinds,
+    //     so Membership is only chosen when numVars leaves room for it.
+    bool canMembership = cfg.numVars >= 4;
+    int draw = rng.uniformInt(0, canMembership ? 4 : 3);
+    AccumKind kind = static_cast<AccumKind>(canMembership || draw < 3 ? draw : 4);  // skip Membership(3) -> Swap(4)
     bool needsArr0Init = (kind == AccumKind::Min || kind == AccumKind::Max);
 
+    int targetVar = -1;
     auto root = makeBlock();
+    if (kind == AccumKind::Membership) {
+        for (int cand = 1; cand < cfg.numVars; ++cand) {
+            if (cand != vi && cand != acc) {
+                targetVar = cand;
+                break;
+            }
+        }
+        root->body.push_back(makeAssign(targetVar, makeArrayAccess(makeIntConst(0))));  // target = arr[0]
+    }
     root->body.push_back(makeAssign(acc, needsArr0Init ? makeArrayAccess(makeIntConst(0)) : makeIntConst(0)));
-    root->body.push_back(makeAssign(vi, makeIntConst(0)));
+    root->body.push_back(makeAssign(vi, makeIntConst(kind == AccumKind::Membership ? 1 : 0)));
 
     std::vector<StmtPtr> body;
-    body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, cfg));
+    body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, targetVar, cfg));
     // A second statement of the SAME kind is redundant but harmless
-    // (idempotent for min/max, and correct-but-pointless for sum, since
-    // subsequent statements at least stay consistent with the first);
-    // mixing a different kind in the same loop body would corrupt
+    // (idempotent for min/max/membership, and correct-but-pointless for
+    // sum, since subsequent statements at least stay consistent with the
+    // first); mixing a different kind in the same loop body would corrupt
     // whichever one runs second, so kind is never re-rolled here.
-    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, cfg));
+    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, targetVar, cfg));
     body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
 
     loopsUsed++;
