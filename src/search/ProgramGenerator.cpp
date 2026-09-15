@@ -378,6 +378,73 @@ StmtPtr genFactorialSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
     return root;
 }
 
+// Library-learning experiment: a full Selection Sort as ONE atomic
+// primitive, offered alongside the flat single-loop templates rather than
+// hoping the search composes it by chance from individually-discovered
+// pieces (adjacent compare-and-swap, a counting loop, ...). This is a
+// direct test of the "recurrent block injection" idea -- if the search
+// already knows how to find-min-in-a-range and swap-into-place as one
+// coordinated unit, does it converge to a genuinely generalizing sort
+// noticeably faster/more reliably than composing it from scratch? See the
+// A/B note in the commit this landed in for the result.
+//   i = 0;
+//   while (i < n) {
+//     mi = i;
+//     j = i + 1;
+//     while (j < n) {
+//       if (arr[j] < arr[mi]) { mi = j; }
+//       j = j + 1;
+//     }
+//     swap(arr[i], arr[mi]);
+//     i = i + 1;
+//   }
+// Needs 3 scratch scalars (i, mi, j), fitting exactly in the default
+// numVars=4 (v0 reserved + 3 free), same tightness as the Membership
+// skeleton -- gated the same way (>= 4) even though it happens to also
+// need both loop slots like NestedDivisor/Factorial.
+StmtPtr genSelectionSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[3];
+    int used = 0;
+    while (used < 3) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int i = vars[0], mi = vars[1], j = vars[2];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(i, makeIntConst(0)));  // i = 0
+
+    std::vector<StmtPtr> outerBody;
+    outerBody.push_back(makeAssign(mi, makeVar(i)));                                       // mi = i
+    outerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));  // j = i + 1
+    {
+        std::vector<StmtPtr> innerBody;
+        {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(mi, makeVar(j)));
+            innerBody.push_back(
+                makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(makeVar(j)), makeArrayAccess(makeVar(mi))), std::move(then)));
+        }
+        innerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+        loopsUsed++;
+        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(0)), std::move(innerBody)));
+    }
+    outerBody.push_back(makeSwap(makeVar(i), makeVar(mi)));
+    outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(0)), std::move(outerBody)));
+
+    return root;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -406,14 +473,15 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // whatever problem is actually running -- nothing here is told in
     // advance that "gcd needs the Euclid shape".
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, GcdEuclid, Fibonacci, NestedDivisor, Factorial };
-        Skeleton options[5];
+        enum class Skeleton { Counting, GcdEuclid, Fibonacci, NestedDivisor, Factorial, SelectionSort };
+        Skeleton options[6];
         int n = 0;
         options[n++] = Skeleton::Counting;
         options[n++] = Skeleton::GcdEuclid;
         options[n++] = Skeleton::Fibonacci;
         if (canNestedLoop) options[n++] = Skeleton::NestedDivisor;
         if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::Factorial;
+        if (canNestedLoop && cfg.numVars >= 4) options[n++] = Skeleton::SelectionSort;
         switch (options[rng.uniformInt(0, n - 1)]) {
             case Skeleton::Counting:
                 return genCountingLoopBlock(rng, cfg, loopsUsed);
@@ -425,6 +493,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                 return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
             case Skeleton::Factorial:
                 return genFactorialSkeletonBlock(rng, cfg, loopsUsed);
+            case Skeleton::SelectionSort:
+                return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
         }
     }
 
