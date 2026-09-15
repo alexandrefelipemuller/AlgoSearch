@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -64,6 +65,22 @@ public:
 
     // Number of scalar integer variables a generated program may use.
     virtual int numVars() const = 0;
+
+    // Builds one instance whose "size" is `n`, for empirical runtime
+    // benchmarking -- distinct from generateInstances(level) because for
+    // array problems "n" and "level" coincide (array length), but for
+    // scalar-magnitude problems (is_prime, gcd) level maps to a *range* via
+    // an internal formula, not a directly usable size. Default: reuses
+    // generateInstances(n) and picks one element deterministically from
+    // `seed` -- correct for every array problem as-is. Scalar problems
+    // override this so `n` means what a caller benchmarking runtime growth
+    // actually wants it to mean (e.g. is_prime: the value tested; gcd: the
+    // larger operand).
+    virtual Instance generateBenchmarkInstance(int n, uint64_t seed) const {
+        std::vector<Instance> pool = generateInstances(n);
+        if (pool.empty()) return {{}, {}};
+        return pool[seed % pool.size()];
+    }
 
     // Runs `program` against `instance` using `interp`, then classifies the
     // result via isSolution(). Problem-agnostic; implemented once here.

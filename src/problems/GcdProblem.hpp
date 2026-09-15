@@ -37,6 +37,11 @@ public:
     double partialScore(const std::vector<int>& input, const std::vector<int>& output) const override;
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     int numVars() const override { return numVars_; }
+    // "n" is the larger operand; paired with 1, the worst case for the
+    // subtractive Euclidean algorithm (forces ~n subtraction steps) -- the
+    // shape actually needed to see the true runtime growth, not a random
+    // pair that might resolve in a couple of steps by luck.
+    Instance generateBenchmarkInstance(int n, uint64_t seed) const override;
 
 private:
     int exhaustiveMaxBound_;

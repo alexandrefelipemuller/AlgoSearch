@@ -81,8 +81,12 @@ public:
     BeamSearch(const Problem& problem, SearchConfig config);
 
     // Runs the search; returns every solution found (one per level fully
-    // reached and never re-broken), most recent last.
-    std::vector<SolutionRecord> run();
+    // reached and never re-broken), most recent last. When `outPrograms`
+    // is non-null, it receives one AST clone per returned record, same
+    // index for index -- SolutionRecord only keeps the program as text
+    // (for JSON persistence), but callers that need to actually execute a
+    // discovered program again (e.g. the benchmark tool) need the AST.
+    std::vector<SolutionRecord> run(std::vector<Program>* outPrograms = nullptr);
 
 private:
     const Problem& problem_;

@@ -31,6 +31,11 @@ public:
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     int numVars() const override { return numVars_; }
+    // Here "n" means the actual value tested, not a level's range -- direct
+    // and exact, unlike the default (level's range formula would need
+    // level ~ n/5 to approximate this and only ever land on a handful of
+    // exact values).
+    Instance generateBenchmarkInstance(int n, uint64_t seed) const override;
 
 private:
     int exhaustiveMaxBound_;

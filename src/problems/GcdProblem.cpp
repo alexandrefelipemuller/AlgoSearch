@@ -39,6 +39,8 @@ std::vector<Instance> GcdProblem::generateInstances(int level) const {
     return instances;
 }
 
+Instance GcdProblem::generateBenchmarkInstance(int n, uint64_t /*seed*/) const { return toInstance(std::max(1, n), 1); }
+
 std::string GcdProblem::describeLevel(int level) const { return "operands in [1, " + std::to_string(upperBound(level)) + "]"; }
 
 int GcdProblem::nextLevel(int level) const { return level + 1; }

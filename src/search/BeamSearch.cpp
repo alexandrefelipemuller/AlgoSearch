@@ -202,7 +202,7 @@ std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfi
 
 BeamSearch::BeamSearch(const Problem& problem, SearchConfig config) : problem_(problem), config_(std::move(config)) {}
 
-std::vector<SolutionRecord> BeamSearch::run() {
+std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     Random rng(config_.seed);
     Interpreter interp(config_.stepLimit);
     Dedup dedup;
@@ -443,6 +443,7 @@ std::vector<SolutionRecord> BeamSearch::run() {
                 rec.seed = config_.seed;
                 rec.config = configToPairs(config_);
                 solutions.push_back(std::move(rec));
+                if (outPrograms) outPrograms->push_back(provenProgram->clone());
             }
             currentLevel = problem_.nextLevel(level);
         }

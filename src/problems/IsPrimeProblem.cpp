@@ -52,6 +52,8 @@ std::vector<Instance> IsPrimeProblem::generateAdversarialInstances(int level) co
     return instances;
 }
 
+Instance IsPrimeProblem::generateBenchmarkInstance(int n, uint64_t /*seed*/) const { return toInstance(n); }
+
 bool IsPrimeProblem::isSolution(const std::vector<int>& input, const std::vector<int>& output) const {
     if (output.size() != input.size() || input.empty()) return false;
     return output[0] == (isPrimeRef(input[0]) ? 1 : 0);

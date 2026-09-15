@@ -1,7 +1,10 @@
+#include <algorithm>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 #include "problems/ContainsProblem.hpp"
 #include "problems/GcdProblem.hpp"
@@ -11,6 +14,7 @@
 #include "problems/SortingProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
 #include "search/BeamSearch.hpp"
+#include "search/Benchmark.hpp"
 #include "search/Persistence.hpp"
 
 using namespace algosearch;
@@ -38,6 +42,8 @@ struct CliArgs {
     double nestedDivisorLoopBias = 0.0;
     double gcdEuclidSkeletonBias = 0.0;
     std::string output = "solutions.json";
+    bool benchmark = false;
+    int benchmarkSeeds = 5;
 };
 
 bool parseArgs(int argc, char** argv, CliArgs& args) {
@@ -70,6 +76,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--nested-divisor-loop-bias") args.nestedDivisorLoopBias = std::stod(next("--nested-divisor-loop-bias"));
         else if (arg == "--gcd-euclid-skeleton-bias") args.gcdEuclidSkeletonBias = std::stod(next("--gcd-euclid-skeleton-bias"));
         else if (arg == "--output") args.output = next("--output");
+        else if (arg == "--benchmark") args.benchmark = true;
+        else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
             std::cerr << "Unknown argument: " << arg << "\n";
@@ -86,7 +94,8 @@ void printUsage() {
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
-                 "[--nested-divisor-loop-bias 0.0] [--gcd-euclid-skeleton-bias 0.0] [--output solutions.json]\n";
+                 "[--nested-divisor-loop-bias 0.0] [--gcd-euclid-skeleton-bias 0.0] [--output solutions.json] "
+                 "[--benchmark] [--benchmark-seeds 5]\n";
 }
 
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
@@ -98,6 +107,127 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "is_prime") return std::make_unique<IsPrimeProblem>(30, 40, numVars, seed);
     if (name == "gcd") return std::make_unique<GcdProblem>(12, 40, numVars, seed);
     return nullptr;
+}
+
+// Runs the search across `args.benchmarkSeeds` independent seeds, collects
+// every distinct (by program text) SUCCESS-labeled program found across all
+// of them, independently re-verifies generalization for each (never trusts
+// the search's own SUCCESS label at face value -- see
+// Benchmark::verifyGeneralization), discards anything that fails that
+// check, times the survivors across a range of input sizes, fits an
+// empirical time-complexity curve to each, and reports them ranked fastest
+// first.
+void runBenchmarkMode(const CliArgs& args) {
+    struct Candidate {
+        std::string programText;
+        int programSize = 0;
+        Program program;
+    };
+    std::unordered_map<std::string, Candidate> candidates;  // keyed by programText
+
+    for (int i = 0; i < args.benchmarkSeeds; ++i) {
+        uint64_t seed = args.seed + static_cast<uint64_t>(i);
+        std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, seed);
+        if (!problem) {
+            std::cerr << "Unknown problem: " << args.problem << "\n";
+            return;
+        }
+
+        SearchConfig config;
+        config.beamWidth = args.beamWidth;
+        config.maxProgramSize = args.maxProgramSize;
+        config.stepLimit = args.stepLimit;
+        config.startLevel = args.startLevel;
+        config.maxLevel = args.maxN;
+        config.seed = seed;
+        config.candidatesPerSize = args.candidatesPerSize;
+        config.genConfig.numVars = args.numVars;
+        config.numThreads = args.threads;
+        config.invarianceLookahead = args.invarianceLookahead;
+        config.diversityRate = args.diversityRate;
+        config.genConfig.loopAccumulatorBias = args.loopBias;
+        config.genConfig.indexIncrementBias = args.indexIncrementBias;
+        config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
+        config.genConfig.nestedDivisorLoopBias = args.nestedDivisorLoopBias;
+        config.genConfig.gcdEuclidSkeletonBias = args.gcdEuclidSkeletonBias;
+
+        std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
+        BeamSearch search(*problem, config);
+        std::vector<Program> programs;
+        std::vector<SolutionRecord> solutions = search.run(&programs);
+
+        for (size_t r = 0; r < solutions.size(); ++r) {
+            if (solutions[r].finalStatus != "SUCCESS") continue;
+            const std::string& text = solutions[r].programText;
+            if (candidates.count(text)) continue;
+            Candidate c;
+            c.programText = text;
+            c.programSize = solutions[r].programSize;
+            c.program = std::move(programs[r]);
+            candidates.emplace(text, std::move(c));
+        }
+    }
+
+    std::cout << "\n[benchmark] " << candidates.size() << " distinct SUCCESS-labeled program(s) found across "
+              << args.benchmarkSeeds << " seed(s). Independently re-verifying generalization...\n";
+
+    std::unique_ptr<Problem> problemForEval = makeProblem(args.problem, args.numVars, args.seed);
+    std::vector<int> sizes = {10, 20, 40, 80, 160, 320, 640, 1280};
+    // Deliberately NOT args.stepLimit: that value is tuned to keep the
+    // SEARCH cheap (abort runaway candidates fast), but would silently
+    // truncate a genuinely correct program's execution at large benchmark
+    // sizes, making it look artificially fast and corrupting the fitted
+    // complexity exponent. Benchmarking needs a limit high enough to never
+    // be the reason a correct program stops early.
+    const long kBenchmarkStepLimit = 50'000'000;
+
+    std::vector<BenchmarkResult> results;
+    int rejected = 0;
+    for (auto& [text, c] : candidates) {
+        BenchmarkResult res;
+        res.programText = c.programText;
+        res.programSize = c.programSize;
+        std::string reason;
+        res.generalizes = verifyGeneralization(*problemForEval, *c.program, kBenchmarkStepLimit, reason);
+        if (!res.generalizes) {
+            res.failureReason = reason;
+            rejected++;
+            std::cout << "  REJECTED (does not generalize): " << reason << "\n";
+            continue;
+        }
+        res.timings = timeProgram(*problemForEval, *c.program, kBenchmarkStepLimit, sizes);
+        auto [exponent, r2] = fitPowerLaw(res.timings);
+        res.exponent = exponent;
+        res.r2 = r2;
+        res.complexityLabel = classifyExponent(exponent);
+        results.push_back(std::move(res));
+    }
+
+    std::cout << "\n[benchmark] " << results.size() << " genuinely generalizing solution(s) kept, " << rejected
+              << " rejected.\n\n";
+
+    if (results.empty()) {
+        std::cout << "No generalizing solution survived independent re-verification.\n";
+        return;
+    }
+
+    std::sort(results.begin(), results.end(), [](const BenchmarkResult& a, const BenchmarkResult& b) {
+        double ta = a.timings.empty() ? 1e300 : a.timings.back().avgNanos;
+        double tb = b.timings.empty() ? 1e300 : b.timings.back().avgNanos;
+        return ta < tb;
+    });
+
+    std::cout << std::left << std::setw(4) << "#" << std::setw(8) << "size" << std::setw(16) << "time@maxN(us)"
+              << std::setw(10) << "exponent" << std::setw(8) << "r2" << "complexity\n";
+    for (size_t i = 0; i < results.size(); ++i) {
+        const auto& r = results[i];
+        double timeUs = r.timings.empty() ? 0.0 : r.timings.back().avgNanos / 1000.0;
+        std::cout << std::left << std::setw(4) << (i == 0 ? "*" : std::to_string(i + 1)) << std::setw(8) << r.programSize
+                  << std::setw(16) << std::fixed << std::setprecision(3) << timeUs << std::setw(10) << std::setprecision(2)
+                  << r.exponent << std::setw(8) << r.r2 << r.complexityLabel << "\n";
+    }
+    std::cout << "\n(* = fastest at the largest benchmarked size)\n\n";
+    std::cout << "=== fastest solution's program ===\n" << results.front().programText << "\n";
 }
 
 }  // namespace
@@ -113,6 +243,11 @@ int main(int argc, char** argv) {
     if (!problem) {
         std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, max, sum, contains, is_prime, gcd)\n";
         return 1;
+    }
+
+    if (args.benchmark) {
+        runBenchmarkMode(args);
+        return 0;
     }
 
     SearchConfig config;
