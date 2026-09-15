@@ -59,28 +59,38 @@ ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
 std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts,
                                     bool insideIf = false, bool insideWhile = false);
 
+// Which of the five accumulator shapes a genAccumulatorBodyStmtOfKind call
+// produced. Sum/Min/Max accumulate into the scalar `acc` variable and need
+// a write-back into arr[0] after the loop (the interpreter's output is the
+// array, not scalars -- see genCountingLoopBlock); Membership/Swap already
+// write their result straight into the array inside the loop body and must
+// NOT get an extra write-back (it would silently clobber a correct result
+// with acc's stale/unrelated value).
+enum class AccumKind { Sum, Min, Max, Membership, Swap };
+
+bool accumKindNeedsWriteBack(AccumKind k) { return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max; }
+
 // One canonical accumulation body for the counting-loop skeleton below.
 // `vi` is the loop index variable, `acc` a second variable seeded before
 // the loop. All five shapes touch arr[vi] -- the one thing every array
 // algorithm (min/max/sum/contains/sort) actually needs a loop for.
-StmtPtr genAccumulatorBodyStmt(Random& rng, int vi, int acc, const GenConfig& cfg) {
-    int choice = rng.uniformInt(0, 4);
-    switch (choice) {
-        case 0:  // running sum: acc = acc + arr[vi]
+StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, const GenConfig& cfg) {
+    switch (kind) {
+        case AccumKind::Sum:  // running sum: acc = acc + arr[vi]
             return makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeArrayAccess(makeVar(vi))));
-        case 1:  // running min: if (arr[vi] < acc) acc = arr[vi]
+        case AccumKind::Min:  // running min: if (arr[vi] < acc) acc = arr[vi]
         {
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
             return makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
         }
-        case 2:  // running max: if (arr[vi] > acc) acc = arr[vi]
+        case AccumKind::Max:  // running max: if (arr[vi] > acc) acc = arr[vi]
         {
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
             return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
         }
-        case 3:  // membership: if (arr[vi] == arr[0]) arr[0] = 1
+        case AccumKind::Membership:  // if (arr[vi] == arr[0]) arr[0] = 1
         {
             std::vector<StmtPtr> then;
             then.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));
@@ -110,17 +120,50 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     int acc = 1 + rng.uniformInt(0, cfg.numVars - 2);
     if (acc == vi) acc = 1 + (vi % (cfg.numVars - 1));
 
+    // Kind is decided up front (not per-call) so init, body, and write-back
+    // all agree on what's being computed -- two bugs, found by
+    // investigating why SumArrayProblem sometimes never converged even
+    // with loopAccumulatorBias saturated at 1.0 and 20000 sampled
+    // programs, fixed together here:
+    //  1. Init was a random 50/50 coin flip between acc=0 and acc=arr[0]
+    //     regardless of kind, but that choice is only ever correct for ONE
+    //     of Sum (needs 0) vs Min/Max (needs arr[0] -- 0 is not a valid
+    //     sentinel unless every array value happens to be >=0/<=0) --
+    //     halving the correctness rate even when everything else was
+    //     right.
+    //  2. Sum/Min/Max accumulate into the scalar `acc`, but the
+    //     interpreter's output is the ARRAY (output[0]), not scalars --
+    //     the loop itself never copied acc back into arr[0]. It only ever
+    //     "worked" when a LATER, structurally unrelated random statement
+    //     happened to also emit `arr[0] = acc` by coincidence (confirmed:
+    //     MinArrayProblem's actual discovered solution has exactly that
+    //     extra line, tacked on after the loop by luck, not by design).
+    //     A direct probe generating 20000 programs with
+    //     loopAccumulatorBias=1.0 found zero -- not rare, never -- correct
+    //     standalone sum programs before this fix.
+    AccumKind kind = static_cast<AccumKind>(rng.uniformInt(0, 4));
+    bool needsArr0Init = (kind == AccumKind::Min || kind == AccumKind::Max);
+
     auto root = makeBlock();
-    root->body.push_back(makeAssign(acc, rng.chance(0.5) ? makeIntConst(0) : makeArrayAccess(makeIntConst(0))));
+    root->body.push_back(makeAssign(acc, needsArr0Init ? makeArrayAccess(makeIntConst(0)) : makeIntConst(0)));
     root->body.push_back(makeAssign(vi, makeIntConst(0)));
 
     std::vector<StmtPtr> body;
-    body.push_back(genAccumulatorBodyStmt(rng, vi, acc, cfg));
-    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmt(rng, vi, acc, cfg));
+    body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, cfg));
+    // A second statement of the SAME kind is redundant but harmless
+    // (idempotent for min/max, and correct-but-pointless for sum, since
+    // subsequent statements at least stay consistent with the first);
+    // mixing a different kind in the same loop body would corrupt
+    // whichever one runs second, so kind is never re-rolled here.
+    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, cfg));
     body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
 
     loopsUsed++;
     root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(vi), makeVar(0)), std::move(body)));
+
+    if (accumKindNeedsWriteBack(kind)) {
+        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+    }
     return root;
 }
 
