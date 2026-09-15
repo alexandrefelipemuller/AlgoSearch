@@ -97,49 +97,34 @@ struct GenConfig {
     // Ceiling: avoid the beam collapsing onto skeleton-only generation.
     double adaptiveSkeletonBiasMax = 0.8;
 
-    // Second dedicated skeleton, structurally different from
-    // loopAccumulatorBias's flat single-loop template: a nested "trial
-    // division by repeated subtraction" primality test --
-    //   x = arr[0]; arr[0] = 1; if (x < 2) arr[0] = 0;
-    //   d = 2;
-    //   while (d < x) {
-    //     r = x;
-    //     while (d < r) { r = r - d; }
-    //     if (r == d) { arr[0] = 0; }
-    //     d = d + 1;
-    //   }
-    // -- added for IsPrimeProblem, whose generalizing solution needs a
-    // genuine nested loop (outer candidate-divisor loop, inner
-    // repeated-subtraction remainder loop), a shape genCountingLoopBlock
-    // never produces (it only ever emits one flat loop). Without this,
-    // getting two loops to nest correctly by chance is exactly the kind of
-    // wall the sorting N=4 plateau hit before beam-width/candidates was
-    // raised -- this gives the generator the same kind of direct "muleta"
-    // loopAccumulatorBias gives array algorithms, for this different shape.
-    // Consumes both of maxLoops' slots at once (needs maxLoops - loopsUsed
-    // >= 2 to fire). Opt-in, default 0.0 (no effect on existing problems).
-    double nestedDivisorLoopBias = 0.0;
-
-    // Third dedicated skeleton: subtractive Euclidean GCD --
-    //   a = arr[0]; b = arr[1];
-    //   while ((a<b)+(a>b)) {         // a != b, via the compound "not
-    //                                 // equal" genCondExpr can now emit
-    //     if (a > b) { a = a - b; } else { b = b - a; }
-    //   }
-    //   arr[0] = a;
-    // -- added for GcdProblem, whose generalizing solution needs a loop
-    // condition ("a != b") that's only reachable at all since genCondExpr
-    // gained the compound not-equal case (see ProgramGenerator.cpp), and
-    // even after that fix a 10-minute run at generous beam-width/candidates
-    // never found it by chance (stuck flat at 72/100 the whole time; see
-    // data/new_problems/). Same rationale as nestedDivisorLoopBias: give
-    // the generator a direct route to the exact shape rather than relying
-    // on unbiased composition to stumble into a 2-in-4 condition-kind
-    // draw landing correctly nested inside an if/else that also has to be
-    // generated right. Opt-in, default 0.0 (no effect on existing
-    // problems). Only needs one loop slot (unlike nestedDivisorLoopBias's
-    // two).
-    double gcdEuclidSkeletonBias = 0.0;
+    // loopAccumulatorBias's trigger also covers two more skeleton shapes,
+    // picked uniformly at random alongside the flat counting-loop template
+    // whenever it fires (see genStmt in ProgramGenerator.cpp):
+    //
+    //  - A nested "trial division by repeated subtraction" primality test
+    //    (outer candidate-divisor loop, inner repeated-subtraction
+    //    remainder loop) -- genCountingLoopBlock alone never produces two
+    //    nested loops, so without this template, getting that shape to
+    //    emerge by chance is the same kind of wall the sorting N=4 plateau
+    //    hit before beam-width/candidates was raised. Needs 2 free loop
+    //    slots.
+    //  - Subtractive Euclidean GCD: a=arr[0]; b=arr[1];
+    //    while ((a<b)+(a>b)) { if (a>b) a=a-b; else b=b-a; } arr[0]=a; --
+    //    reachable at all only since genCondExpr gained the compound
+    //    not-equal case, and even then a 10-minute run at generous
+    //    beam-width/candidates never found it by chance (stuck flat at
+    //    72/100 the whole time; see data/new_problems/).
+    //
+    // These are NOT separate opt-in flags one problem-by-problem run has
+    // to be told to turn on (an earlier version of this file did exactly
+    // that -- nestedDivisorLoopBias/gcdEuclidSkeletonBias CLI flags,
+    // removed): that made the CLI usage itself reveal which algorithm a
+    // given problem needs, which defeats the point of a general-purpose
+    // synthesizer. A single, always-available trigger with the search's
+    // own scoring deciding whether any given template pays off for
+    // whatever problem is actually running is what makes this honestly
+    // "universal" rather than a human routing pre-known answers in from
+    // outside.
 };
 
 // Generates a brand-new random program (a Block) with approximately

@@ -168,8 +168,8 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
 }
 
 // Dedicated nested skeleton for trial-division-by-subtraction primality
-// testing -- see GenConfig::nestedDivisorLoopBias for the full rationale
-// and the shape being generated. Reserves var 0 (array length, unused
+// testing -- see the loopAccumulatorBias comment in ProgramGenerator.hpp
+// for the full rationale. Reserves var 0 (array length, unused
 // here) and picks three distinct scalars for x (the value under test), d
 // (candidate divisor), and r (repeated-subtraction remainder).
 StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
@@ -216,7 +216,8 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
 }
 
 // Dedicated skeleton for the subtractive Euclidean GCD algorithm -- see
-// GenConfig::gcdEuclidSkeletonBias for the full rationale and shape.
+// the loopAccumulatorBias comment in ProgramGenerator.hpp for the full
+// rationale and shape.
 // Reserves var 0 (array length, unused for this 2-scalar-input problem)
 // and picks two distinct scalars for a, b.
 StmtPtr genGcdEuclidSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
@@ -262,16 +263,28 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
     bool canNestedLoop = canNest && (cfg.maxLoops - loopsUsed) >= 2;
 
-    if (canNestedLoop && cfg.numVars >= 3 && cfg.nestedDivisorLoopBias > 0.0 && rng.chance(cfg.nestedDivisorLoopBias)) {
-        return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
-    }
-
-    if (canLoop && cfg.numVars >= 3 && cfg.gcdEuclidSkeletonBias > 0.0 && rng.chance(cfg.gcdEuclidSkeletonBias)) {
-        return genGcdEuclidSkeletonBlock(rng, cfg, loopsUsed);
-    }
-
+    // One universal trigger probability, not one flag per problem: a tool
+    // that hands the search a different CLI knob per problem it's meant to
+    // discover algorithms FOR isn't a general synthesizer anymore, it's a
+    // human already knowing the answer and telling the generator which
+    // template to use. So there is exactly one bias here
+    // (loopAccumulatorBias, the same one already tuned at 0.4) that
+    // triggers identically for every problem; what differs is only which
+    // template gets PICKED once triggered, uniformly at random among
+    // whichever ones fit the current loop budget. The search's own scoring
+    // is what decides whether a given template ends up being useful for
+    // whatever problem is actually running -- nothing here is told in
+    // advance that "gcd needs the Euclid shape".
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        return genCountingLoopBlock(rng, cfg, loopsUsed);
+        int numOptions = canNestedLoop ? 3 : 2;
+        switch (rng.uniformInt(0, numOptions - 1)) {
+            case 0:
+                return genCountingLoopBlock(rng, cfg, loopsUsed);
+            case 1:
+                return genGcdEuclidSkeletonBlock(rng, cfg, loopsUsed);
+            default:
+                return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
+        }
     }
 
     int maxChoice = canNest ? (canLoop ? 4 : 3) : 1;
