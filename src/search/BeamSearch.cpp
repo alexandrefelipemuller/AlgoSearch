@@ -5,6 +5,7 @@
 #include <cmath>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <sstream>
 #include <thread>
 #include <unordered_set>
@@ -153,21 +154,22 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
         size_t end = std::min(n, begin + chunk);
         if (begin >= end) continue;
         threads.emplace_back([&, begin, end, t]() {
+            std::vector<int> output;  // reused across every run in this worker
             for (size_t i = begin; i < end; ++i) {
                 CandidateRecord& rec = scored[outOffset + i];
                 int score = 0;
                 double fitness = 0.0;
                 for (const auto& inst : instances) {
-                    EvalOutcome outcome = problem.evaluate(*rec.program, inst, interp);
-                    if (outcome.status == ExecStatus::SUCCESS) {
+                    ExecStatus status = problem.evaluateInto(*rec.program, inst, interp, output);
+                    if (status == ExecStatus::SUCCESS) {
                         score++;
                         fitness += 1.0;
-                    } else if (outcome.status == ExecStatus::TIMEOUT) {
+                    } else if (status == ExecStatus::TIMEOUT) {
                         timeoutsPerThread[t]++;
-                    } else if (outcome.status == ExecStatus::RUNTIME_ERROR) {
+                    } else if (status == ExecStatus::RUNTIME_ERROR) {
                         errorsPerThread[t]++;
                     } else {
-                        fitness += problem.partialScore(inst.input, outcome.output);
+                        fitness += problem.partialScore(inst.input, output);
                     }
                 }
                 rec.size = rec.program->size();
@@ -213,6 +215,16 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
     auto searchStart = std::chrono::steady_clock::now();
 
+    // Throughput profiling: coarse wall-clock split of where each round's
+    // time actually goes, plus a running count of candidates
+    // generated/scored -- diagnostic only, never affects search behavior.
+    // Printed once at the end of run().
+    double genPhaseSeconds = 0.0;
+    double scorePhaseSeconds = 0.0;
+    double sortPhaseSeconds = 0.0;
+    long totalCandidatesGenerated = 0;
+    long totalCandidatesScored = 0;
+
     std::ofstream adaptiveLog;
     bool adaptiveBiasOn = config_.genConfig.adaptiveSkeletonBiasRate > 0.0;
     if (adaptiveBiasOn && !config_.adaptiveBiasLogPath.empty()) {
@@ -236,6 +248,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         // Elitism: keep an unmutated clone of every beam survivor alongside
         // a grown/mutated variant, so a point-mutation that makes things
         // worse can never cause the beam's current best to be lost.
+        auto genStart = std::chrono::steady_clock::now();
         std::vector<Program> grownPool;
         grownPool.reserve(beam.size() * 2);
         for (auto& b : beam) {
@@ -250,14 +263,19 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             if (dedup.insertIfNew(*candidate)) freshPool.push_back(std::move(candidate));
             guard++;
         }
+        totalCandidatesGenerated += guard;
+        genPhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - genStart).count();
 
         int timeouts = 0, errors = 0;
         unsigned threadCount = config_.numThreads != 0 ? config_.numThreads : std::thread::hardware_concurrency();
         if (threadCount == 0) threadCount = 1;
 
+        auto scoreStart = std::chrono::steady_clock::now();
         std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
+        totalCandidatesScored += static_cast<long>(scored.size());
+        scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 
         if (scored.empty()) {
             log::progress(0, 0, static_cast<int>(instances.size()), 0, timeouts, errors);
@@ -269,11 +287,13 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         // gradient when counts tie (crucial when every candidate solves 0
         // instances and a binary score gives the beam nothing to climb),
         // then prefer smaller programs to keep the beam diverse/simple.
+        auto sortStart = std::chrono::steady_clock::now();
         std::sort(scored.begin(), scored.end(), [](const CandidateRecord& a, const CandidateRecord& b) {
             if (a.score != b.score) return a.score > b.score;
             if (a.fitness != b.fitness) return a.fitness > b.fitness;
             return a.size < b.size;
         });
+        sortPhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - sortStart).count();
 
         int bestScore = scored.front().score;
         int bestSize = scored.front().size;
@@ -451,6 +471,14 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
     double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
     log::searchFinished(elapsed);
+    if (elapsed > 0.0) {
+        double genRate = totalCandidatesGenerated / elapsed;
+        double scoreRate = totalCandidatesScored / elapsed;
+        std::cout << "  profile: gen=" << genPhaseSeconds << "s score=" << scorePhaseSeconds << "s sort=" << sortPhaseSeconds
+                  << "s other=" << (elapsed - genPhaseSeconds - scorePhaseSeconds - sortPhaseSeconds) << "s | generated "
+                  << totalCandidatesGenerated << " (" << static_cast<long>(genRate) << "/s), scored " << totalCandidatesScored
+                  << " (" << static_cast<long>(scoreRate) << "/s)\n";
+    }
     return solutions;
 }
 

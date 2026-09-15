@@ -13,7 +13,33 @@ namespace {
 // levels the search happened to train/hold-out against, and deliberately
 // including sizes well beyond any level the search ever saw.
 const std::vector<int> kVerificationSizes = {1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 50, 80};
-const int kTrialsPerSize = 4;
+const int kTrialsPerSize = 6;
+// Magnitude offsets applied to a copy of every verification instance (see
+// the shift-stress check below) -- picked far from any small constant the
+// grammar can construct directly (maxConst defaults to 3) so a formula
+// that happens to land near a plausible array-length value only for the
+// bounded/small value ranges the search's own training data uses (e.g.
+// generateBaseArrays' [0, 4n) range) gets exposed instead of coincidentally
+// passing. Both POSITIVE: a negative offset was tried first and produced a
+// false rejection for GcdProblem (its documented domain is positive
+// integers only -- shifting an operand below 1 makes the instance
+// meaningless for that problem, not a real generalization failure). Two
+// positive magnitudes keep every existing problem's stated domain intact
+// while still being large enough to break small-number coincidences.
+const long kShiftOffsets[] = {5003, 9973};
+
+bool checkOneInstance(const Problem& problem, const Stmt& program, const Interpreter& interp, const Instance& inst,
+                       const std::string& label, std::string& outReason) {
+    EvalOutcome outcome = problem.evaluate(program, inst, interp);
+    if (outcome.status != ExecStatus::SUCCESS) {
+        outReason = "failed" + label +
+                    (outcome.status == ExecStatus::TIMEOUT      ? " (timeout)"
+                     : outcome.status == ExecStatus::WRONG_OUTPUT ? " (wrong output)"
+                                                                   : " (runtime error)");
+        return false;
+    }
+    return true;
+}
 }  // namespace
 
 bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason) {
@@ -23,13 +49,30 @@ bool verifyGeneralization(const Problem& problem, const Stmt& program, long step
             uint64_t seed = static_cast<uint64_t>(n) * 7919ULL + static_cast<uint64_t>(t) * 104729ULL + 17;
             Instance inst = problem.generateBenchmarkInstance(n, seed);
             if (inst.input.empty()) continue;  // problem has nothing to test at this n
-            EvalOutcome outcome = problem.evaluate(program, inst, interp);
-            if (outcome.status != ExecStatus::SUCCESS) {
-                outReason = "failed at n=" + std::to_string(n) + " trial=" + std::to_string(t) +
-                            (outcome.status == ExecStatus::TIMEOUT      ? " (timeout)"
-                             : outcome.status == ExecStatus::WRONG_OUTPUT ? " (wrong output)"
-                                                                           : " (runtime error)");
-                return false;
+
+            std::string label = " at n=" + std::to_string(n) + " trial=" + std::to_string(t);
+            if (!checkOneInstance(problem, program, interp, inst, label, outReason)) return false;
+
+            // Magnitude-shift stress check: adds a large constant to every
+            // input value (recomputing correctness fresh via
+            // problem.evaluate -- never assumes what the "right" answer
+            // is, so this is valid for any problem, not special-cased).
+            // Loop bounds/counters in a genuine algorithm are separate
+            // scalars that start at 0 and never derive from input values,
+            // so a real solution is completely unaffected by this; it
+            // exists to catch a formula that only coincidentally computes
+            // something plausible-looking from the input's magnitude
+            // (e.g. reassigning the array-length convention variable via
+            // an expression like `arr[1] - target`, which happens to land
+            // near the true length only because training data keeps
+            // values in a bounded, length-correlated range) -- caught
+            // exactly this shape in ContainsProblem's benchmark output
+            // before this check existed.
+            for (long offset : kShiftOffsets) {
+                Instance shifted = inst;
+                for (int& v : shifted.input) v = static_cast<int>(static_cast<long>(v) + offset);
+                std::string shiftLabel = label + " [shifted by " + std::to_string(offset) + "]";
+                if (!checkOneInstance(problem, program, interp, shifted, shiftLabel, outReason)) return false;
             }
         }
     }

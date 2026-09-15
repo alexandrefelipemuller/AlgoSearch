@@ -6,70 +6,109 @@ namespace algosearch {
 
 namespace {
 
+// How a (sub)evaluation ended. Return/timeout/runtime-error are NOT
+// exceptional here: randomly generated candidate programs hit out-of-bounds
+// accesses and the step limit tens of thousands of times per search round,
+// so these are propagated as an ordinary status flag checked after each
+// recursive call rather than thrown -- exception unwinding at that frequency
+// costs more than the interpretation itself.
+enum class Flow : unsigned char { Ok, Return, Timeout, Error };
+
 struct Environment {
     std::vector<int> vars;
     std::vector<int> arr;
     long steps = 0;
     long stepLimit = 0;
+    Flow flow = Flow::Ok;
 };
 
-// Internal unwinding signals. These never escape Interpreter::run.
-struct ReturnSignal {};
-struct TimeoutSignal {};
-struct RuntimeErrorSignal {};
+// True once execution must stop unwinding towards run(); every recursive
+// call site checks this immediately after returning.
+inline bool aborted(const Environment& env) { return env.flow != Flow::Ok; }
 
-void tick(Environment& env) {
+inline void tick(Environment& env) {
     env.steps++;
-    if (env.steps > env.stepLimit) throw TimeoutSignal{};
+    if (env.steps > env.stepLimit) env.flow = Flow::Timeout;
 }
 
 int evalExpr(const Expr& e, Environment& env) {
     tick(env);
+    if (aborted(env)) return 0;
     switch (e.kind) {
         case ExprKind::IntConst:
             return e.intValue;
         case ExprKind::Var:
-            if (e.varIndex < 0 || static_cast<size_t>(e.varIndex) >= env.vars.size()) throw RuntimeErrorSignal{};
+            if (e.varIndex < 0 || static_cast<size_t>(e.varIndex) >= env.vars.size()) {
+                env.flow = Flow::Error;
+                return 0;
+            }
             return env.vars[e.varIndex];
         case ExprKind::ArrayAccess: {
             int idx = evalExpr(*e.lhs, env);
-            if (idx < 0 || static_cast<size_t>(idx) >= env.arr.size()) throw RuntimeErrorSignal{};
+            if (aborted(env)) return 0;
+            if (idx < 0 || static_cast<size_t>(idx) >= env.arr.size()) {
+                env.flow = Flow::Error;
+                return 0;
+            }
             return env.arr[idx];
         }
         case ExprKind::Add:
-            return evalExpr(*e.lhs, env) + evalExpr(*e.rhs, env);
         case ExprKind::Sub:
-            return evalExpr(*e.lhs, env) - evalExpr(*e.rhs, env);
         case ExprKind::Lt:
-            return evalExpr(*e.lhs, env) < evalExpr(*e.rhs, env) ? 1 : 0;
         case ExprKind::Gt:
-            return evalExpr(*e.lhs, env) > evalExpr(*e.rhs, env) ? 1 : 0;
-        case ExprKind::Eq:
-            return evalExpr(*e.lhs, env) == evalExpr(*e.rhs, env) ? 1 : 0;
+        case ExprKind::Eq: {
+            // Operands are evaluated left-then-right and short-circuit on
+            // abort; a completing run ticks both sides exactly as before, so
+            // step counts (and hence timeouts) are unchanged.
+            int a = evalExpr(*e.lhs, env);
+            if (aborted(env)) return 0;
+            int b = evalExpr(*e.rhs, env);
+            if (aborted(env)) return 0;
+            switch (e.kind) {
+                case ExprKind::Add: return a + b;
+                case ExprKind::Sub: return a - b;
+                case ExprKind::Lt: return a < b ? 1 : 0;
+                case ExprKind::Gt: return a > b ? 1 : 0;
+                default: return a == b ? 1 : 0;
+            }
+        }
     }
-    throw RuntimeErrorSignal{};
+    env.flow = Flow::Error;
+    return 0;
 }
 
 void execBlock(const std::vector<std::unique_ptr<Stmt>>& stmts, Environment& env);
 
 void execStmt(const Stmt& s, Environment& env) {
     tick(env);
+    if (aborted(env)) return;
     switch (s.kind) {
         case StmtKind::Assign: {
             int value = evalExpr(*s.valueExpr, env);
-            if (s.varIndex < 0 || static_cast<size_t>(s.varIndex) >= env.vars.size()) throw RuntimeErrorSignal{};
+            if (aborted(env)) return;
+            if (s.varIndex < 0 || static_cast<size_t>(s.varIndex) >= env.vars.size()) {
+                env.flow = Flow::Error;
+                return;
+            }
             env.vars[s.varIndex] = value;
             break;
         }
         case StmtKind::AssignArray: {
             int idx = evalExpr(*s.indexExpr, env);
+            if (aborted(env)) return;
             int value = evalExpr(*s.valueExpr, env);
-            if (idx < 0 || static_cast<size_t>(idx) >= env.arr.size()) throw RuntimeErrorSignal{};
+            if (aborted(env)) return;
+            if (idx < 0 || static_cast<size_t>(idx) >= env.arr.size()) {
+                env.flow = Flow::Error;
+                return;
+            }
             env.arr[idx] = value;
             break;
         }
         case StmtKind::If: {
-            if (evalExpr(*s.cond, env) != 0) {
+            int cond = evalExpr(*s.cond, env);
+            if (aborted(env)) return;
+            if (cond != 0) {
                 execBlock(s.body, env);
             } else {
                 execBlock(s.elseBody, env);
@@ -77,22 +116,31 @@ void execStmt(const Stmt& s, Environment& env) {
             break;
         }
         case StmtKind::While: {
-            while (evalExpr(*s.cond, env) != 0) {
+            for (;;) {
+                int cond = evalExpr(*s.cond, env);
+                if (aborted(env) || cond == 0) return;
                 tick(env);
+                if (aborted(env)) return;
                 execBlock(s.body, env);
+                if (aborted(env)) return;
             }
-            break;
         }
         case StmtKind::Swap: {
             int i1 = evalExpr(*s.indexExpr, env);
+            if (aborted(env)) return;
             int i2 = evalExpr(*s.indexExpr2, env);
-            if (i1 < 0 || static_cast<size_t>(i1) >= env.arr.size()) throw RuntimeErrorSignal{};
-            if (i2 < 0 || static_cast<size_t>(i2) >= env.arr.size()) throw RuntimeErrorSignal{};
+            if (aborted(env)) return;
+            if (i1 < 0 || static_cast<size_t>(i1) >= env.arr.size() || i2 < 0 ||
+                static_cast<size_t>(i2) >= env.arr.size()) {
+                env.flow = Flow::Error;
+                return;
+            }
             std::swap(env.arr[i1], env.arr[i2]);
             break;
         }
         case StmtKind::Return:
-            throw ReturnSignal{};
+            env.flow = Flow::Return;
+            return;
         case StmtKind::Block:
             execBlock(s.body, env);
             break;
@@ -100,29 +148,41 @@ void execStmt(const Stmt& s, Environment& env) {
 }
 
 void execBlock(const std::vector<std::unique_ptr<Stmt>>& stmts, Environment& env) {
-    for (const auto& s : stmts) execStmt(*s, env);
+    for (const auto& s : stmts) {
+        execStmt(*s, env);
+        if (aborted(env)) return;
+    }
 }
 
 }  // namespace
 
 RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, int numVars, std::vector<int>& output) const {
-    Environment env;
+    // One environment per thread, reused across the millions of runs a search
+    // performs: the vars/arr buffers keep their capacity, so a run costs no
+    // heap allocation at all once warm. Safe because run() is reentrancy-free
+    // (no nested interpretation) and threads never share an Environment.
+    thread_local Environment env;
     env.vars.assign(static_cast<size_t>(numVars), 0);
     if (numVars > 0) env.vars[0] = static_cast<int>(input.size());
-    env.arr = input;
+    env.arr.assign(input.begin(), input.end());
+    env.steps = 0;
     env.stepLimit = stepLimit_;
+    env.flow = Flow::Ok;
 
-    try {
-        execStmt(program, env);
-    } catch (ReturnSignal&) {
-        // normal early termination
-    } catch (TimeoutSignal&) {
-        return RunStatus::TIMEOUT;
-    } catch (RuntimeErrorSignal&) {
-        return RunStatus::RUNTIME_ERROR;
+    execStmt(program, env);
+
+    switch (env.flow) {
+        case Flow::Timeout:
+            return RunStatus::TIMEOUT;
+        case Flow::Error:
+            return RunStatus::RUNTIME_ERROR;
+        default:  // Ok, or Return (normal early termination)
+            break;
     }
 
-    output = env.arr;
+    // Hand the array over instead of copying it; env.arr inherits output's
+    // old storage and is refilled by the assign() above on the next run.
+    output.swap(env.arr);
     return RunStatus::COMPLETED;
 }
 

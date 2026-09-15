@@ -84,21 +84,30 @@ public:
 
     // Runs `program` against `instance` using `interp`, then classifies the
     // result via isSolution(). Problem-agnostic; implemented once here.
-    EvalOutcome evaluate(const Stmt& program, const Instance& instance, const Interpreter& interp) const {
-        std::vector<int> output;
+    // `output` is a caller-owned scratch buffer so the hot scoring loop can
+    // reuse one allocation across millions of runs; it holds the program's
+    // final array only when the result is SUCCESS/WRONG_OUTPUT.
+    ExecStatus evaluateInto(const Stmt& program, const Instance& instance, const Interpreter& interp,
+                            std::vector<int>& output) const {
         RunStatus rs = interp.run(program, instance.input, numVars(), output);
         switch (rs) {
             case RunStatus::TIMEOUT:
-                return {ExecStatus::TIMEOUT, {}};
+                return ExecStatus::TIMEOUT;
             case RunStatus::RUNTIME_ERROR:
-                return {ExecStatus::RUNTIME_ERROR, {}};
+                return ExecStatus::RUNTIME_ERROR;
             case RunStatus::COMPLETED:
-                if (isSolution(instance.input, output)) {
-                    return {ExecStatus::SUCCESS, output};
-                }
-                return {ExecStatus::WRONG_OUTPUT, output};
+                return isSolution(instance.input, output) ? ExecStatus::SUCCESS : ExecStatus::WRONG_OUTPUT;
         }
-        return {ExecStatus::RUNTIME_ERROR, {}};
+        return ExecStatus::RUNTIME_ERROR;
+    }
+
+    // Convenience form for non-hot callers (tests, verification): same
+    // classification, but allocates its own output vector.
+    EvalOutcome evaluate(const Stmt& program, const Instance& instance, const Interpreter& interp) const {
+        std::vector<int> output;
+        ExecStatus st = evaluateInto(program, instance, interp, output);
+        if (st == ExecStatus::TIMEOUT || st == ExecStatus::RUNTIME_ERROR) return {st, {}};
+        return {st, std::move(output)};
     }
 };
 

@@ -10,19 +10,25 @@ ContainsOrderedProblem::ContainsOrderedProblem(int exhaustiveMaxN, int randomIns
     : exhaustiveMaxN_(exhaustiveMaxN), randomInstancesPerLevel_(randomInstancesPerLevel), numVars_(numVars), seed_(seed) {}
 
 namespace {
-// Builds the two canonical instances for one sorted haystack: target
-// present (picked from the haystack itself) and target absent (strictly
-// larger than every element, so it stays "off the end" regardless of
-// sort direction -- deliberately not testing the absent case at both ends,
-// since generalization is judged by isSolution() re-checked at held-out
-// time regardless, and this keeps the instance count from doubling again).
-void addBothCases(const std::vector<int>& haystack, std::vector<Instance>& out) {
-    int presentTarget = haystack[haystack.size() / 2];
+void addPresentAt(const std::vector<int>& haystack, size_t index, std::vector<Instance>& out) {
     std::vector<int> presentInput;
     presentInput.reserve(haystack.size() + 1);
-    presentInput.push_back(presentTarget);
+    presentInput.push_back(haystack[index]);
     presentInput.insert(presentInput.end(), haystack.begin(), haystack.end());
     out.push_back({presentInput, {1}});
+}
+
+// Builds the canonical instances for one sorted haystack: target present
+// (at front, middle, and back -- testing only one fixed position let the
+// search learn "target == haystack[that one index]" as a perfect proxy for
+// presence, since every training instance shared that same regularity; see
+// the identical bug and fix in ContainsProblem.cpp) and target absent
+// (strictly larger than every element, so it stays "off the end"
+// regardless of sort direction).
+void addBothCases(const std::vector<int>& haystack, std::vector<Instance>& out) {
+    addPresentAt(haystack, 0, out);
+    addPresentAt(haystack, haystack.size() / 2, out);
+    addPresentAt(haystack, haystack.size() - 1, out);
 
     int absentTarget = *std::max_element(haystack.begin(), haystack.end()) + 1;
     std::vector<int> absentInput;
@@ -78,11 +84,18 @@ bool ContainsOrderedProblem::isSolution(const std::vector<int>& input, const std
     return output[0] == (contains ? 1 : 0);
 }
 
-Instance ContainsOrderedProblem::generateBenchmarkInstance(int n, uint64_t /*seed*/) const {
+Instance ContainsOrderedProblem::generateBenchmarkInstance(int n, uint64_t seed) const {
     if (n <= 0) return {{}, {}};
     std::vector<int> haystack(static_cast<size_t>(n));
     for (int i = 0; i < n; ++i) haystack[static_cast<size_t>(i)] = i;
-    int target = haystack[haystack.size() / 2];
+    // Vary the target's position by seed (front/middle/back) instead of a
+    // single fixed index -- this instance is reused by both the timing
+    // benchmark AND verifyGeneralization's correctness re-check, and a
+    // fixed position previously let a program that only checks
+    // haystack[that one index] pass generalization undetected (see the
+    // comment in ContainsProblem.cpp's addBothCases for the full story).
+    size_t index = static_cast<size_t>(seed % 3 == 0 ? 0 : (seed % 3 == 1 ? haystack.size() / 2 : haystack.size() - 1));
+    int target = haystack[index];
     std::vector<int> input;
     input.reserve(haystack.size() + 1);
     input.push_back(target);
