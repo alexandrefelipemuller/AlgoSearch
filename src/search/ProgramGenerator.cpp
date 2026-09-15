@@ -288,6 +288,96 @@ StmtPtr genGcdEuclidSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
     return root;
 }
 
+// Dedicated skeleton for the iterative Fibonacci recurrence -- see the
+// loopAccumulatorBias comment in ProgramGenerator.hpp for the full
+// rationale. Reserves var 0 (unused) and picks three distinct scalars: a
+// running fib(i), b running fib(i+1), and a counter i. `b = a + b; a = b -
+// a;` recovers the new `a` from the just-updated `b` and the OLD `a`
+// (still available since it hasn't been overwritten yet), avoiding a
+// third temp variable -- needs only Add/Sub, no nested loop.
+StmtPtr genFibonacciSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
+    if (b == a) b = 1 + (a % (cfg.numVars - 1));
+    int i = -1;
+    for (int cand = 1; cand < cfg.numVars; ++cand) {
+        if (cand != a && cand != b) {
+            i = cand;
+            break;
+        }
+    }
+    if (i < 0) i = a;  // numVars too small to give i its own slot; degenerate but safe
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(a, makeIntConst(0)));  // a = 0  (fib(0))
+    root->body.push_back(makeAssign(b, makeIntConst(1)));  // b = 1  (fib(1))
+    root->body.push_back(makeAssign(i, makeIntConst(0)));  // i = 0
+
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(b, makeBinOp(ExprKind::Add, makeVar(a), makeVar(b))));  // b = a + b
+    body.push_back(makeAssign(a, makeBinOp(ExprKind::Sub, makeVar(b), makeVar(a))));  // a = b - a
+    body.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+
+    loopsUsed++;
+    // arr[0] holds n throughout (never touched until the write-back below),
+    // so the loop condition can read it directly without a separate
+    // captured copy.
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeArrayAccess(makeIntConst(0))), std::move(body)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
+
+    return root;
+}
+
+// Dedicated skeleton for factorial via multiplication-by-repeated-addition
+// -- see the loopAccumulatorBias comment in ProgramGenerator.hpp for the
+// full rationale. Mini-C has no multiply primitive, so `p = p * i` is
+// built as a genuinely NESTED loop: outer over the factor i (2..n), inner
+// adding `p` to a fresh accumulator `q` exactly `i` times. Needs 4 scratch
+// scalars (p, i, q, j) -- one more than genNestedDivisorLoopBlock -- so
+// this is only offered when numVars leaves room (>= 5); see genStmt.
+StmtPtr genFactorialSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[4];
+    int used = 0;
+    while (used < 4) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int p = vars[0], i = vars[1], q = vars[2], j = vars[3];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(p, makeIntConst(1)));  // p = 1
+    root->body.push_back(makeAssign(i, makeIntConst(2)));  // i = 2
+
+    std::vector<StmtPtr> outerBody;
+    outerBody.push_back(makeAssign(q, makeIntConst(0)));  // q = 0
+    outerBody.push_back(makeAssign(j, makeIntConst(0)));  // j = 0
+    {
+        std::vector<StmtPtr> innerBody;
+        innerBody.push_back(makeAssign(q, makeBinOp(ExprKind::Add, makeVar(q), makeVar(p))));  // q = q + p
+        innerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+        loopsUsed++;
+        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(i)), std::move(innerBody)));
+    }
+    outerBody.push_back(makeAssign(p, makeVar(q)));  // p = q  (p is now p*i)
+    outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+
+    loopsUsed++;
+    // arr[0] holds n throughout; condition is i < n+1 (i.e. i <= n),
+    // computed fresh each check since there's no <= primitive.
+    auto nPlusOne = makeBinOp(ExprKind::Add, makeArrayAccess(makeIntConst(0)), makeIntConst(1));
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), std::move(nPlusOne)), std::move(outerBody)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(p)));  // arr[0] = p
+
+    return root;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -316,14 +406,25 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // whatever problem is actually running -- nothing here is told in
     // advance that "gcd needs the Euclid shape".
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        int numOptions = canNestedLoop ? 3 : 2;
-        switch (rng.uniformInt(0, numOptions - 1)) {
-            case 0:
+        enum class Skeleton { Counting, GcdEuclid, Fibonacci, NestedDivisor, Factorial };
+        Skeleton options[5];
+        int n = 0;
+        options[n++] = Skeleton::Counting;
+        options[n++] = Skeleton::GcdEuclid;
+        options[n++] = Skeleton::Fibonacci;
+        if (canNestedLoop) options[n++] = Skeleton::NestedDivisor;
+        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::Factorial;
+        switch (options[rng.uniformInt(0, n - 1)]) {
+            case Skeleton::Counting:
                 return genCountingLoopBlock(rng, cfg, loopsUsed);
-            case 1:
+            case Skeleton::GcdEuclid:
                 return genGcdEuclidSkeletonBlock(rng, cfg, loopsUsed);
-            default:
+            case Skeleton::Fibonacci:
+                return genFibonacciSkeletonBlock(rng, cfg, loopsUsed);
+            case Skeleton::NestedDivisor:
                 return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
+            case Skeleton::Factorial:
+                return genFactorialSkeletonBlock(rng, cfg, loopsUsed);
         }
     }
 

@@ -1,5 +1,6 @@
 #include "search/Benchmark.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 
@@ -26,7 +27,29 @@ const int kTrialsPerSize = 6;
 // meaningless for that problem, not a real generalization failure). Two
 // positive magnitudes keep every existing problem's stated domain intact
 // while still being large enough to break small-number coincidences.
-const long kShiftOffsets[] = {5003, 9973};
+// Originally {5003, 9973} (see git history), but FactorialProblem's
+// genuinely-generalizing algorithm is O(n^2) in total interpreter steps
+// (a nested multiply-by-repeated-addition loop), and shifting n=1 up to
+// ~9973 pushed step counts past this file's benchmark step limit --
+// timing out and getting misclassified as a rejected/non-generalizing
+// program, not a real generalization failure. Lowered to keep comfortably
+// under the step budget even for O(n^2) problems while staying >>10x the
+// largest n verifyGeneralization tests (80), still enough margin to catch
+// the kind of small-number coincidence this check exists for.
+const long kShiftOffsets[] = {997, 1997};
+// The shift check only runs at these (smaller) sizes, a subset of
+// kVerificationSizes -- for a magnitude-based problem (IsPrimeProblem,
+// GcdProblem, FibonacciProblem, FactorialProblem), "n" IS the tested
+// value, so shifting it doesn't just perturb values, it inflates the
+// actual computational size. That's harmless for an O(n) algorithm but a
+// real cost problem for FactorialProblem's genuinely-generalizing O(n^2)
+// one: shifting n=80 up by ~2000 means executing factorial(~2080), ~50x
+// the work of the unshifted check. The check's purpose (catching a
+// formula that only coincidentally works across the small, bounded
+// value range training data uses) doesn't need large n to do its job, so
+// it's restricted here instead of raising the step budget to
+// accommodate worst-case superlinear growth at every size.
+const std::vector<int> kShiftStressSizes = {1, 2, 3, 5, 10};
 
 bool checkOneInstance(const Problem& problem, const Stmt& program, const Interpreter& interp, const Instance& inst,
                        const std::string& label, std::string& outReason) {
@@ -68,11 +91,14 @@ bool verifyGeneralization(const Problem& problem, const Stmt& program, long step
             // values in a bounded, length-correlated range) -- caught
             // exactly this shape in ContainsProblem's benchmark output
             // before this check existed.
-            for (long offset : kShiftOffsets) {
-                Instance shifted = inst;
-                for (int& v : shifted.input) v = static_cast<int>(static_cast<long>(v) + offset);
-                std::string shiftLabel = label + " [shifted by " + std::to_string(offset) + "]";
-                if (!checkOneInstance(problem, program, interp, shifted, shiftLabel, outReason)) return false;
+            bool doShiftCheck = std::find(kShiftStressSizes.begin(), kShiftStressSizes.end(), n) != kShiftStressSizes.end();
+            if (doShiftCheck) {
+                for (long offset : kShiftOffsets) {
+                    Instance shifted = inst;
+                    for (int& v : shifted.input) v = static_cast<int>(static_cast<long>(v) + offset);
+                    std::string shiftLabel = label + " [shifted by " + std::to_string(offset) + "]";
+                    if (!checkOneInstance(problem, program, interp, shifted, shiftLabel, outReason)) return false;
+                }
             }
         }
     }
