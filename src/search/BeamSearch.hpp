@@ -117,6 +117,26 @@ struct SearchConfig {
     // behavior exactly.
     double annealingTemperature = 0.0;
 
+    // Behavior-niche elitism: reserves `behaviorNicheRate * beamWidth`
+    // beam slots for the best candidate of each distinct BEHAVIOR
+    // signature -- which exact instances it gets right, not what its code
+    // looks like (see behaviorSignature() / CandidateRecord::correctness
+    // in BeamSearch.cpp). This is the legitimate version of "reward
+    // partial structural progress": unlike a hand-picked bonus for a
+    // specific AST shape (which would just be a disguised way of telling
+    // the search what a known-in-advance correct algorithm looks like),
+    // rewarding behavioral distinctness never looks at what "correct"
+    // means for a given problem or what a solution should look like --
+    // it only compares which instances matched, which is exactly the
+    // "novelty search" technique from the evolutionary-computation
+    // literature (Lehman & Stanley) for escaping deceptive fitness
+    // landscapes where raw score gives no useful gradient. Complementary
+    // to shapeNicheRate (AST-shape diversity) -- this is
+    // output-behavior diversity instead, a different and more directly
+    // decision-relevant signal. 0.0 (default) disables it and reproduces
+    // prior behavior exactly.
+    double behaviorNicheRate = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure

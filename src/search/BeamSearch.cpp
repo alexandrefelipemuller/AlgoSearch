@@ -125,7 +125,30 @@ struct CandidateRecord {
     double fitness = 0;  // score + inversions-based partial credit; search-internal
                           // ranking heuristic only, never substitutes for `score`
     int totalTests = 0;
+    // Which instances this candidate got exactly right, in instance
+    // order -- a candidate's BEHAVIOR, not its structure. Used for
+    // behavior-niche selection (see SearchConfig::behaviorNicheRate):
+    // deliberately problem-agnostic (never looks at what the "right"
+    // answer means, just which instances matched), so rewarding a
+    // different pattern here is never a disguised way of telling the
+    // search what a specific problem's correct algorithm looks like --
+    // unlike a hand-picked "reward this AST shape" bonus would be.
+    std::vector<bool> correctness;
 };
+
+// A candidate's behavior signature: its correctness pattern encoded as a
+// string, for use as a niche key exactly like structuralShape() is for
+// shapeNicheRate -- two candidates with the SAME right/wrong pattern
+// across every instance are behaviorally redundant even if their code
+// looks completely different; two candidates that differ on which
+// instances they get right represent genuinely different partial
+// progress, worth keeping both around for.
+std::string behaviorSignature(const CandidateRecord& rec) {
+    std::string sig;
+    sig.reserve(rec.correctness.size());
+    for (bool b : rec.correctness) sig.push_back(b ? '1' : '0');
+    return sig;
+}
 
 // Scores every candidate in `pool` against `instances`, writing results into
 // `scored` starting at `outOffset` (one CandidateRecord per candidate, same
@@ -134,7 +157,7 @@ struct CandidateRecord {
 // mutable state), so this is embarrassingly parallel and needs no locking.
 void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& instances, const Problem& problem,
                       const Interpreter& interp, unsigned numThreads, std::vector<CandidateRecord>& scored, size_t outOffset,
-                      int& timeouts, int& errors) {
+                      int& timeouts, int& errors, bool trackCorrectness = false) {
     size_t n = pool.size();
     for (size_t i = 0; i < n; ++i) {
         scored[outOffset + i].program = std::move(pool[i]);
@@ -159,6 +182,7 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                 CandidateRecord& rec = scored[outOffset + i];
                 int score = 0;
                 double fitness = 0.0;
+                if (trackCorrectness) rec.correctness.reserve(instances.size());
                 for (const auto& inst : instances) {
                     ExecStatus status = problem.evaluateInto(*rec.program, inst, interp, output);
                     if (status == ExecStatus::SUCCESS) {
@@ -171,6 +195,7 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                     } else {
                         fitness += problem.partialScore(inst.input, output);
                     }
+                    if (trackCorrectness) rec.correctness.push_back(status == ExecStatus::SUCCESS);
                 }
                 rec.size = rec.program->size();
                 rec.score = score;
@@ -312,14 +337,17 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         unsigned threadCount = config_.numThreads != 0 ? config_.numThreads : std::thread::hardware_concurrency();
         if (threadCount == 0) threadCount = 1;
 
+        bool trackCorrectness = config_.behaviorNicheRate > 0.0;
         auto scoreStart = std::chrono::steady_clock::now();
         std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
-        scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
-        scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
+        scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness);
+        scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors,
+                         trackCorrectness);
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
-                         timeouts, errors);
+                         timeouts, errors, trackCorrectness);
         size_t annealIndex = grownPool.size() + freshPool.size() + crossoverPool.size();
-        scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors);
+        scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors,
+                         trackCorrectness);
         totalCandidatesScored += static_cast<long>(scored.size());
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 
@@ -378,11 +406,17 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             eliteCount = config_.beamWidth - immigrantCount;
         }
 
-        int nicheCount = 0;
+        int shapeNicheCount = 0;
         if (config_.shapeNicheRate > 0.0) {
-            nicheCount = static_cast<int>(std::lround(config_.shapeNicheRate * config_.beamWidth));
-            nicheCount = std::clamp(nicheCount, 0, eliteCount);
+            shapeNicheCount = static_cast<int>(std::lround(config_.shapeNicheRate * config_.beamWidth));
+            shapeNicheCount = std::clamp(shapeNicheCount, 0, eliteCount);
         }
+        int behaviorNicheCount = 0;
+        if (config_.behaviorNicheRate > 0.0) {
+            behaviorNicheCount = static_cast<int>(std::lround(config_.behaviorNicheRate * config_.beamWidth));
+            behaviorNicheCount = std::clamp(behaviorNicheCount, 0, eliteCount - shapeNicheCount);
+        }
+        int nicheCount = shapeNicheCount + behaviorNicheCount;
         int pureEliteCount = eliteCount - nicheCount;
 
         if (nicheCount > 0 && static_cast<int>(scored.size()) > pureEliteCount) {
@@ -392,18 +426,38 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             size_t coreEnd = std::min(static_cast<size_t>(pureEliteCount), scored.size());
             nextBeam.reserve(static_cast<size_t>(eliteCount));
             for (size_t i = 0; i < coreEnd; ++i) nextBeam.push_back(std::move(scored[i]));
-            std::unordered_set<std::string> shapesInBeam;
-            for (const auto& b : nextBeam) shapesInBeam.insert(structuralShape(*b.program));
 
-            // Fill the reserved niche slots with the best NOT-yet-covered
+            // Fill the shape-niche slots with the best NOT-yet-covered AST
             // shape found further down the ranking -- scanning in sorted
             // order means the first candidate of a given shape we see is
             // already that shape's best-scoring representative.
-            for (size_t i = static_cast<size_t>(pureEliteCount); i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount;
-                 ++i) {
-                std::string shape = structuralShape(*scored[i].program);
-                if (shapesInBeam.insert(shape).second) {
-                    nextBeam.push_back(std::move(scored[i]));
+            if (shapeNicheCount > 0) {
+                std::unordered_set<std::string> shapesInBeam;
+                for (const auto& b : nextBeam) shapesInBeam.insert(structuralShape(*b.program));
+                int shapeTarget = pureEliteCount + shapeNicheCount;
+                for (size_t i = static_cast<size_t>(pureEliteCount);
+                     i < scored.size() && static_cast<int>(nextBeam.size()) < shapeTarget; ++i) {
+                    if (!scored[i].program) continue;  // already moved into nextBeam by an earlier pass
+                    std::string shape = structuralShape(*scored[i].program);
+                    if (shapesInBeam.insert(shape).second) {
+                        nextBeam.push_back(std::move(scored[i]));
+                    }
+                }
+            }
+
+            // Fill the behavior-niche slots the same way, but keyed by
+            // which instances the candidate got right (behaviorSignature)
+            // instead of by AST shape -- see SearchConfig::behaviorNicheRate.
+            if (behaviorNicheCount > 0) {
+                std::unordered_set<std::string> behaviorsInBeam;
+                for (const auto& b : nextBeam) behaviorsInBeam.insert(behaviorSignature(b));
+                for (size_t i = static_cast<size_t>(pureEliteCount);
+                     i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount; ++i) {
+                    if (!scored[i].program) continue;  // already claimed by the elite core or shape-niche pass
+                    std::string behavior = behaviorSignature(scored[i]);
+                    if (behaviorsInBeam.insert(behavior).second) {
+                        nextBeam.push_back(std::move(scored[i]));
+                    }
                 }
             }
             beam = std::move(nextBeam);
