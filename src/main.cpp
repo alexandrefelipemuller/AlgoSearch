@@ -6,7 +6,9 @@
 #include <string>
 #include <unordered_map>
 
+#include "problems/AverageProblem.hpp"
 #include "problems/ContainsOrderedProblem.hpp"
+#include "problems/CountProblem.hpp"
 #include "problems/FactorialProblem.hpp"
 #include "problems/FibonacciProblem.hpp"
 #include "problems/ContainsProblem.hpp"
@@ -15,6 +17,8 @@
 #include "problems/IsPrimeProblem.hpp"
 #include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
+#include "problems/PowerProblem.hpp"
+#include "problems/ReverseProblem.hpp"
 #include "problems/SortingProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
 #include "search/BeamSearch.hpp"
@@ -98,7 +102,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -121,6 +125,10 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "mod") return std::make_unique<ModProblem>(12, 40, numVars, seed);
     if (name == "factorial") return std::make_unique<FactorialProblem>(10, 40, numVars, seed);
     if (name == "fibonacci") return std::make_unique<FibonacciProblem>(20, 40, numVars, seed);
+    if (name == "count") return std::make_unique<CountProblem>(6, 40, numVars, seed);
+    if (name == "average") return std::make_unique<AverageProblem>(6, 40, numVars, seed);
+    if (name == "reverse") return std::make_unique<ReverseProblem>(6, 40, numVars, seed);
+    if (name == "power") return std::make_unique<PowerProblem>(6, 40, numVars, seed);
     return nullptr;
 }
 
@@ -259,7 +267,9 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {
-        std::cerr << "Unknown problem: " << args.problem << " (available: sorting, min, max, sum, contains, contains_ordered, is_prime, gcd, factorial, fibonacci)\n";
+        std::cerr << "Unknown problem: " << args.problem
+                   << " (available: sorting, min, max, sum, contains, contains_ordered, is_prime, gcd, factorial, fibonacci, "
+                      "count, average, reverse, power)\n";
         return 1;
     }
 

@@ -1,8 +1,11 @@
 #include <algorithm>
 
+#include "problems/AverageProblem.hpp"
 #include "problems/ContainsProblem.hpp"
+#include "problems/CountProblem.hpp"
 #include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
+#include "problems/ReverseProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
 #include "test_framework.hpp"
 
@@ -92,4 +95,96 @@ TEST(contains_problem_generates_both_present_and_absent_cases) {
     }
     CHECK(sawPresent);
     CHECK(sawAbsent);
+}
+
+// ---- CountProblem ----
+
+TEST(count_problem_counts_elements_above_threshold) {
+    CountProblem problem;
+    // input[0] = threshold, input[1..] = haystack
+    CHECK(problem.isSolution({2, 5, 2, 9}, {2, 0, 0, 0}));   // 5 and 9 are > 2
+    CHECK(problem.isSolution({9, 5, 2, 9}, {0, 0, 0, 0}));   // nothing is > 9
+    CHECK(!problem.isSolution({2, 5, 2, 9}, {1, 0, 0, 0}));  // wrong count
+}
+
+TEST(count_problem_partial_score_rewards_closeness) {
+    CountProblem problem;
+    CHECK_EQ(problem.partialScore({2, 5, 2, 9}, {2, 0, 0, 0}), 1.0);
+    double near = problem.partialScore({2, 5, 2, 9}, {1, 0, 0, 0});
+    CHECK(near > 0.5 && near < 1.0);
+}
+
+TEST(count_problem_instances_cover_zero_partial_and_full_counts) {
+    CountProblem problem(/*exhaustiveMaxN=*/6, 40, 4, 1);
+    auto instances = problem.generateInstances(3);
+    bool sawZero = false, sawFull = false;
+    for (const auto& inst : instances) {
+        int threshold = inst.input[0];
+        std::vector<int> haystack(inst.input.begin() + 1, inst.input.end());
+        int trueCount = 0;
+        for (int v : haystack) {
+            if (v > threshold) trueCount++;
+        }
+        CHECK_EQ(inst.expectedOutput[0], trueCount);
+        if (trueCount == 0) sawZero = true;
+        if (trueCount == static_cast<int>(haystack.size())) sawFull = true;
+    }
+    CHECK(sawZero);
+    CHECK(sawFull);
+}
+
+// ---- AverageProblem ----
+
+TEST(average_problem_is_solution_checks_integer_average) {
+    AverageProblem problem;
+    CHECK(problem.isSolution({1, 2, 3}, {2, 0, 0}));   // (1+2+3)/3 == 2
+    CHECK(problem.isSolution({1, 2, 4}, {2, 0, 0}));   // 7/3 truncates to 2
+    CHECK(!problem.isSolution({1, 2, 3}, {3, 0, 0}));  // wrong average
+}
+
+TEST(average_problem_partial_score_rewards_closeness) {
+    AverageProblem problem;
+    CHECK_EQ(problem.partialScore({1, 2, 3}, {2, 0, 0}), 1.0);
+    double near = problem.partialScore({1, 2, 3}, {3, 0, 0});
+    CHECK(near > 0.5 && near < 1.0);
+}
+
+TEST(average_problem_instances_are_non_negative_and_correct) {
+    AverageProblem problem(/*exhaustiveMaxN=*/6, 40, 4, 1);
+    auto instances = problem.generateInstances(4);
+    for (const auto& inst : instances) {
+        long sum = 0;
+        for (int v : inst.input) {
+            CHECK(v >= 0);  // domain restriction: division-via-subtraction needs non-negative operands
+            sum += v;
+        }
+        CHECK_EQ(inst.expectedOutput[0], static_cast<int>(sum / static_cast<long>(inst.input.size())));
+    }
+}
+
+// ---- ReverseProblem ----
+
+TEST(reverse_problem_is_solution_checks_reversed_order) {
+    ReverseProblem problem;
+    CHECK(problem.isSolution({1, 2, 3}, {3, 2, 1}));
+    CHECK(!problem.isSolution({1, 2, 3}, {1, 2, 3}));  // not reversed (unless a palindrome)
+    CHECK(problem.isSolution({5}, {5}));               // single element reverses to itself
+}
+
+TEST(reverse_problem_partial_score_counts_matching_positions) {
+    ReverseProblem problem;
+    CHECK_EQ(problem.partialScore({1, 2, 3, 4}, {4, 3, 2, 1}), 1.0);
+    double half = problem.partialScore({1, 2, 3, 4}, {4, 3, 3, 1});  // wrong value entirely -> not a rearrangement
+    CHECK_EQ(half, 0.0);
+    double near = problem.partialScore({1, 2, 3, 4}, {4, 2, 3, 1});  // rearrangement, 2/4 positions correct
+    CHECK_EQ(near, 0.5);
+}
+
+TEST(reverse_problem_instances_are_correct) {
+    ReverseProblem problem(/*exhaustiveMaxN=*/6, 40, 4, 1);
+    auto instances = problem.generateInstances(4);
+    for (const auto& inst : instances) {
+        std::vector<int> expected(inst.input.rbegin(), inst.input.rend());
+        CHECK(inst.expectedOutput == expected);
+    }
 }

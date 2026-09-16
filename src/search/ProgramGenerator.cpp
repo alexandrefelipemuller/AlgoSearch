@@ -64,10 +64,11 @@ std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig
 // array inside the loop body and must NOT get an extra write-back (it
 // would silently clobber a correct result with acc's stale/unrelated
 // value).
-enum class AccumKind { Sum, Min, Max, Membership, Swap };
+enum class AccumKind { Sum, Min, Max, Membership, Swap, CountIf };
 
 bool accumKindNeedsWriteBack(AccumKind k) {
-    return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max || k == AccumKind::Membership;
+    return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max || k == AccumKind::Membership ||
+           k == AccumKind::CountIf;
 }
 
 // One canonical accumulation body for the counting-loop skeleton below.
@@ -106,6 +107,19 @@ StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, int target
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeIntConst(1)));
             return makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
+        }
+        case AccumKind::CountIf:  // counter under a condition: if (arr[vi] > threshold) acc = acc + 1
+        {
+            // Same captured-scalar convention as Membership (threshold in
+            // `targetVar`, captured from arr[0] before the loop, vi
+            // starting at 1 to skip that slot) -- the piece missing for
+            // CountProblem before this: every other AccumKind either sets
+            // a flag (Membership) or tracks a running aggregate of the
+            // ELEMENT itself (Sum/Min/Max), none of them increment a
+            // counter gated by a comparison against something else.
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
         }
         default:  // adjacent compare-and-swap: if (arr[vi] > arr[vi+1]) swap(arr[vi], arr[vi+1])
         {
@@ -166,24 +180,43 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     //     kind needs -- every other kind still starts at 0 as before.
     //     Needs one more scratch variable (target) than the other kinds,
     //     so Membership is only chosen when numVars leaves room for it.
-    bool canMembership = cfg.numVars >= 4;
-    int draw = rng.uniformInt(0, canMembership ? 4 : 3);
-    AccumKind kind = static_cast<AccumKind>(canMembership || draw < 3 ? draw : 4);  // skip Membership(3) -> Swap(4)
+    //     CountIf (counter under a condition -- the piece CountProblem
+    //     needs, see genAccumulatorBodyStmtOfKind) reuses the exact same
+    //     captured-target/vi-starts-at-1 convention as Membership, for the
+    //     same reason: it also compares against a query slot at arr[0],
+    //     not ordinary haystack data.
+    bool canTargetKind = cfg.numVars >= 4;  // Membership and CountIf both need the extra captured-target scalar
+    int kindCount = canTargetKind ? 6 : 4;  // + Membership, CountIf when there's room for the target scalar
+    int draw = rng.uniformInt(0, kindCount - 1);
+    AccumKind kind;
+    switch (draw) {
+        case 0: kind = AccumKind::Sum; break;
+        case 1: kind = AccumKind::Min; break;
+        case 2: kind = AccumKind::Max; break;
+        case 3: kind = AccumKind::Swap; break;
+        case 4: kind = AccumKind::Membership; break;
+        default: kind = AccumKind::CountIf; break;
+    }
     bool needsArr0Init = (kind == AccumKind::Min || kind == AccumKind::Max);
+    bool needsTarget = (kind == AccumKind::Membership || kind == AccumKind::CountIf);
 
     int targetVar = -1;
     auto root = makeBlock();
-    if (kind == AccumKind::Membership) {
+    if (needsTarget) {
         for (int cand = 1; cand < cfg.numVars; ++cand) {
             if (cand != vi && cand != acc) {
                 targetVar = cand;
                 break;
             }
         }
+        // Membership captures the query as an EQUALITY target; CountIf
+        // reuses the same slot as a comparison THRESHOLD instead --
+        // different semantics, same "one scalar captured from arr[0]
+        // before the loop starts" mechanism.
         root->body.push_back(makeAssign(targetVar, makeArrayAccess(makeIntConst(0))));  // target = arr[0]
     }
     root->body.push_back(makeAssign(acc, needsArr0Init ? makeArrayAccess(makeIntConst(0)) : makeIntConst(0)));
-    root->body.push_back(makeAssign(vi, makeIntConst(kind == AccumKind::Membership ? 1 : 0)));
+    root->body.push_back(makeAssign(vi, makeIntConst(needsTarget ? 1 : 0)));
 
     std::vector<StmtPtr> body;
     body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, targetVar, cfg));
@@ -252,50 +285,54 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
     return root;
 }
 
-// Dedicated skeleton for the subtractive Euclidean GCD algorithm -- see
-// the loopAccumulatorBias comment in ProgramGenerator.hpp for the full
-// rationale and shape.
-// Reserves var 0 (array length, unused for this 2-scalar-input problem)
-// and picks two distinct scalars for a, b.
-StmtPtr genGcdEuclidSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+// Which single-loop scalar recurrence genRecurrenceSkeletonBlock builds.
+// GcdEuclid and Fibonacci used to be two separate top-level Skeleton
+// options; merged into one draw (see the "fewer skeletons" note on the
+// Skeleton enum in genStmt) since both are "seed two scalars, update them
+// with Add/Sub each iteration of a single loop, write the result back" --
+// the same shape genCountingLoopBlock already uses for its five AccumKinds.
+// They keep genuinely different bodies/conditions internally (subtractive
+// alternation gated on inequality vs an additive recurrence gated on a
+// counter) -- unifying the DRAW, not pretending the two algorithms are
+// actually the same computation.
+enum class RecurrenceKind { GcdSubtract, FibonacciAdd };
+
+// GcdSubtract: subtractive Euclidean GCD (a,b seeded from arr[0]/arr[1],
+// loop while a != b subtracting the smaller from the larger, write back
+// a). FibonacciAdd: iterative Fibonacci (a,b seeded 0,1, a third counter i
+// looping while i < arr[0]; `b = a + b; a = b - a;` recovers the new `a`
+// from the just-updated `b` and the OLD `a`, still available since it
+// hasn't been overwritten yet, avoiding a third temp variable). Picked
+// uniformly; FibonacciAdd needs one more scratch scalar (the counter) so
+// it's only offered when numVars leaves room for it.
+StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
     int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
     if (b == a) b = 1 + (a % (cfg.numVars - 1));
 
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
-    root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
+    bool canFibonacci = cfg.numVars >= 4;  // needs a third scratch scalar for the counter
+    RecurrenceKind kind = (canFibonacci && rng.chance(0.5)) ? RecurrenceKind::FibonacciAdd : RecurrenceKind::GcdSubtract;
 
-    std::vector<StmtPtr> body;
-    {
+    auto root = makeBlock();
+
+    if (kind == RecurrenceKind::GcdSubtract) {
+        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
+        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
+
+        std::vector<StmtPtr> body;
         std::vector<StmtPtr> thenBody;
         thenBody.push_back(makeAssign(a, makeBinOp(ExprKind::Sub, makeVar(a), makeVar(b))));
         std::vector<StmtPtr> elseBody;
         elseBody.push_back(makeAssign(b, makeBinOp(ExprKind::Sub, makeVar(b), makeVar(a))));
         body.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(a), makeVar(b)), std::move(thenBody), std::move(elseBody)));
+
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(a), makeVar(b)), std::move(body)));
+        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
+        return root;
     }
-    auto lt = makeCompare(ExprKind::Lt, makeVar(a), makeVar(b));
-    auto gt = makeCompare(ExprKind::Gt, makeVar(a), makeVar(b));
-    auto cond = makeBinOp(ExprKind::Add, std::move(lt), std::move(gt));  // a != b
 
-    loopsUsed++;
-    root->body.push_back(makeWhile(std::move(cond), std::move(body)));
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
-
-    return root;
-}
-
-// Dedicated skeleton for the iterative Fibonacci recurrence -- see the
-// loopAccumulatorBias comment in ProgramGenerator.hpp for the full
-// rationale. Reserves var 0 (unused) and picks three distinct scalars: a
-// running fib(i), b running fib(i+1), and a counter i. `b = a + b; a = b -
-// a;` recovers the new `a` from the just-updated `b` and the OLD `a`
-// (still available since it hasn't been overwritten yet), avoiding a
-// third temp variable -- needs only Add/Sub, no nested loop.
-StmtPtr genFibonacciSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    if (b == a) b = 1 + (a % (cfg.numVars - 1));
+    // FibonacciAdd
     int i = -1;
     for (int cand = 1; cand < cfg.numVars; ++cand) {
         if (cand != a && cand != b) {
@@ -305,7 +342,6 @@ StmtPtr genFibonacciSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
     }
     if (i < 0) i = a;  // numVars too small to give i its own slot; degenerate but safe
 
-    auto root = makeBlock();
     root->body.push_back(makeAssign(a, makeIntConst(0)));  // a = 0  (fib(0))
     root->body.push_back(makeAssign(b, makeIntConst(1)));  // b = 1  (fib(1))
     root->body.push_back(makeAssign(i, makeIntConst(0)));  // i = 0
@@ -325,17 +361,36 @@ StmtPtr genFibonacciSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
     return root;
 }
 
-// Dedicated skeleton for factorial via multiplication-by-repeated-addition
-// -- see the loopAccumulatorBias comment in ProgramGenerator.hpp for the
-// full rationale. Mini-C has no multiply primitive, so `p = p * i` is
-// built as a genuinely NESTED loop: outer over the factor i (2..n), inner
-// adding `p` to a fresh accumulator `q` exactly `i` times. Needs 4 scratch
-// scalars (p, i, q, j) -- one more than genNestedDivisorLoopBlock -- so
-// this is only offered when numVars leaves room (>= 5); see genStmt.
-StmtPtr genFactorialSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[4];
+// Which nested multiply-via-repeated-addition genRepeatedMultiplySkeletonBlock
+// builds. Factorial and Power used to be two separate top-level Skeleton
+// options; merged for the same reason as RecurrenceKind above -- they are
+// the SAME operation (Mini-C has no multiply primitive, so `p = p * k` is
+// built as a nested loop: outer over however many multiplications are
+// needed, inner adding `p` to a fresh accumulator `q` exactly `k` times),
+// differing only in what `k` is: an INCREASING factor (Factorial: i, 2..n)
+// or a CONSTANT captured once (Power: base, captured from arr[0]).
+enum class RepeatedMultiplyKind { IncreasingFactor, ConstantFactor };
+
+// IncreasingFactor (factorial): multiplies by i, 2..arr[0], i.e. p
+// becomes arr[0]!. Needs 4 scratch scalars (p, i, q, j).
+// ConstantFactor (power): multiplies by a captured `base = arr[0]`,
+// exactly `arr[1]` times, i.e. p becomes base^exponent. Needs one more
+// scratch scalar than IncreasingFactor (the captured base can't reuse the
+// outer counter's slot, since the outer counter here just counts
+// iterations rather than being the multiplicand itself) -- so
+// ConstantFactor is only chosen when numVars leaves room for it; with
+// exactly 5 scratch scalars available, this skeleton always builds
+// IncreasingFactor (Factorial's original numVars>=5 gate is preserved
+// exactly, not narrowed by folding Power in alongside it).
+StmtPtr genRepeatedMultiplySkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    bool canConstantFactor = cfg.numVars >= 6;  // needs the extra captured-base scratch scalar
+    RepeatedMultiplyKind kind =
+        (canConstantFactor && rng.chance(0.5)) ? RepeatedMultiplyKind::ConstantFactor : RepeatedMultiplyKind::IncreasingFactor;
+
+    int slotsNeeded = (kind == RepeatedMultiplyKind::ConstantFactor) ? 5 : 4;
+    int vars[5];
     int used = 0;
-    while (used < 4) {
+    while (used < slotsNeeded) {
         int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
         bool dup = false;
         for (int k = 0; k < used; ++k) {
@@ -346,9 +401,40 @@ StmtPtr genFactorialSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
         }
         if (!dup) vars[used++] = cand;
     }
-    int p = vars[0], i = vars[1], q = vars[2], j = vars[3];
 
     auto root = makeBlock();
+
+    if (kind == RepeatedMultiplyKind::ConstantFactor) {
+        int base = vars[0], p = vars[1], i = vars[2], q = vars[3], j = vars[4];
+        root->body.push_back(makeAssign(base, makeArrayAccess(makeIntConst(0))));  // base = arr[0]
+        root->body.push_back(makeAssign(p, makeIntConst(1)));                      // p = 1  (base^0)
+        root->body.push_back(makeAssign(i, makeIntConst(0)));                      // i = 0
+
+        std::vector<StmtPtr> outerBody;
+        outerBody.push_back(makeAssign(q, makeIntConst(0)));
+        outerBody.push_back(makeAssign(j, makeIntConst(0)));
+        {
+            std::vector<StmtPtr> innerBody;
+            innerBody.push_back(makeAssign(q, makeBinOp(ExprKind::Add, makeVar(q), makeVar(p))));
+            innerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+            loopsUsed++;
+            // Inner loop runs exactly `base` times, adding the running
+            // result `p` to `q` each time -- turns "+base" into "*base".
+            outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(base)), std::move(innerBody)));
+        }
+        outerBody.push_back(makeAssign(p, makeVar(q)));  // p = q  (p is now p*base)
+        outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+
+        loopsUsed++;
+        // arr[1] holds the exponent throughout; the outer loop runs
+        // exactly that many times.
+        root->body.push_back(
+            makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeArrayAccess(makeIntConst(1))), std::move(outerBody)));
+        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(p)));  // arr[0] = p
+        return root;
+    }
+
+    int p = vars[0], i = vars[1], q = vars[2], j = vars[3];
     root->body.push_back(makeAssign(p, makeIntConst(1)));  // p = 1
     root->body.push_back(makeAssign(i, makeIntConst(2)));  // i = 2
 
@@ -366,11 +452,71 @@ StmtPtr genFactorialSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsU
     outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
 
     loopsUsed++;
-    // arr[0] holds n throughout; condition is i < n+1 (i.e. i <= n),
-    // computed fresh each check since there's no <= primitive.
+    // arr[0] holds n throughout; condition is i < n+1 (i.e. i <= n), i.e.
+    // native Le would also work here but this predates it and there's no
+    // reason to touch a working comparison just to use the newer operator.
     auto nPlusOne = makeBinOp(ExprKind::Add, makeArrayAccess(makeIntConst(0)), makeIntConst(1));
     root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), std::move(nPlusOne)), std::move(outerBody)));
     root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(p)));  // arr[0] = p
+
+    return root;
+}
+
+// Dedicated skeleton for AverageProblem's shape: sum the array (exactly
+// the Sum AccumKind's loop, see genCountingLoopBlock), then divide that
+// sum by the array length (`arr[0]`... no -- by var 0, the interpreter's
+// auto-seeded array-length scalar, see Interpreter::run) via repeated
+// subtraction. Composing this from two INDEPENDENTLY drawn generic
+// skeletons was considered and rejected: each skeleton call picks its own
+// fresh random scratch variables, so a separately-drawn "divide" template
+// would need to, by pure chance, pick the exact same variable the Sum
+// loop happened to accumulate into as its dividend -- vanishingly
+// unlikely, the same composability wall FINDINGS.md section 7 documents
+// for min/max/sum's own increment idiom (the causal unit is the whole
+// coordinated skeleton, not independently-drawn pieces of one). Offered
+// as one atomic two-loop block instead, same precedent as the
+// SelectionSort library-learning experiment below. Needs 4 scratch
+// scalars (vi, sum, remainder, quotient); gated on numVars >= 5.
+StmtPtr genAverageSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[4];
+    int used = 0;
+    while (used < 4) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int vi = vars[0], sum = vars[1], remainder = vars[2], quotient = vars[3];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(sum, makeIntConst(0)));  // sum = 0
+    root->body.push_back(makeAssign(vi, makeIntConst(0)));   // vi = 0
+    {
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(sum, makeBinOp(ExprKind::Add, makeVar(sum), makeArrayAccess(makeVar(vi)))));  // sum = sum + arr[vi]
+        body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(vi), makeVar(0)), std::move(body)));
+    }
+
+    root->body.push_back(makeAssign(remainder, makeVar(sum)));  // remainder = sum
+    root->body.push_back(makeAssign(quotient, makeIntConst(0)));  // quotient = 0
+    {
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(remainder, makeBinOp(ExprKind::Sub, makeVar(remainder), makeVar(0))));  // remainder -= n
+        body.push_back(makeAssign(quotient, makeBinOp(ExprKind::Add, makeVar(quotient), makeIntConst(1))));
+        loopsUsed++;
+        // Native Ge (see ast/Expr.hpp) makes this a plain, direct
+        // division-by-repeated-subtraction loop -- no compound condition
+        // needed, unlike GcdEuclid's `!=` before Le/Ge/Ne existed.
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(remainder), makeVar(0)), std::move(body)));
+    }
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(quotient)));  // arr[0] = quotient
 
     return root;
 }
@@ -469,29 +615,44 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // is what decides whether a given template ends up being useful for
     // whatever problem is actually running -- nothing here is told in
     // advance that "gcd needs the Euclid shape".
+    //
+    // Six top-level shapes, not eight: Recurrence folds GcdEuclid+
+    // Fibonacci into one draw (both "seed two scalars, update via Add/Sub
+    // each loop iteration"), and RepeatedMultiply folds Factorial+Power
+    // into one draw (both "multiply via a nested repeated-addition loop"
+    // -- differing only in whether the multiplicand increases or is
+    // constant). Each keeps choosing its own internal variant (see
+    // RecurrenceKind/RepeatedMultiplyKind) -- this is about the SAMPLING
+    // surface (loopAccumulatorBias's one trigger spreads its probability
+    // across fewer, more general slots), not about pretending unrelated
+    // algorithms are the same computation. NestedDivisor, SelectionSort,
+    // and Average stay separate: none of them share a loop shape with
+    // anything else here closely enough that merging wouldn't just be an
+    // artificial wrapper around unrelated bodies (arithmetic recurrence
+    // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, GcdEuclid, Fibonacci, NestedDivisor, Factorial, SelectionSort };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, SelectionSort, RepeatedMultiply, Average };
         Skeleton options[6];
         int n = 0;
         options[n++] = Skeleton::Counting;
-        options[n++] = Skeleton::GcdEuclid;
-        options[n++] = Skeleton::Fibonacci;
+        options[n++] = Skeleton::Recurrence;
         if (canNestedLoop) options[n++] = Skeleton::NestedDivisor;
-        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::Factorial;
         if (canNestedLoop && cfg.numVars >= 4) options[n++] = Skeleton::SelectionSort;
+        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::RepeatedMultiply;
+        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::Average;
         switch (options[rng.uniformInt(0, n - 1)]) {
             case Skeleton::Counting:
                 return genCountingLoopBlock(rng, cfg, loopsUsed);
-            case Skeleton::GcdEuclid:
-                return genGcdEuclidSkeletonBlock(rng, cfg, loopsUsed);
-            case Skeleton::Fibonacci:
-                return genFibonacciSkeletonBlock(rng, cfg, loopsUsed);
+            case Skeleton::Recurrence:
+                return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed);
             case Skeleton::NestedDivisor:
                 return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
-            case Skeleton::Factorial:
-                return genFactorialSkeletonBlock(rng, cfg, loopsUsed);
             case Skeleton::SelectionSort:
                 return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
+            case Skeleton::RepeatedMultiply:
+                return genRepeatedMultiplySkeletonBlock(rng, cfg, loopsUsed);
+            case Skeleton::Average:
+                return genAverageSkeletonBlock(rng, cfg, loopsUsed);
         }
     }
 

@@ -113,3 +113,21 @@ See `FINDINGS.md` for the full experimental history (grammar bias sweeps,
 diversity/crossover/niching A/B tests, the native-comparison-operator
 change, and the honest negative results along the way) and
 `scripts/run_full_battery_modest.sh` to reproduce this sweep.
+
+## Four more problems: count, average, reverse, power
+
+Added to isolate compositional primitives the original ten didn't
+exercise on their own: a counter driven by a condition (`count`), an
+accumulator followed by division (`average`, domain-restricted to
+non-negative values — see `FINDINGS.md` section 10), two independently-
+moving loop indices (`reverse`), and nested multiplication-via-repeated-
+addition (`power`). All four now solve and independently generalize.
+`reverse` did immediately, with a valid (if not minimal)
+double-nested-loop swap; `count`/`average`/`power` plateaued at first —
+each was missing a specific grammar primitive (a counter gated by a
+condition; any quotient-via-subtraction skeleton at all; a
+constant-multiplicand nested multiply, as opposed to factorial's
+increasing-multiplicand one), diagnosed the same way as `gcd`'s original
+`Sub(Var,Var)`/`!=` gaps, fixed the same way (one dedicated skeleton per
+shape), and now solve too. See `FINDINGS.md` section 10 for the full
+diagnosis and the discovered programs.

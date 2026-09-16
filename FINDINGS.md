@@ -273,6 +273,196 @@ GenConfig::bareSwapPenalty          = 0.0   (opt-in; same as above, be careful n
 ExprKind now includes native Le/Ge/Ne  (base grammar; see section 9 -- broke mod's wall on 1/8 seeds)
 ```
 
+## 10. Four new curriculum problems: count, average, reverse, power
+
+Added to broaden coverage past the original nine, each targeting one
+specific compositional primitive not otherwise isolated:
+
+- **`count`** (`src/problems/CountProblem.{hpp,cpp}`): counts array
+  elements strictly greater than a threshold (query folded into the array
+  like `ContainsProblem`: `input[0]` = threshold, `input[1..]` = haystack).
+  Adds a counter driven by a condition inside the loop -- distinct from a
+  running min/max/sum (pure aggregation) or a single membership check.
+- **`average`** (`AverageProblem`): integer average of a non-negative
+  array, `floor(sum/n)`. Needs a sum accumulator (like `SumArrayProblem`)
+  *plus* a division step -- Mini-C has no divide primitive, so a
+  generalizing solution needs division-via-repeated-subtraction on top of
+  the sum, same idea as `ModProblem`'s curriculum role for `gcd`. Domain
+  restricted to non-negative values on purpose (same reasoning as
+  `ModProblem`/`GcdProblem`'s documented domain restrictions): truncating
+  division via repeated subtraction is only unambiguous without negative
+  operands, and teaching sign-handling is out of scope here.
+- **`reverse`** (`ReverseProblem`): reverses an array (full-array output,
+  same shape as `SortingProblem`, but the target permutation is fixed and
+  known ahead of time rather than depending on value comparisons). Adds a
+  two-independently-moving-index loop condition instead of the single
+  counter every other array problem here uses.
+- **`power`** (`PowerProblem`): `base^exponent` for non-negative
+  integers, same magnitude-problem convention as `FactorialProblem`/
+  `GcdProblem` (`input = {base, exponent}`). Needs multiplication via
+  repeated addition inside a nested loop over the exponent -- structurally
+  the same shape `FactorialProblem` needs, hence the same `numVars >= 5`
+  default.
+
+All four wired into `main.cpp`'s `makeProblem()`/usage string/error
+message, with unit tests for the three array-shaped ones in
+`array_problems_tests.cpp` (isSolution, partialScore, and an
+instance-generation correctness sweep each -- `power`/`average` get no
+dedicated unit tests, matching the existing convention that the other
+magnitude problems (`gcd`/`mod`/`is_prime`/`fibonacci`/`factorial`) are
+validated via CLI/benchmark runs, not unit tests). `make test`: 58/58 (49
+original + 9 new), build clean under `-Wall -Wextra`.
+
+**Quick difficulty read at a modest budget** (`--num-vars 5 --beam-width
+500 --candidates 1500 --max-program-size 150`, no dedicated curriculum
+work done yet): `reverse` solves and independently generalizes
+immediately -- found a double-nested-loop swap solution (not the
+minimal two-pointer-from-both-ends shape the header comment describes as
+"natural," but a valid, verified `O(n^2)` reverse all the same:
+```
+v4 = 0;
+while (v4 < v0) {
+  v2 = v4; v1 = v4 + 1;
+  while (v1 < v0) { swap(arr[v1], arr[v2]); v1 = v1 + 1; }
+  swap(arr[v4], arr[v2]);
+  v4 = v4 + 1;
+}
+```
+`count`, `average`, and `power` all plateau below 100% at the first level
+or two within this budget (partial scores climb sensibly -- e.g. 23/30,
+6/8, 12/16, so the gradient exists and the search isn't stuck at zero --
+it just hasn't composed the missing primitive yet). Consistent with this
+project's established pattern for `gcd`/`mod`/`is_prime`: a new
+compositional primitive (division, or a counter-under-a-condition, or
+nested multiplication-via-addition) usually needs dedicated curriculum
+work, not just "run it," before it's found unaided.
+
+**Follow-up, same day: did the curriculum work.** First ruled out the
+"factorial CPU-contention" false alarm from section 10's own earlier
+lesson -- reran all three isolated at 300s each; all three ran their full
+750 rounds (150 sizes x 5 seeds) to completion, no timeout, and still
+plateaued (`count` 25/30, `average` 6/8, `power` 12/16). Genuinely stuck,
+not budget-starved.
+
+Then did the same code-level diagnosis that found `gcd`'s missing
+`Sub(Var,Var)` weighting and missing `!=`, this time by reading
+`ProgramGenerator.cpp`'s existing skeleton library instead of the
+`ALGOSEARCH_DEBUG_LANDSCAPE` diagnostic (the grammar gap here was visible
+directly in the code, not just empirically):
+
+- **`count`**: `AccumKind` only had `{Sum, Min, Max, Membership, Swap}` --
+  no accumulator increments a counter GATED BY A CONDITION. `Membership`
+  sets a flag (`acc = 1`); nothing does `acc = acc + 1` under an `if`.
+- **`average`**: `Sum` exists, but no skeleton anywhere computes a
+  QUOTIENT via repeated subtraction -- `NestedDivisor` only checks
+  divisibility (primality), `GcdEuclid` computes a remainder-driven
+  alternation, neither tracks "how many times did that subtraction
+  succeed."
+- **`power`**: the only multiply-via-repeated-addition skeleton
+  (`genFactorialSkeletonBlock`) is hardcoded to factorial's exact
+  arrangement -- an INCREASING multiplicand (`i`, 2..n) bounded by
+  `arr[0]+1`. Power needs the opposite: a CONSTANT multiplicand (`base`,
+  captured once from `arr[0]`) bounded by `arr[1]` (the exponent). Not a
+  generalization of Factorial's skeleton, a different shape entirely.
+
+Fixed each, following the exact same "one dedicated skeleton per shape"
+precedent already used for `GcdEuclid`/`Fibonacci`/`Factorial`/
+`NestedDivisor`/`SelectionSort` (`src/search/ProgramGenerator.cpp`):
+- Added `AccumKind::CountIf` (reuses `Membership`'s captured-target-plus-
+  vi-starts-at-1 convention, but increments a counter under `arr[vi] >
+  threshold` instead of setting a flag under `==`) -- a genuinely generic
+  fifth accumulator shape, not `count`-specific.
+- Added `genAverageSkeletonBlock`: sum-the-array (identical to the `Sum`
+  AccumKind's loop) then divide by var 0 (the interpreter's auto-seeded
+  array-length scalar) via repeated subtraction, using the native `Ge`
+  operator (section 9) for a plain `while (remainder >= n)` with no
+  compound condition needed. Offered as ONE atomic two-loop block rather
+  than hoping two independently-drawn generic skeletons compose (each
+  skeleton call picks its own fresh scratch variables, so a separately-
+  drawn "divide" template would need to land on the exact same variable
+  the `Sum` loop happened to accumulate into purely by chance -- the same
+  composability wall documented in section 7) -- same precedent as the
+  `SelectionSort` library-learning experiment.
+- Added `genPowerSkeletonBlock`: captures `base = arr[0]` once, then a
+  nested loop structurally like Factorial's but multiplying by the
+  captured constant instead of an increasing counter, bounded by
+  `arr[1]`.
+
+Result: **all three solve immediately** at the same modest budget that
+previously plateaued them (`--num-vars 6`, since `power`'s skeleton needs
+5 scratch scalars + var 0), independently re-verified via `--benchmark`,
+0 rejected:
+```
+# count (CountIf)
+v1 = arr[0]; v4 = 0; v5 = 1;
+while (v5 < v0) { if (arr[v5] > v1) { v4 = v4 + 1; } v5 = v5 + 1; }
+arr[0] = v4;
+
+# average (sum then divide)
+v4 = 0; v1 = 0;
+while (v1 < v0) { v4 = v4 + arr[v1]; v1 = v1 + 1; }
+v5 = v4; v3 = 0;
+while (v5 >= v0) { v5 = v5 - v0; v3 = v3 + 1; }
+arr[0] = v3;
+
+# power (constant-multiplicand nested multiply)
+v1 = arr[0]; v4 = 1; v5 = 0;
+while (v5 < arr[1]) {
+  v2 = 0; v3 = 0;
+  while (v3 < v1) { v2 = v2 + v4; v3 = v3 + 1; }
+  v4 = v2; v5 = v5 + 1;
+}
+arr[0] = v4;
+```
+No regression: `make test` 58/58; all 11 pre-existing problems (`sorting`
+through `fibonacci`, plus `reverse`) still save solutions at a quick
+smoke-test budget after this change, build clean under `-Wall -Wextra`.
+
+## 11. Consolidated 8 skeletons down to 6
+
+The skeleton library had grown to 8 top-level options (`Counting`,
+`GcdEuclid`, `Fibonacci`, `NestedDivisor`, `Factorial`, `SelectionSort`,
+`Power`, `Average`), each an equally-likely draw whenever
+`loopAccumulatorBias` triggers -- meaning more skeletons dilutes the
+sampling probability of any one of them. Two pairs were actually the same
+loop SHAPE with one parameter varying, not genuinely different
+algorithms, so merged them the same way `Counting` already handles its
+five accumulator variants (one draw, `AccumKind`-style internal choice):
+
+- **`Recurrence`** = `GcdEuclid` + `Fibonacci`: both "seed two scalars
+  from the array, update them with Add/Sub every iteration of a single
+  loop, write back." `RecurrenceKind` picks which body/condition
+  (subtractive alternation gated on `!=`, or additive Fibonacci gated on
+  a counter) -- `FibonacciAdd` only offered when `numVars >= 4` for its
+  extra counter scalar, same gate it always had.
+- **`RepeatedMultiply`** = `Factorial` + `Power`: both "multiply via a
+  nested repeated-addition loop," differing only in whether the
+  multiplicand is an INCREASING factor (`Factorial`) or a CONSTANT
+  captured once (`Power`, section 10). `RepeatedMultiplyKind::
+  ConstantFactor` only offered when `numVars >= 6` (needs the extra
+  captured-base scratch scalar) -- below that it always builds
+  `IncreasingFactor`, so `Factorial`'s original `numVars >= 5`
+  availability is preserved exactly, not narrowed by folding `Power` in
+  alongside it.
+
+`NestedDivisor`, `SelectionSort`, `Average`, and `Counting` stayed
+separate on purpose: none of them share a loop shape closely enough with
+anything else here for a merge to be more than an artificial wrapper --
+`NestedDivisor`'s body is arithmetic (repeated subtraction testing
+divisibility), `SelectionSort`'s is array-element comparison-and-swap,
+`Average` is two SEQUENTIAL single loops (not one, and not nested) rather
+than one shared shape, and `Counting` already covers its own six-way
+variance under one draw.
+
+Bonus fix while touching `GcdEuclid`'s merged code: it was still building
+`!=` as the pre-section-9 compound `(a<b)+(a>b)`, predating native `Ne`.
+Now uses `Ne` directly.
+
+No regression: `make test` 58/58; all 14 problems (the original ten plus
+`count`/`average`/`power`/`reverse`) still solve every level at a quick
+smoke-test budget after the consolidation, build clean under
+`-Wall -Wextra`.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
@@ -288,3 +478,12 @@ ExprKind now includes native Le/Ge/Ne  (base grammar; see section 9 -- broke mod
    index vs. the accumulator) -- sorting may need swap to be *common* in
    exactly the contexts min/max/sum don't need it at all, so a naive
    "swap=bad" prior would be actively harmful there.
+4. ~~Curriculum work for `count`/`average`/`power`~~ -- done (section 10's
+   follow-up): `CountIf`, `genAverageSkeletonBlock`, `genPowerSkeletonBlock`
+   added, all three now solve. Next: check whether `genAverageSkeletonBlock`'s
+   division-via-repeated-subtraction transfers to `mod`/`gcd` if offered as
+   a standalone generic primitive instead of baked into one atomic
+   sum-then-divide block -- would test whether the composability wall
+   diagnosed there (independently-drawn skeletons rarely land on
+   consistent variables) is really as hard a wall as assumed, or just
+   never given enough attempts.
