@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 
@@ -48,6 +49,9 @@ struct CliArgs {
     double bareSwapPenalty = 0.0;
     double adaptiveSkeletonBiasRate = 0.0;
     std::string adaptiveBiasLog;
+    std::string islandLoopBiases;  // comma-separated loopAccumulatorBias values, one per island
+    int migrationInterval = 25;
+    double migrationRate = 0.1;
     std::string output = "solutions.json";
     bool benchmark = false;
     int benchmarkSeeds = 5;
@@ -85,6 +89,9 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
+        else if (arg == "--island-loop-biases") args.islandLoopBiases = next("--island-loop-biases");
+        else if (arg == "--migration-interval") args.migrationInterval = std::stoi(next("--migration-interval"));
+        else if (arg == "--migration-rate") args.migrationRate = std::stod(next("--migration-rate"));
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
@@ -105,6 +112,7 @@ void printUsage() {
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
+                 "[--island-loop-biases 0.4,0.0,0.3] [--migration-interval 25] [--migration-rate 0.1] "
                  "[--output solutions.json] "
                  "[--benchmark] [--benchmark-seeds 5]\n";
 }
@@ -122,6 +130,27 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "factorial") return std::make_unique<FactorialProblem>(10, 40, numVars, seed);
     if (name == "fibonacci") return std::make_unique<FibonacciProblem>(20, 40, numVars, seed);
     return nullptr;
+}
+
+// Parses "--island-loop-biases" into one GenConfig per island: every field
+// besides loopAccumulatorBias comes from the shared CLI args (numVars,
+// indexIncrementBias, bareSwapPenalty), so only the skeleton-bias strength
+// varies island-to-island. Empty input means "no islands" (0 or 1 configs),
+// which BeamSearch::run() treats as the original single-population path.
+std::vector<GenConfig> parseIslandConfigs(const CliArgs& args) {
+    std::vector<GenConfig> islands;
+    if (args.islandLoopBiases.empty()) return islands;
+    std::stringstream ss(args.islandLoopBiases);
+    std::string token;
+    while (std::getline(ss, token, ',')) {
+        GenConfig gc;
+        gc.numVars = args.numVars;
+        gc.indexIncrementBias = args.indexIncrementBias;
+        gc.bareSwapPenalty = args.bareSwapPenalty;
+        gc.loopAccumulatorBias = std::stod(token);
+        islands.push_back(gc);
+    }
+    return islands;
 }
 
 // Runs the search across `args.benchmarkSeeds` independent seeds, collects
@@ -168,6 +197,9 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.loopAccumulatorBias = args.loopBias;
         config.genConfig.indexIncrementBias = args.indexIncrementBias;
         config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
+        config.islandGenConfigs = parseIslandConfigs(args);
+        config.migrationInterval = args.migrationInterval;
+        config.migrationRate = args.migrationRate;
 
         std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
         BeamSearch search(*problem, config);
@@ -290,6 +322,9 @@ int main(int argc, char** argv) {
     config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
+    config.islandGenConfigs = parseIslandConfigs(args);
+    config.migrationInterval = args.migrationInterval;
+    config.migrationRate = args.migrationRate;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();

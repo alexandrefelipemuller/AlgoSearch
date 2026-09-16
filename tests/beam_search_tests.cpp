@@ -1,3 +1,4 @@
+#include "problems/MinArrayProblem.hpp"
 #include "problems/SortingProblem.hpp"
 #include "search/BeamSearch.hpp"
 #include "test_framework.hpp"
@@ -207,4 +208,109 @@ TEST(beam_search_config_is_recorded_in_solution) {
     CHECK(!solutions.empty());
     CHECK_EQ(solutions.back().seed, static_cast<uint64_t>(5));
     CHECK(!solutions.back().config.empty());
+}
+
+// Islands (SearchConfig::islandGenConfigs / BeamSearch::runIslands): a
+// single population under loopAccumulatorBias=0.0 is documented
+// (FINDINGS.md section 5) to essentially never solve min/max/sum without
+// the skeleton bias -- confirmed directly below at this tiny budget
+// first, so the crippled config is genuinely crippled and not just
+// "unlucky at this seed." Running the SAME crippled config as three of
+// four islands, alongside one island with the working bias, should still
+// find a solution: either that one working island finds it on its own
+// (islands never disabled it), or a struggling island benefits from a
+// migrated clone -- both are legitimate outcomes of enabling islands, and
+// this test only asserts the end result the feature exists to provide,
+// not which path produced it.
+TEST(islands_disabled_single_population_with_zero_bias_finds_nothing_at_this_budget) {
+    MinArrayProblem problem(6, 40, 4, 7);
+    SearchConfig cfg;
+    cfg.beamWidth = 30;
+    cfg.maxProgramSize = 15;
+    cfg.stepLimit = 2000;
+    cfg.maxLevel = 2;
+    cfg.seed = 7;
+    cfg.candidatesPerSize = 100;
+    cfg.genConfig.numVars = 4;
+    cfg.genConfig.loopAccumulatorBias = 0.0;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    // N=1 is trivial enough that even a zero-bias population "solves" it
+    // (any tiny random program can get lucky on a single-element array),
+    // so `solutions` isn't necessarily empty -- what a zero-bias
+    // population genuinely never reaches at this budget is N=2, which
+    // needs an actual comparison. Confirmed here so the crippled config
+    // used below is genuinely crippled, not just unlucky at this seed.
+    for (const auto& rec : solutions) {
+        CHECK(rec.levelReached < 2);
+    }
+}
+
+TEST(islands_with_a_crippled_majority_still_solve_what_the_crippled_config_alone_cannot) {
+    MinArrayProblem problem(6, 40, 4, 7);
+    SearchConfig cfg;
+    cfg.beamWidth = 30;
+    cfg.maxProgramSize = 15;
+    cfg.stepLimit = 2000;
+    cfg.maxLevel = 2;
+    cfg.seed = 7;
+    cfg.candidatesPerSize = 100;
+    cfg.genConfig.numVars = 4;
+    cfg.migrationInterval = 3;
+    cfg.migrationRate = 0.2;
+
+    GenConfig crippled;
+    crippled.numVars = 4;
+    crippled.loopAccumulatorBias = 0.0;
+    GenConfig working;
+    working.numVars = 4;
+    working.loopAccumulatorBias = 0.4;
+    cfg.islandGenConfigs = {crippled, crippled, crippled, working};
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    CHECK(!solutions.empty());
+    // Must reach N=2 (the level the crippled config alone never reaches,
+    // per the test above) with a CONFIRMED full solve, not just inherit
+    // the trivial N=1 record every config gets for free.
+    CHECK(solutions.back().levelReached >= 2);
+    CHECK_EQ(solutions.back().score, solutions.back().totalTests);
+    // The winning island's index is recorded in the persisted config pairs
+    // (see BeamSearch::runIslands) -- confirms the multi-island path, not
+    // the single-population fallback, is actually the one that ran.
+    bool foundWinningIslandKey = false;
+    for (const auto& kv : solutions.back().config) {
+        if (kv.first == "winning_island") foundWinningIslandKey = true;
+    }
+    CHECK(foundWinningIslandKey);
+}
+
+// islandGenConfigs with 0 or 1 entries must reproduce the original
+// single-population run() path exactly (see the dispatch in
+// BeamSearch::run()) -- a single-entry list is NOT routed through
+// runIslands(), so this locks in that the size-based dispatch threshold
+// (>1) behaves as documented and doesn't accidentally start treating a
+// solo config list as "islands enabled."
+TEST(a_single_island_config_falls_back_to_the_original_single_population_path) {
+    SortingProblem problem(6, 20, 3, 5);
+    SearchConfig cfg;
+    cfg.beamWidth = 30;
+    cfg.maxProgramSize = 6;
+    cfg.stepLimit = 1000;
+    cfg.maxLevel = 1;
+    cfg.seed = 5;
+    cfg.candidatesPerSize = 60;
+    cfg.genConfig.numVars = 3;
+
+    GenConfig solo = cfg.genConfig;
+    cfg.islandGenConfigs = {solo};
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    CHECK(!solutions.empty());
+    // Single-population path never writes a "winning_island" key.
+    for (const auto& kv : solutions.back().config) {
+        CHECK(kv.first != "winning_island");
+    }
 }

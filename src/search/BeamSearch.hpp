@@ -170,6 +170,46 @@ struct SearchConfig {
     // diagnostics for the adaptive-bias experiment, never read back by the
     // search itself.
     std::string adaptiveBiasLogPath;
+
+    // Islands (FunSearch-style): instead of one population, run several
+    // independent populations IN PARALLEL, each with its own GenConfig --
+    // e.g. one with the skeleton bias on, one with it off, one with
+    // indexIncrementBias, one plain -- so different islands are exploring
+    // genuinely different neighborhoods of program-space, not just
+    // different random seeds of the same neighborhood. Every
+    // `migrationInterval` program sizes, the current best-scoring
+    // candidate across all islands is cloned into every OTHER island,
+    // replacing that island's `migrationRate` worst beam members --
+    // letting a breakthrough found by one strategy propagate to the
+    // others without forcing every island to search the same way.
+    //
+    // Motivation: six single-population diversity/selection mechanisms
+    // (diversityRate, crossoverRate, shapeNicheRate, behaviorNicheRate,
+    // annealingTemperature, scoreBandRate) all failed identically on the
+    // documented gcd/is_prime/factorial "wall" (FINDINGS.md sections 5-10)
+    // -- including a >=5x raw-compute scale-up with NO skeleton bias at
+    // all, which converged to the exact same local optimum from ~1600 of
+    // ~1650 candidates per round at every one of 200+ program sizes
+    // sampled (section 10's landscape diagnostic). That rules out
+    // insufficient search POWER as the cause. Islands test a different
+    // hypothesis: that no single fixed generator bias searches the right
+    // neighborhood for a given problem, and mixing strategies with
+    // migration might reach a neighborhood no single strategy's
+    // population ever entered on its own.
+    //
+    // Empty (default, 0 or 1 entries) disables islands entirely and
+    // reproduces the original single-population behavior in `run()`
+    // exactly -- this is a strictly additive, opt-in code path
+    // (`runIslands()`), never touching the existing single-beam loop.
+    // With islands enabled, diversityRate/crossoverRate/shapeNicheRate/
+    // behaviorNicheRate/annealingTemperature/scoreBandRate/
+    // adaptiveSkeletonBiasRate are all ignored (each island runs a plain
+    // elitist beam under its own genConfig) -- deliberately, to isolate
+    // the island+migration variable rather than compound it with six
+    // other already-tested mechanisms at once.
+    std::vector<GenConfig> islandGenConfigs;
+    int migrationInterval = 25;   // program sizes between migrations
+    double migrationRate = 0.1;   // fraction of beamWidth replaced by the migrant clone
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
@@ -193,6 +233,13 @@ public:
     std::vector<SolutionRecord> run(std::vector<Program>* outPrograms = nullptr);
 
 private:
+    // Dispatched from run() when config_.islandGenConfigs.size() > 1; see
+    // SearchConfig::islandGenConfigs for the full rationale. A separate
+    // code path (not a flag threaded through the single-beam loop above)
+    // so the well-tested default path is never at risk of a regression
+    // from this addition.
+    std::vector<SolutionRecord> runIslands(std::vector<Program>* outPrograms);
+
     const Problem& problem_;
     SearchConfig config_;
 };

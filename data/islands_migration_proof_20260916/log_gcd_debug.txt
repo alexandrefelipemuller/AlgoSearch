@@ -1,0 +1,171 @@
+  [islands] 4 independent populations, migration every 1 sizes, rate 1.000000
+
+LEVEL 1
+operands in [1, 10]
+instances = 100
+beam = 300
+ISLANDS size=1 island=0 bias=0 bestScore=27
+ISLANDS size=1 island=1 bias=0 bestScore=27
+ISLANDS size=1 island=2 bias=0 bestScore=27
+ISLANDS size=1 island=3 bias=0.4 bestScore=27
+  candidates = 4 | best score = 27/100 | best size = 1 | timeouts = 0 | errors = 0
+  [islands] migration at size=1: island 0 (score=27) -> others
+
+LEVEL 1
+operands in [1, 10]
+instances = 100
+beam = 300
+ISLANDS size=2 island=0 bias=0 bestScore=63
+ISLANDS size=2 island=1 bias=0 bestScore=63
+ISLANDS size=2 island=2 bias=0 bestScore=63
+ISLANDS size=2 island=3 bias=0.4 bestScore=100
+  candidates = 3208 | best score = 100/100 | best size = 31 | timeouts = 8638 | errors = 172953
+  [islands] migration at size=2: island 3 (score=100) -> others
+  [islands] winning island 3 | beam diversity at full solve: 96 distinct shapes / 300 candidates
+
+N=1
+  score 100/100
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 44/44
+  size 31  held-out 10/10
+  program_id a835426ca2bcbd5d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v1 = arr[1];
+while (((v3 < v1) + (v3 > v1))) {
+  if ((v3 > v1)) {
+    v3 = (v3 - v1);
+  } else {
+    v1 = (v1 - v3);
+  }
+}
+arr[0] = v3;
+
+
+Search finished in 0.11323s
+
+Saved 8 solution record(s) to solutions.json

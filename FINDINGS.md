@@ -273,6 +273,68 @@ GenConfig::bareSwapPenalty          = 0.0   (opt-in; same as above, be careful n
 ExprKind now includes native Le/Ge/Ne  (base grammar; see section 9 -- broke mod's wall on 1/8 seeds)
 ```
 
+## 10. Raw compute, no skeleton, can't buy past the wall either
+
+Direct follow-up to the user's objection to `loopAccumulatorBias`: doesn't
+biasing the generator toward a canonical loop *shape* risk boxing the
+search into only ever finding algorithms that fit that shape, at the cost
+of genuinely novel control-flow structures? Real concern -- so instead of
+arguing it, tested it: could raw compute substitute for the skeleton bias
+on the three problems with a documented "wall" (`gcd`, `is_prime`,
+`factorial`)? `loop-bias=0.0` (no skeleton at all), and *much* more of
+everything else than any prior run on these problems at this bias level:
+beam=1500 (vs 200-500), candidates=5000 (vs 800-2000), max-program-size=400
+(vs 60-150), 10 seeds, 900s wall cap each, `ALGOSEARCH_DEBUG_LANDSCAPE=1`
+for a per-round diagnostic (script:
+`scripts/run_pure_bruteforce_20260916.sh`, output in
+`data/pure_bruteforce_deep_20260916_1555/`).
+
+**Result: zero solutions, all three problems, every seed that finished.**
+- `gcd`: stuck at 63/100 on LEVEL 1 for the entire 900s in every completed
+  seed (3/10 seeds finished in the window -- each seed alone now costs
+  ~5 minutes at this budget). `best size` stayed 4 the whole run even as
+  the size cap climbed to 400+ -- growing the program past the tiny
+  63-scoring one never helps.
+- `is_prime`: also never left LEVEL 1; best score ranged 7-9/11 across
+  seeds (a little better than the modest-budget runs' flat 7/11, so more
+  compute *did* move the needle slightly here) but never reached 11/11.
+- `factorial`: didn't even clear its trivial LEVEL 1 (6 instances,
+  best 3-4/6) -- confirms finding #5's min/max/sum-without-skeleton result
+  generalizes to factorial too: the loop-accumulator skeleton isn't
+  optional scaffolding for these problems, it's load-bearing for
+  composing *any* working accumulation loop at all, independent of gcd's
+  separate scalar-magnitude wall.
+
+The landscape diagnostic makes the shape of the wall concrete, not just
+its score: at every one of ~200+ program sizes sampled for `gcd`, roughly
+1600 of ~1650 scored candidates per round are the *exact same* 63-point
+local optimum (`topScores` dominated by one value, only 2-5 distinct
+behaviors near the ceiling) -- the beam isn't failing to explore, it has
+already converged completely and additional size/candidates/seeds just
+keep re-finding the identical plateau. This is the same "genuine
+discontinuity" diagnosis from the behavior-niche/annealing/score-band
+experiments (all six prior selection/diversity mechanisms failed
+identically here) -- confirmed again, this time by scaling raw search
+budget by ~5-10x instead of changing the selection mechanism, with the
+same null result. Compute is not the missing ingredient for these three
+problems at `loop-bias=0.0`; something about the local neighborhood
+around a full solution is structurally unreachable by single mutations
+from this 63/100 (or equivalent) plateau, and no amount of beam width or
+candidate count changes that geometry.
+
+Honest tension this leaves unresolved: the skeleton bias *does* fix
+gcd/mod/factorial in practice (section 9's sweep solved gcd cleanly, and
+section 5/6 already showed min/max/sum need the skeleton too) -- but this
+result confirms the user's underlying worry has teeth: the skeleton isn't
+a convenience that a bigger budget could replace, it's currently the
+*only* thing that gets these problems off their local optimum at all. A
+search that can only escape this specific wall via one specific
+hand-designed control-flow prior hasn't demonstrated it can find
+algorithms whose correct shape doesn't happen to be "a counting loop" --
+that's a real, currently-open gap between "this project finds algorithms"
+and "this project discovers novel algorithm structure," not yet closed by
+anything tried so far.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
@@ -288,3 +350,92 @@ ExprKind now includes native Le/Ge/Ne  (base grammar; see section 9 -- broke mod
    index vs. the accumulator) -- sorting may need swap to be *common* in
    exactly the contexts min/max/sum don't need it at all, so a naive
    "swap=bad" prior would be actively harmful there.
+
+## 11. Islands (FunSearch-style parallel populations): implemented, tested, no win on this wall
+
+Direct response to a fair objection about `loopAccumulatorBias`: doesn't a
+fixed shape-prior risk boxing the search into only ever finding algorithms
+that fit that shape? Rather than argue it, implemented and tested the
+alternative the user proposed: multiple independent populations
+("islands"), each under a different `GenConfig` (varying
+`loopAccumulatorBias`), evolving in parallel with periodic migration of
+the current best-scoring program into every other island (replacing its
+weakest beam members). New, strictly additive code path --
+`SearchConfig::islandGenConfigs` / `BeamSearch::runIslands()` in
+`src/search/BeamSearch.{hpp,cpp}`, wired to `--island-loop-biases`,
+`--migration-interval`, `--migration-rate` in `main.cpp`. `islandGenConfigs`
+empty/size<=1 (the default) reproduces the original single-population
+`run()` path byte-for-byte -- verified via `make test` 49/49 after the
+change, no regression.
+
+**First test was confounded.** Ran 4 islands (biases 0.4/0.2/0.0/0.6) on
+gcd/is_prime/factorial -- all three "solved" in seconds, looked like a
+clean win. It wasn't: island 0 (bias=0.4, ALREADY known from section 9 to
+solve gcd/factorial cleanly alone) won every single time
+(`winning island 0` in every log), migration or not. Including a
+proven-good strategy in the mix and then declaring victory when it wins is
+not a test of anything -- caught this before writing it up.
+
+**Redesigned properly** (`scripts/run_islands_experiment.sh`, data in
+`data/islands_experiment2_20260916_1657/`): mix excludes the known-good
+0.4 entirely (`0.0, 0.15, 0.25, 0.35`), gcd + is_prime only (factorial's
+"wall" was already explained away in section 10), matched-budget solo
+control run at each of the 4 individual bias values, 3 seeds, `--benchmark`
+on every run. Result: **islands added no measurable benefit**, but the
+reason is itself the interesting finding --
+- `loop-bias=0.0` alone: genuinely stuck on both problems (gcd timed out
+  at the 300s cap with zero output; is_prime found 0 solutions in the
+  window) -- consistent with sections 9/10's "wall."
+- **Every other bias in the mix -- 0.15, 0.25, or 0.35, each alone --
+  already solves both problems cleanly and fast** (0.03-0.10s search time,
+  0 candidates rejected by the adversarial recheck). The "wall" turns out
+  to be specifically a zero-vs-nonzero-skeleton-bias cliff, not a
+  fine-tuned "needs exactly 0.4" requirement, and not a landscape with
+  multiple genuinely different solution neighborhoods that would need
+  different strategies to reach.
+- Islands did solve both (0 rejected), but at 3-4x the wall-clock cost of
+  any single solo run in the mix (0.11-0.29s vs 0.03-0.10s) -- paying for
+  4 populations' worth of generation/scoring per round when only one
+  non-zero-bias island was ever going to be needed.
+
+Honest conclusion: islands are implemented and work correctly (migration,
+promotion, and the invariance/persistence pipeline all verified against
+the existing single-population logic), but this particular wall isn't the
+kind of problem islands are suited to solve -- it doesn't need strategy
+diversity, it needs *any* nonzero skeleton probability at all, which a
+single population already provides. This doesn't mean islands are useless
+generally: they're a better fit for a landscape that's genuinely
+multi-modal in a way no single fixed bias handles well across the board
+(sections 8/9 haven't found a single bias that cleanly solves sorting
+past N=5, or that reproduces mod's 100/100 seed reliably rather than 1/8)
+-- **an open follow-up is retrying islands specifically on `mod` or
+`sorting`, not on a wall that turned out to be a simple on/off switch.**
+
+**Follow-up: verifying migration itself actually works, not just the
+experiment's outcome.** Tried to catch it live: ran min/max/sum/contains/
+gcd/is_prime with 3 crippled (bias=0.0) islands + 1 working (bias=0.4)
+island, `migrationInterval=1, migrationRate=1.0`, plus a new
+`ALGOSEARCH_DEBUG_ISLANDS` env var (mirrors `ALGOSEARCH_DEBUG_LANDSCAPE`)
+printing every island's own best score each round. Result: **every
+problem tested solves within 1-2 program sizes once any working-bias
+island is present** -- even deliberately starving all four islands
+(beam=20, candidates=60) didn't slow gcd down. That's informative on its
+own (confirms finding #9's skeleton-bias power is not resource-dependent)
+but it means there's no multi-round window in this problem suite where a
+crippled island visibly lags for a while and then visibly catches up mid-
+search -- the "good" island (or, at trivial N=1 levels, EVERY island by
+sheer luck) finds a full solve too fast to observe a live transplant.
+
+So migration's correctness is verified two other ways instead, both now
+permanent: (1) a controlled unit test
+(`islands_with_a_crippled_majority_still_solve_what_the_crippled_config_alone_cannot`,
+`tests/beam_search_tests.cpp`) that first confirms loop-bias=0.0 alone
+never reaches N=2 on `min` at a tiny budget (`islands_disabled_single_
+population_with_zero_bias_finds_nothing_at_this_budget`), then confirms
+the SAME crippled config as 3 of 4 islands, plus one working island,
+does reach N=2 with a confirmed full solve -- and (2)
+`a_single_island_config_falls_back_to_the_original_single_population_path`,
+confirming the size-based dispatch (`islandGenConfigs.size() > 1` routes
+to `runIslands()`, everything else uses the original path unchanged)
+behaves exactly as documented. `make test`: 52/52 (49 original + these
+3), build clean under `-Wall -Wextra`.

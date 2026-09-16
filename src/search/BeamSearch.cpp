@@ -235,6 +235,8 @@ std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfi
 BeamSearch::BeamSearch(const Problem& problem, SearchConfig config) : problem_(problem), config_(std::move(config)) {}
 
 std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
+    if (config_.islandGenConfigs.size() > 1) return runIslands(outPrograms);
+
     Random rng(config_.seed);
     Interpreter interp(config_.stepLimit);
     Dedup dedup;
@@ -712,6 +714,220 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                   << totalCandidatesGenerated << " (" << static_cast<long>(genRate) << "/s), scored " << totalCandidatesScored
                   << " (" << static_cast<long>(scoreRate) << "/s)\n";
     }
+    return solutions;
+}
+
+// See SearchConfig::islandGenConfigs. Deliberately simpler per-island round
+// than the single-population loop above: no diversity/crossover/niche/
+// anneal/adaptive-bias layering, so a result here is attributable to
+// islands+migration alone, not a compound of that plus another already-
+// tested mechanism. Every other piece of behavior (promotion, invariance
+// cascade, persistence record shape) is copied verbatim from run() so
+// solutions found this way are recorded and re-verified identically.
+std::vector<SolutionRecord> BeamSearch::runIslands(std::vector<Program>* outPrograms) {
+    const std::vector<GenConfig>& islandConfigs = config_.islandGenConfigs;
+    size_t numIslands = islandConfigs.size();
+    Interpreter interp(config_.stepLimit);
+
+    std::vector<Random> islandRng;
+    std::vector<Dedup> islandDedup(numIslands);
+    std::vector<std::vector<CandidateRecord>> islandBeam(numIslands);
+    for (size_t i = 0; i < numIslands; ++i) islandRng.emplace_back(config_.seed + static_cast<uint64_t>(i) * 977ull + 1);
+
+    int currentLevel = config_.startLevel;
+    std::vector<SolutionRecord> solutions;
+    auto searchStart = std::chrono::steady_clock::now();
+    unsigned threadCount = config_.numThreads != 0 ? config_.numThreads : std::thread::hardware_concurrency();
+    if (threadCount == 0) threadCount = 1;
+
+    log::info("  [islands] " + std::to_string(numIslands) + " independent populations, migration every " +
+              std::to_string(config_.migrationInterval) + " sizes, rate " + std::to_string(config_.migrationRate));
+
+    // Mechanical proof-of-migration diagnostic, never affecting search
+    // behavior: prints every island's own best score each round, so a
+    // crippled island's score visibly jumping to match another island's
+    // right after a migration round -- something its own bias could never
+    // produce on its own -- is directly observable instead of inferred
+    // from which island happens to win a promotion event.
+    bool debugIslands = std::getenv("ALGOSEARCH_DEBUG_ISLANDS") != nullptr;
+
+    for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
+        std::vector<Instance> instances = problem_.generateInstances(currentLevel);
+        log::levelHeader(currentLevel, problem_.describeLevel(currentLevel), instances.size(), config_.beamWidth);
+
+        int overallBestScore = -1;
+        size_t overallBestIsland = 0;
+        int totalTimeouts = 0, totalErrors = 0;
+        size_t totalCandidates = 0;
+
+        for (size_t isl = 0; isl < numIslands; ++isl) {
+            auto& beam = islandBeam[isl];
+            auto& rng = islandRng[isl];
+            auto& dedup = islandDedup[isl];
+            const GenConfig& genConfig = islandConfigs[isl];
+
+            std::vector<Program> grownPool;
+            grownPool.reserve(beam.size() * 2);
+            for (auto& b : beam) {
+                grownPool.push_back(b.program->clone());
+                grownPool.push_back(growProgram(*b.program, size, rng, genConfig));
+            }
+            std::vector<Program> freshPool;
+            int guard = 0;
+            while (static_cast<int>(freshPool.size()) < config_.candidatesPerSize && guard < config_.candidatesPerSize * 4) {
+                auto candidate = generateRandomProgram(rng, size, genConfig);
+                if (dedup.insertIfNew(*candidate)) freshPool.push_back(std::move(candidate));
+                guard++;
+            }
+
+            int timeouts = 0, errors = 0;
+            std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size());
+            scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
+            scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
+            totalTimeouts += timeouts;
+            totalErrors += errors;
+            totalCandidates += scored.size();
+
+            if (scored.empty()) continue;
+            std::sort(scored.begin(), scored.end(), [](const CandidateRecord& a, const CandidateRecord& b) {
+                if (a.score != b.score) return a.score > b.score;
+                if (a.fitness != b.fitness) return a.fitness > b.fitness;
+                return a.size < b.size;
+            });
+            if (static_cast<int>(scored.size()) > config_.beamWidth) scored.resize(static_cast<size_t>(config_.beamWidth));
+            beam = std::move(scored);
+
+            int islandBest = beam.empty() ? 0 : beam.front().score;
+            if (islandBest > overallBestScore) {
+                overallBestScore = islandBest;
+                overallBestIsland = isl;
+            }
+            if (debugIslands) {
+                std::cerr << "ISLANDS size=" << size << " island=" << isl << " bias=" << genConfig.loopAccumulatorBias
+                          << " bestScore=" << islandBest << "\n";
+            }
+        }
+
+        bool didMigrate = false;
+        if (numIslands > 1 && config_.migrationInterval > 0 && size % config_.migrationInterval == 0) {
+            auto& sourceBeam = islandBeam[overallBestIsland];
+            if (!sourceBeam.empty()) {
+                int migrantCount = std::max(1, static_cast<int>(std::lround(config_.migrationRate * config_.beamWidth)));
+                for (size_t isl = 0; isl < numIslands; ++isl) {
+                    if (isl == overallBestIsland) continue;
+                    auto& beam = islandBeam[isl];
+                    int replace = std::min(migrantCount, static_cast<int>(beam.size()));
+                    for (int k = 0; k < replace; ++k) {
+                        size_t pos = beam.size() - 1 - static_cast<size_t>(k);
+                        CandidateRecord clone;
+                        clone.program = sourceBeam.front().program->clone();
+                        clone.size = sourceBeam.front().size;
+                        clone.score = sourceBeam.front().score;
+                        clone.fitness = sourceBeam.front().fitness;
+                        clone.totalTests = sourceBeam.front().totalTests;
+                        clone.correctness = sourceBeam.front().correctness;
+                        beam[pos] = std::move(clone);
+                    }
+                }
+                didMigrate = true;
+            }
+        }
+
+        log::progress(totalCandidates, overallBestScore < 0 ? 0 : overallBestScore, static_cast<int>(instances.size()),
+                       islandBeam[overallBestIsland].empty() ? 0 : islandBeam[overallBestIsland].front().size, totalTimeouts,
+                       totalErrors);
+        if (didMigrate) {
+            log::info("  [islands] migration at size=" + std::to_string(size) + ": island " +
+                       std::to_string(overallBestIsland) + " (score=" + std::to_string(overallBestScore) + ") -> others");
+        }
+
+        if (overallBestScore > 0 && overallBestScore == static_cast<int>(instances.size())) {
+            // Full solve -- identical promotion/invariance-cascade/persistence
+            // logic to the single-population path above, just sourced from
+            // the winning island's beam front instead of `beam.front()`.
+            std::vector<CandidateRecord>& winningBeam = islandBeam[overallBestIsland];
+            const Program& provenProgram = winningBeam.front().program;
+            std::string programText = provenProgram->toString();
+            int programSize = winningBeam.front().size;
+            std::string programId = programIdOf(programText);
+
+            std::unordered_set<std::string> shapes;
+            for (const auto& b : winningBeam) shapes.insert(structuralShape(*b.program));
+            int beamDiversity = static_cast<int>(shapes.size());
+            int beamSizeNow = static_cast<int>(winningBeam.size());
+            log::info("  [islands] winning island " + std::to_string(overallBestIsland) + " | beam diversity at full solve: " +
+                      std::to_string(beamDiversity) + " distinct shapes / " + std::to_string(beamSizeNow) + " candidates");
+
+            struct LevelResult {
+                int level, score, total;
+            };
+            std::vector<LevelResult> cascade = {{currentLevel, overallBestScore, static_cast<int>(instances.size())}};
+
+            int level = currentLevel;
+            while (true) {
+                int next = problem_.nextLevel(level);
+                if (next > config_.maxLevel) break;
+                std::vector<Instance> nextInstances = problem_.generateInstances(next);
+                int s = 0;
+                for (const auto& inst : nextInstances) {
+                    if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) s++;
+                }
+                if (s != static_cast<int>(nextInstances.size())) break;
+                level = next;
+                cascade.push_back({level, s, static_cast<int>(nextInstances.size())});
+            }
+
+            int firstLevel = currentLevel;
+            int confirmedLevels = static_cast<int>(cascade.size());
+            int requiredLevel = std::min(currentLevel + config_.invarianceLookahead, config_.maxLevel);
+            bool invarianceHolds = config_.invarianceLookahead <= 0 || level >= requiredLevel;
+            std::string status = invarianceHolds ? "SUCCESS" : "UNCONFIRMED";
+            if (!invarianceHolds) {
+                log::info("  UNCONFIRMED (fails structural invariance): solves N=" + std::to_string(currentLevel) +
+                          " but breaks before N=" + std::to_string(requiredLevel) +
+                          " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
+            }
+            for (const auto& lr : cascade) {
+                int advPassed = -1, advTotal = -1;
+                std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lr.level);
+                if (!adversarial.empty()) {
+                    advTotal = static_cast<int>(adversarial.size());
+                    advPassed = 0;
+                    for (const auto& inst : adversarial) {
+                        if (problem_.evaluate(*provenProgram, inst, interp).status == ExecStatus::SUCCESS) advPassed++;
+                    }
+                }
+                if (lr.level != currentLevel) log::advancingToLevel(lr.level);
+                log::championAtLevel(lr.level, lr.score, lr.total, programSize, programText, advPassed, advTotal, programId,
+                                      firstLevel, confirmedLevels);
+
+                SolutionRecord rec;
+                rec.programId = programId;
+                rec.programText = programText;
+                rec.programSize = programSize;
+                rec.levelReached = lr.level;
+                rec.nReached = lr.level;
+                rec.firstLevel = firstLevel;
+                rec.confirmedLevels = confirmedLevels;
+                rec.score = lr.score;
+                rec.totalTests = lr.total;
+                rec.finalStatus = status;
+                rec.adversarialPassed = advPassed;
+                rec.adversarialTotal = advTotal;
+                rec.beamDiversity = beamDiversity;
+                rec.beamSize = beamSizeNow;
+                rec.seed = config_.seed;
+                rec.config = configToPairs(config_);
+                rec.config.push_back({"winning_island", std::to_string(overallBestIsland)});
+                solutions.push_back(std::move(rec));
+                if (outPrograms) outPrograms->push_back(provenProgram->clone());
+            }
+            currentLevel = problem_.nextLevel(level);
+        }
+    }
+
+    double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
+    log::searchFinished(elapsed);
     return solutions;
 }
 

@@ -1,0 +1,219 @@
+  [islands] 4 independent populations, migration every 1 sizes, rate 1.000000
+
+LEVEL 1
+range [0, 10]
+instances = 11
+beam = 300
+ISLANDS size=1 island=0 bias=0 bestScore=1
+ISLANDS size=1 island=1 bias=0 bestScore=1
+ISLANDS size=1 island=2 bias=0 bestScore=1
+ISLANDS size=1 island=3 bias=0.4 bestScore=1
+  candidates = 4 | best score = 1/11 | best size = 1 | timeouts = 0 | errors = 0
+  [islands] migration at size=1: island 0 (score=1) -> others
+
+LEVEL 1
+range [0, 10]
+instances = 11
+beam = 300
+ISLANDS size=2 island=0 bias=0 bestScore=7
+ISLANDS size=2 island=1 bias=0 bestScore=7
+ISLANDS size=2 island=2 bias=0 bestScore=7
+ISLANDS size=2 island=3 bias=0.4 bestScore=11
+  candidates = 3208 | best score = 11/11 | best size = 42 | timeouts = 740 | errors = 20875
+  [islands] migration at size=2: island 3 (score=11) -> others
+  [islands] winning island 3 | beam diversity at full solve: 64 distinct shapes / 300 candidates
+
+N=1
+  score 11/11
+  size 42  held-out 10/10
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 16/16
+  size 42  held-out 10/10
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 21/21
+  size 42  held-out 11/11
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 26/26
+  size 42  held-out 12/12
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 31/31
+  size 42  held-out 12/12
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 46/46
+  size 42  held-out 12/12
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 46/46
+  size 42  held-out 13/13
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 46/46
+  size 42  held-out 13/13
+  program_id 72ad0dcc587805f0  first_level 1  confirmed_levels 8
+  programa:
+v2 = arr[0];
+arr[0] = 1;
+if ((v2 < 2)) {
+  arr[0] = 0;
+}
+v1 = 2;
+while ((v1 < v2)) {
+  v3 = v2;
+  while ((v1 < v3)) {
+    v3 = (v3 - v1);
+  }
+  if ((v3 == v1)) {
+    arr[0] = 0;
+  }
+  v1 = (v1 + 1);
+}
+
+
+Search finished in 0.0571667s
+
+Saved 8 solution record(s) to solutions.json

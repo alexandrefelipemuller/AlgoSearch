@@ -1,0 +1,118 @@
+  [islands] 4 independent populations, migration every 3 sizes, rate 1.000000
+
+LEVEL 1
+N = 1
+instances = 1
+beam = 100
+ISLANDS size=1 island=0 bias=0 bestScore=1
+ISLANDS size=1 island=1 bias=0 bestScore=1
+ISLANDS size=1 island=2 bias=0 bestScore=1
+ISLANDS size=1 island=3 bias=0.4 bestScore=1
+  candidates = 4 | best score = 1/1 | best size = 1 | timeouts = 0 | errors = 0
+  [islands] winning island 0 | beam diversity at full solve: 1 distinct shapes / 1 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 1/1
+  size 1  held-out 13/13
+  program_id 553e93901e462a6e  first_level 1  confirmed_levels 1
+  programa:
+
+
+LEVEL 2
+N = 2
+instances = 10
+beam = 100
+ISLANDS size=2 island=0 bias=0 bestScore=6
+ISLANDS size=2 island=1 bias=0 bestScore=6
+ISLANDS size=2 island=2 bias=0 bestScore=6
+ISLANDS size=2 island=3 bias=0.4 bestScore=10
+  candidates = 1208 | best score = 10/10 | best size = 37 | timeouts = 443 | errors = 5631
+  [islands] winning island 3 | beam diversity at full solve: 23 distinct shapes / 100 candidates
+
+N=2
+  score 10/10
+  size 37  held-out 13/13
+  program_id 8b20ea7b3acc0b28  first_level 2  confirmed_levels 4
+  programa:
+v2 = 0;
+while ((v2 < v0)) {
+  v3 = v2;
+  v1 = (v2 + 1);
+  while ((v1 < v0)) {
+    if ((arr[v1] < arr[v3])) {
+      v3 = v1;
+    }
+    v1 = (v1 + 1);
+  }
+  swap(arr[v2], arr[v3]);
+  v2 = (v2 + 1);
+}
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 14/14
+  size 37  held-out 13/13
+  program_id 8b20ea7b3acc0b28  first_level 2  confirmed_levels 4
+  programa:
+v2 = 0;
+while ((v2 < v0)) {
+  v3 = v2;
+  v1 = (v2 + 1);
+  while ((v1 < v0)) {
+    if ((arr[v1] < arr[v3])) {
+      v3 = v1;
+    }
+    v1 = (v1 + 1);
+  }
+  swap(arr[v2], arr[v3]);
+  v2 = (v2 + 1);
+}
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 32/32
+  size 37  held-out 13/13
+  program_id 8b20ea7b3acc0b28  first_level 2  confirmed_levels 4
+  programa:
+v2 = 0;
+while ((v2 < v0)) {
+  v3 = v2;
+  v1 = (v2 + 1);
+  while ((v1 < v0)) {
+    if ((arr[v1] < arr[v3])) {
+      v3 = v1;
+    }
+    v1 = (v1 + 1);
+  }
+  swap(arr[v2], arr[v3]);
+  v2 = (v2 + 1);
+}
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 128/128
+  size 37  held-out 13/13
+  program_id 8b20ea7b3acc0b28  first_level 2  confirmed_levels 4
+  programa:
+v2 = 0;
+while ((v2 < v0)) {
+  v3 = v2;
+  v1 = (v2 + 1);
+  while ((v1 < v0)) {
+    if ((arr[v1] < arr[v3])) {
+      v3 = v1;
+    }
+    v1 = (v1 + 1);
+  }
+  swap(arr[v2], arr[v3]);
+  v2 = (v2 + 1);
+}
+
+
+Search finished in 0.0192543s
+
+Saved 5 solution record(s) to solutions.json
