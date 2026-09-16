@@ -60,6 +60,23 @@ struct SearchConfig {
     // 0.2-0.3); see data/diversity_experiment_with_bias/.
     double diversityRate = 0.0;
 
+    // Crossover: in addition to growing each beam survivor in isolation
+    // (growProgram, single-parent mutation only) and generating brand-new
+    // random candidates, also generate `crossoverRate * candidatesPerSize`
+    // candidates by picking two DISTINCT survivors from the current beam
+    // and splicing a subtree from one into a clone of the other
+    // (ProgramGenerator::crossoverPrograms). This is the one classic
+    // genetic-programming operator this search never had: growProgram
+    // alone means every beam lineage evolves in total isolation, so an
+    // algorithm needing two or three independent structural insights (a
+    // loop bound shape here, a comparison shape there) has to have ALL of
+    // them land in the SAME lineage's random walk at once. Crossover lets
+    // two lineages that each found a different piece combine them
+    // directly. 0.0 (default) disables it and reproduces prior behavior
+    // exactly. See FINDINGS.md once the crossover experiment is run for
+    // whether it was kept on.
+    double crossoverRate = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure

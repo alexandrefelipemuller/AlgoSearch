@@ -582,6 +582,16 @@ void collectBlocks(Stmt& s, std::vector<BlockTarget>& out) {
     for (auto& c : s.elseBody) collectBlocks(*c, out);
 }
 
+// Collects every statement node in the tree (read-only), for picking an
+// arbitrary donor subtree in crossover -- deliberately every node, not
+// just top-level block members, so a deeply nested `if` or `while` found
+// in one lineage can be transplanted whole into another.
+void collectAllStmts(const Stmt& s, std::vector<const Stmt*>& out) {
+    out.push_back(&s);
+    for (const auto& c : s.body) collectAllStmts(*c, out);
+    for (const auto& c : s.elseBody) collectAllStmts(*c, out);
+}
+
 }  // namespace
 
 Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg) {
@@ -633,6 +643,53 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
                                       /*insideWhile=*/targetInfo.parentKind == StmtKind::While);
         }
     }
+    return root;
+}
+
+// Subtree crossover: the ONE mutation operator missing from this search
+// entirely before this function existed. growProgram only ever inserts or
+// replaces a statement with a BRAND NEW randomly generated one -- every
+// beam lineage evolves in total isolation, so if the correct algorithm
+// needs two or three independent structural insights (a loop bound, a
+// comparison shape, a body update) to all land in the SAME candidate at
+// once, mutation-only search has to stumble into every one of them
+// simultaneously in a single random walk. Real genetic programming relies
+// on crossover between two independently-fit parents specifically to
+// avoid that: if lineage A discovered the right loop shape and lineage B
+// (unrelated) discovered the right comparison, crossover can combine them
+// in one step instead of requiring either lineage to re-discover the
+// other's insight from scratch.
+//
+// Clones `recipient`, picks a random insertion point in it (reusing the
+// same block-target machinery growProgram uses), and splices in a clone
+// of a randomly chosen subtree from `donor` -- any statement node at any
+// depth, not just top-level ones, so a nested `if`/`while` found in one
+// parent can transplant whole into the other.
+Program crossoverPrograms(const Stmt& recipient, const Stmt& donor, Random& rng, const GenConfig& cfg) {
+    auto root = recipient.clone();
+
+    std::vector<const Stmt*> donorNodes;
+    collectAllStmts(donor, donorNodes);
+    const Stmt* donorNode = donorNodes[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(donorNodes.size()) - 1))];
+    StmtPtr transplant = donorNode->clone();
+
+    std::vector<BlockTarget> blocks;
+    collectBlocks(*root, blocks);
+    if (blocks.empty()) return root;
+    const BlockTarget& targetInfo = blocks[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(blocks.size()) - 1))];
+    auto* target = targetInfo.block;
+
+    if (!target->empty() && rng.chance(0.5)) {
+        // Replace an existing statement (refines logic in place, same
+        // rationale as growProgram's point-mutation pass).
+        size_t idx = static_cast<size_t>(rng.uniformInt(0, static_cast<int>(target->size()) - 1));
+        (*target)[idx] = std::move(transplant);
+    } else {
+        // Insert alongside.
+        size_t pos = target->empty() ? 0 : static_cast<size_t>(rng.uniformInt(0, static_cast<int>(target->size())));
+        target->insert(target->begin() + static_cast<long>(pos), std::move(transplant));
+    }
+    (void)cfg;  // reserved for future context-aware splicing (e.g. remapping variable indices)
     return root;
 }
 

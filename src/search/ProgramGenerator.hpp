@@ -138,4 +138,14 @@ Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg)
 // candidates from one program size to the next.
 Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConfig& cfg);
 
+// Subtree crossover between two independently-evolved programs: clones
+// `recipient` and splices in a clone of a randomly chosen subtree from
+// `donor` at a randomly chosen point. Unlike growProgram (which only ever
+// inserts/replaces with a BRAND NEW random statement), this lets two beam
+// lineages that each discovered a different piece of a solution combine
+// them into one candidate -- the recombination operator classic genetic
+// programming relies on and this search never had. See the rationale in
+// ProgramGenerator.cpp.
+Program crossoverPrograms(const Stmt& recipient, const Stmt& donor, Random& rng, const GenConfig& cfg);
+
 }  // namespace algosearch

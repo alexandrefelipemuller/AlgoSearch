@@ -263,7 +263,23 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             if (dedup.insertIfNew(*candidate)) freshPool.push_back(std::move(candidate));
             guard++;
         }
-        totalCandidatesGenerated += guard;
+
+        // Crossover pool: two DISTINCT beam survivors combined via
+        // subtree splicing (see SearchConfig::crossoverRate). Needs at
+        // least 2 survivors to have two different parents to draw from.
+        std::vector<Program> crossoverPool;
+        if (config_.crossoverRate > 0.0 && beam.size() >= 2) {
+            int crossoverCount = std::max(0, static_cast<int>(std::lround(config_.crossoverRate * config_.candidatesPerSize)));
+            crossoverPool.reserve(static_cast<size_t>(crossoverCount));
+            for (int c = 0; c < crossoverCount; ++c) {
+                int ia = rng.uniformInt(0, static_cast<int>(beam.size()) - 1);
+                int ib = rng.uniformInt(0, static_cast<int>(beam.size()) - 1);
+                if (ib == ia) ib = (ib + 1) % static_cast<int>(beam.size());
+                crossoverPool.push_back(crossoverPrograms(*beam[static_cast<size_t>(ia)].program,
+                                                            *beam[static_cast<size_t>(ib)].program, rng, config_.genConfig));
+            }
+        }
+        totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size());
         genPhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - genStart).count();
 
         int timeouts = 0, errors = 0;
@@ -271,9 +287,11 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (threadCount == 0) threadCount = 1;
 
         auto scoreStart = std::chrono::steady_clock::now();
-        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size());
+        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
+        scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
+                         timeouts, errors);
         totalCandidatesScored += static_cast<long>(scored.size());
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 
