@@ -11,6 +11,7 @@
 #include "problems/FibonacciProblem.hpp"
 #include "problems/ContainsProblem.hpp"
 #include "problems/GcdProblem.hpp"
+#include "problems/ModProblem.hpp"
 #include "problems/IsPrimeProblem.hpp"
 #include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
@@ -115,6 +116,7 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "contains_ordered") return std::make_unique<ContainsOrderedProblem>(6, 40, numVars, seed);
     if (name == "is_prime") return std::make_unique<IsPrimeProblem>(30, 40, numVars, seed);
     if (name == "gcd") return std::make_unique<GcdProblem>(12, 40, numVars, seed);
+    if (name == "mod") return std::make_unique<ModProblem>(12, 40, numVars, seed);
     if (name == "factorial") return std::make_unique<FactorialProblem>(10, 40, numVars, seed);
     if (name == "fibonacci") return std::make_unique<FibonacciProblem>(20, 40, numVars, seed);
     return nullptr;

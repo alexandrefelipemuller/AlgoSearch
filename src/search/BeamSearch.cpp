@@ -3,11 +3,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "core/Random.hpp"
@@ -337,7 +339,8 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         unsigned threadCount = config_.numThreads != 0 ? config_.numThreads : std::thread::hardware_concurrency();
         if (threadCount == 0) threadCount = 1;
 
-        bool trackCorrectness = config_.behaviorNicheRate > 0.0;
+        bool debugLandscape = std::getenv("ALGOSEARCH_DEBUG_LANDSCAPE") != nullptr;
+        bool trackCorrectness = config_.behaviorNicheRate > 0.0 || debugLandscape;
         auto scoreStart = std::chrono::steady_clock::now();
         std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness);
@@ -350,6 +353,48 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                          trackCorrectness);
         totalCandidatesScored += static_cast<long>(scored.size());
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
+
+        if (debugLandscape) {
+            // Root-cause diagnostic: is the search plateau a BEAM
+            // MONOCULTURE (the exact same lucky candidate cloned/mutated
+            // every round, crowding out everything else) or a WIDE
+            // FITNESS PLATEAU (many genuinely different programs
+            // independently landing near the same score ceiling, so no
+            // amount of diversity would find a path past it)? Distinguish
+            // by comparing: (a) the best score reachable from freshPool
+            // ALONE (brand-new independent samples, never descended from
+            // the beam) vs from grownPool (mutations of current
+            // survivors) -- if fresh sampling regularly finds candidates
+            // near the ceiling too, the ceiling isn't a beam-capture
+            // artifact; (b) how many DISTINCT behavior signatures
+            // (right/wrong pattern across instances) appear among
+            // near-ceiling candidates -- 1 means literally one family
+            // dominates, >1 means multiple independent roads reach the
+            // same score.
+            int freshBest = 0, grownBest = 0;
+            for (size_t i = 0; i < grownPool.size() && i < scored.size(); ++i) grownBest = std::max(grownBest, scored[i].score);
+            for (size_t i = grownPool.size(); i < grownPool.size() + freshPool.size() && i < scored.size(); ++i) {
+                freshBest = std::max(freshBest, scored[i].score);
+            }
+            int overallBest = 0;
+            for (const auto& c : scored) overallBest = std::max(overallBest, c.score);
+            int nearCeiling = std::max(0, static_cast<int>(overallBest * 0.9));
+            std::unordered_set<std::string> distinctBehaviorsNearCeiling;
+            std::unordered_map<int, int> scoreHistogram;
+            for (const auto& c : scored) {
+                scoreHistogram[c.score]++;
+                if (c.score >= nearCeiling && !c.correctness.empty()) distinctBehaviorsNearCeiling.insert(behaviorSignature(c));
+            }
+            // Top few score buckets by candidate count, for a compact view
+            // of where the mass of the population actually sits.
+            std::vector<std::pair<int, int>> hist(scoreHistogram.begin(), scoreHistogram.end());
+            std::sort(hist.begin(), hist.end(), [](auto& a, auto& b) { return a.first > b.first; });
+            std::ostringstream histStr;
+            for (size_t i = 0; i < hist.size() && i < 6; ++i) histStr << hist[i].first << ":" << hist[i].second << " ";
+            std::cerr << "LANDSCAPE size=" << size << " overallBest=" << overallBest << " grownBest=" << grownBest
+                      << " freshBest=" << freshBest << " distinctBehaviorsNear" << nearCeiling << "="
+                      << distinctBehaviorsNearCeiling.size() << " topScores[score:count]=" << histStr.str() << "\n";
+        }
 
         if (!annealPool.empty()) {
             // Boltzmann acceptance: always take an improving/equal move;

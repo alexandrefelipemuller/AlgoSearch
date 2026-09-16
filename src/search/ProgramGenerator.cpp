@@ -15,6 +15,20 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
         }
         return makeVar(rng.uniformInt(0, cfg.numVars - 1));
     }
+    // Bug found while investigating why GcdProblem/IsPrimeProblem never
+    // compose a solution unaided: case 0 and the default case here used
+    // to BOTH produce ArrayAccess, silently giving it 50% weight against
+    // 25% each for Add/Sub -- fine for array-heavy problems (min/max/sum),
+    // but it actively starves magnitude problems (gcd, is_prime,
+    // fibonacci, factorial) whose array holds only 1-2 elements, where
+    // almost all real computation has to happen via scalar-to-scalar
+    // arithmetic. `Sub(Var, Var)` -- confirmed empirically as the exact
+    // missing piece behind GcdProblem's 72/100 plateau (see the
+    // LANDSCAPE diagnostic in BeamSearch.cpp) -- was accidentally rarer
+    // than it needed to be. Fourth branch now returns a direct scalar Var
+    // (not recursing further), giving genuine 25% weight to "just a
+    // variable" at every non-leaf level, not only when the leaf branch
+    // above happens to roll one.
     int choice = rng.uniformInt(0, 3);
     switch (choice) {
         case 0:
@@ -24,7 +38,7 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
         case 2:
             return makeBinOp(ExprKind::Sub, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
         default:
-            return makeArrayAccess(genValueExpr(rng, depthBudget - 1, cfg));
+            return makeVar(rng.uniformInt(0, cfg.numVars - 1));
     }
 }
 
