@@ -175,6 +175,93 @@ sorting needs either more time or a smaller max-n ceiling matched to
 what 300s can actually afford. Not yet run as a proper multi-seed sweep
 at a matched budget.
 
+## 9. Native Le/Ge/Ne close the mod/gcd "wall" -- at least once, honestly
+
+Mini-C previously had only `Lt`/`Gt`/`Eq` as native comparisons; `!=` was
+emulated as `(x<y)+(x>y)` (added to close a representational gap -- see
+`ProgramGenerator.cpp`'s old comment, now removed), and `<=`/`>=` had no
+generic emulation at all in the random grammar (only hand-written
+skeletons used ad hoc rewrites like `Lt(i, n+1)` for `i<=n`). Added `Le`,
+`Ge`, `Ne` as three more native `ExprKind`s (`ast/Expr.hpp`), evaluated
+directly in the interpreter, printed as `<=`/`>=`/`!=`, and sampled
+uniformly against `Lt`/`Gt`/`Eq` in `genCondExpr` (1/6 each, replacing the
+old 3/4 Lt/Gt/Eq + 1/4 compound-Ne split). This is a base grammar change,
+not an opt-in bias knob, so the bar to keep it is "does it ever actually
+help, without hurting anything else" -- not "is it a clean win everywhere."
+
+**A/B, matched seeds (1-8), no skeleton (`loop-bias=0.0`), 180s wall-clock
+per run, `mod`/`gcd`/`is_prime`, old grammar vs. new:** `gcd` and
+`is_prime` came out byte-identical across every seed in both arms (63/100
+and 7/11 respectively, no exceptions) -- for these two problems, in this
+budget, the extra operators changed nothing. `mod` is where it mattered:
+seed 7 hit **100/100** with the new grammar (old grammar's seed 7: 72/100).
+Independently re-verified via `--benchmark` (the adversarial magnitude-shift
+check in `Benchmark.cpp`, not just the training/held-out score) -- kept as
+a genuinely generalizing solution, not rejected, `O(n)` complexity fit,
+`confirmed_levels=30` (held at every level advanced through, N=1..30+).
+Program is large (231 nodes) and structurally messy -- not a clean textbook
+mod algorithm, more like an overfit-shaped blob that happens to be exactly
+correct -- but it earns the 100/100 fair and square: same search engine,
+same budget, only the grammar changed, and it passes the same independent
+generalization check every other confirmed solution in this project goes
+through.
+
+No regression: `make test` 49/49 after the change; `min`/`max`/`sum`/
+`contains`/`sorting` all score identically to the old grammar across 5
+matched seeds each at the standard comparison budget (`contains` seed 5
+advanced to a bigger level under the new grammar, not a regression -- it's
+still 100% correct at whatever level it reached).
+
+Conclusion: kept as the new default. One seed breaking through where six
+prior generic mechanisms (diversity, crossover, shape/behavior-niche,
+score-band niching, annealing) all failed identically on the same wall is
+real signal that the missing native comparisons -- not selection pressure
+-- were part of what walled gcd/mod off, even though gcd itself didn't
+budge in this particular A/B. Not proof the wall is fully gone (`gcd` and
+`is_prime` are still stuck, and `mod`'s other 7/8 seeds didn't reach
+100/100 either), but a genuine partial win on a base-grammar change,
+worth keeping and worth revisiting with more seeds/budget on `gcd`
+specifically.
+
+**Follow-up, same day:** a full 10-problem sweep at the *default*
+loop-bias=0.4 (skeleton ON, not the no-skeleton isolation setting used
+for the A/B above) -- modest budget (candidates=1500, max-program-size=150,
+5 benchmark seeds, 240s wall cap/problem, see
+`scripts/run_full_battery_modest.sh`, output in
+`data/modest_battery_20260916_1135/`) -- found `gcd` solves **cleanly**
+with the skeleton bias on: subtractive Euclidean GCD, confirmed through
+level 20, a genuinely clean textbook algorithm (not a bloated blob like
+the mod one above):
+```
+v2 = arr[0]; v1 = arr[1];
+while ((v2<v1)+(v2>v1)) {           // != , via the compound form (native Ne exists but wasn't drawn here)
+  if (v2>v1) v2=v2-v1; else v1=v1-v2;
+}
+arr[0] = v2;
+```
+So the "gcd wall" documented above was specifically a **no-skeleton**
+phenomenon -- with `loopAccumulatorBias=0.4` (this project's actual
+default, not the isolation setting used to test the grammar change in
+isolation) plus native Le/Ge/Ne, gcd is not stuck at all. 9/10 problems in
+this sweep produced independently-verified generalizing solutions
+(sorting O(n^2), min/max/sum/contains/contains_ordered/fibonacci all
+O(n), gcd O(n), is_prime O(n) with 6/9 candidates surviving the
+adversarial recheck, 3 correctly rejected); `factorial` alone timed out
+mid-search at the 240s cap, stuck at 43/45 on level 12 -- looked like a
+budget shortfall (matches section 8's point that different problems need
+different wall-clock budgets under equal settings), but turned out to be
+CPU contention from running in the same sequential battery, not an
+actual compute need: re-run isolated with the same settings and a 1800s
+cap (`data/factorial_deep_20260916/`), it finished in ~35s per seed, all
+5 seeds converging on the same genuinely-generalizing O(n^2) factorial
+(nested-loop multiply-by-repeated-addition), 0 rejected. The 43/45
+plateau at level 12 is real but benign -- factorial(27) overflows `int`,
+so those 2 wrong instances are a numeric-range limit of the *problem*,
+not a search failure; the algorithm itself is correct. Lesson: a
+timeout inside a sequential multi-problem battery isn't good evidence of
+a real budget shortfall for that one problem -- rerun it isolated before
+concluding "needs more budget."
+
 ## Current defaults (as of this entry)
 
 ```
@@ -183,6 +270,7 @@ SearchConfig::diversityRate         = 0.0   (confirmed: raising it doesn't help,
 GenConfig::loopAccumulatorBias      = 0.4   (confirmed peak, 160-run sweep)
 GenConfig::indexIncrementBias       = 0.0   (opt-in; mixed A/B evidence, not a clean win alone)
 GenConfig::bareSwapPenalty          = 0.0   (opt-in; same as above, be careful not to hurt sorting)
+ExprKind now includes native Le/Ge/Ne  (base grammar; see section 9 -- broke mod's wall on 1/8 seeds)
 ```
 
 ## Open threads, roughly in the order they were flagged as next steps

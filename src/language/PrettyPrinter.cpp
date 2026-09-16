@@ -18,6 +18,9 @@ const char* opSymbol(ExprKind k) {
         case ExprKind::Lt: return "<";
         case ExprKind::Gt: return ">";
         case ExprKind::Eq: return "==";
+        case ExprKind::Le: return "<=";
+        case ExprKind::Ge: return ">=";
+        case ExprKind::Ne: return "!=";
         default: return "?";
     }
 }
@@ -47,6 +50,9 @@ std::string printExpr(const Expr& e) {
         case ExprKind::Lt:
         case ExprKind::Gt:
         case ExprKind::Eq:
+        case ExprKind::Le:
+        case ExprKind::Ge:
+        case ExprKind::Ne:
             return "(" + printExpr(*e.lhs) + " " + opSymbol(e.kind) + " " + printExpr(*e.rhs) + ")";
     }
     return "?";

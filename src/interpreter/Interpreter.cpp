@@ -56,7 +56,10 @@ int evalExpr(const Expr& e, Environment& env) {
         case ExprKind::Sub:
         case ExprKind::Lt:
         case ExprKind::Gt:
-        case ExprKind::Eq: {
+        case ExprKind::Eq:
+        case ExprKind::Le:
+        case ExprKind::Ge:
+        case ExprKind::Ne: {
             // Operands are evaluated left-then-right and short-circuit on
             // abort; a completing run ticks both sides exactly as before, so
             // step counts (and hence timeouts) are unchanged.
@@ -69,6 +72,9 @@ int evalExpr(const Expr& e, Environment& env) {
                 case ExprKind::Sub: return a - b;
                 case ExprKind::Lt: return a < b ? 1 : 0;
                 case ExprKind::Gt: return a > b ? 1 : 0;
+                case ExprKind::Le: return a <= b ? 1 : 0;
+                case ExprKind::Ge: return a >= b ? 1 : 0;
+                case ExprKind::Ne: return a != b ? 1 : 0;
                 default: return a == b ? 1 : 0;
             }
         }

@@ -14,14 +14,17 @@ enum class ExprKind {
     Sub,          // lhs - rhs
     Lt,           // lhs < rhs
     Gt,           // lhs > rhs
-    Eq            // lhs == rhs
+    Eq,           // lhs == rhs
+    Le,           // lhs <= rhs
+    Ge,           // lhs >= rhs
+    Ne            // lhs != rhs
 };
 
 // A single expression AST node. Fields are only meaningful for the relevant kind:
 //  - IntConst: intValue
 //  - Var:      varIndex
 //  - ArrayAccess: lhs = index expression
-//  - Add/Sub/Lt/Gt/Eq: lhs, rhs
+//  - Add/Sub/Lt/Gt/Eq/Le/Ge/Ne: lhs, rhs
 struct Expr {
     ExprKind kind;
     int intValue = 0;
@@ -40,7 +43,7 @@ ExprPtr makeIntConst(int value);
 ExprPtr makeVar(int varIndex);
 ExprPtr makeArrayAccess(ExprPtr index);
 ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Add/Sub
-ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Lt/Gt/Eq
+ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Lt/Gt/Eq/Le/Ge/Ne
 
 bool isBinaryKind(ExprKind kind);
 

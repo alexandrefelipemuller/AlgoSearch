@@ -42,31 +42,14 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     }
 }
 
-// Grammar completeness fix: Mini-C has no native "!=" operator, and
-// genValueExpr (which builds Add/Sub operands) never nests a comparison
-// inside itself, so a compound condition was previously the *only* way
-// this generator could ever produce inequality -- and it never did,
-// because this function only ever emitted a single Lt/Gt/Eq. That means
-// "while (a != b)" was structurally unreachable at any bias or budget, not
-// merely rare -- confirmed the hard blocker behind GcdProblem's search
-// getting stuck flat on a lucky size-4 program for a full 10-minute run at
-// generous beam-width/candidates (subtractive Euclidean GCD needs exactly
-// this condition). Comparisons are ints (0/1) and mutually exclusive, so
-// (x<y)+(x>y) is 1 iff x != y and 0 iff x == y -- a valid "not equal" built
-// entirely from the existing primitives. Included as one of the four
-// standard condition shapes (25% each) rather than an opt-in bias knob,
-// since it's closing a representational gap, not a search preference --
-// pure superset of what the grammar could already express.
+// Le/Ge/Ne are native ExprKinds (see ast/Expr.hpp), not emulated compounds.
+// Sampled uniformly against Lt/Gt/Eq so every comparison is one grammar
+// step away from any other, instead of forcing >=/<= through a fragile
+// off-by-one rewrite (e.g. Gt(a, Sub(b,1))) or != through a compound
+// (Lt(x,y)+Gt(x,y)).
 ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
-    if (rng.uniformInt(0, 3) == 3) {
-        auto x = genValueExpr(rng, depthBudget, cfg);
-        auto y = genValueExpr(rng, depthBudget, cfg);
-        auto lt = makeCompare(ExprKind::Lt, x->clone(), y->clone());
-        auto gt = makeCompare(ExprKind::Gt, std::move(x), std::move(y));
-        return makeBinOp(ExprKind::Add, std::move(lt), std::move(gt));
-    }
-    ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq};
-    ExprKind k = kinds[rng.uniformInt(0, 2)];
+    ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Le, ExprKind::Ge, ExprKind::Ne};
+    ExprKind k = kinds[rng.uniformInt(0, 5)];
     return makeCompare(k, genValueExpr(rng, depthBudget, cfg), genValueExpr(rng, depthBudget, cfg));
 }
 

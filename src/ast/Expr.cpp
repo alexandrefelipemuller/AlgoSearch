@@ -30,6 +30,9 @@ bool isBinaryKind(ExprKind kind) {
         case ExprKind::Lt:
         case ExprKind::Gt:
         case ExprKind::Eq:
+        case ExprKind::Le:
+        case ExprKind::Ge:
+        case ExprKind::Ne:
             return true;
         default:
             return false;
@@ -66,5 +69,6 @@ ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs) {
 }
 
 ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs) { return makeBinOp(kind, std::move(lhs), std::move(rhs)); }
+
 
 }  // namespace algosearch
