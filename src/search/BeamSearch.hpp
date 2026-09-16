@@ -97,6 +97,26 @@ struct SearchConfig {
     // top-K-by-score, same as always).
     double shapeNicheRate = 0.0;
 
+    // Simulated-annealing walker temperature (0.0 = disabled). Maintains
+    // one persistent solution, mutated locally each round via
+    // growProgram, and accepted as the new state -- even when it scores
+    // WORSE -- with Boltzmann probability exp(fitnessDelta/temperature),
+    // where fitnessDelta is normalized by instance count so the same
+    // temperature value is roughly comparable across problems of
+    // different instance-set sizes. Temperature cools linearly across the
+    // program-size sweep (this value at size=1, down to a small floor
+    // near maxProgramSize), same idea as real annealing schedules. Unlike
+    // diversityRate (fresh random restarts, unrelated to current
+    // progress) or shapeNicheRate (never accepts a worse candidate), this
+    // is a genuine controlled downhill walk that can cross a fitness
+    // valley to escape a local optimum a pure-elitist beam can never
+    // leave once it's fully converged onto one family. The walker's
+    // current candidate is injected into the same scored pool every
+    // round, so the elitist beam can adopt it the moment it becomes
+    // competitive. 0.0 (default) disables it and reproduces prior
+    // behavior exactly.
+    double annealingTemperature = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure

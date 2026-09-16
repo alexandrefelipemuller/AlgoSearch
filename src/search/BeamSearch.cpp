@@ -213,6 +213,23 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     int currentLevel = config_.startLevel;
     std::vector<SolutionRecord> solutions;
 
+    // Simulated-annealing walker: a SINGLE persistent solution, mutated
+    // one local step at a time each round (never a fresh random restart --
+    // that's what diversityRate already does), and accepted as the new
+    // current state even when it scores WORSE, with Boltzmann probability
+    // exp(delta/temperature). This is the one thing neither diversityRate
+    // (random immigrants, no relation to current progress) nor
+    // shapeNicheRate (keeps only the best of each shape, never accepts a
+    // worse move) actually does: a controlled downhill walk that can cross
+    // a fitness valley to escape a local optimum, the way real SA does.
+    // Runs independently of beam selection -- its current candidate is
+    // still injected into the same scored pool each round, so if it ever
+    // becomes competitive, the elitist beam can adopt it too. Temperature
+    // cools linearly over the size sweep (config_.annealingTemperature at
+    // size=1, down to a small floor as size approaches maxProgramSize).
+    Program annealState;
+    double annealFitness = -1.0;
+
     auto searchStart = std::chrono::steady_clock::now();
 
     // Throughput profiling: coarse wall-clock split of where each round's
@@ -279,7 +296,16 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                                                             *beam[static_cast<size_t>(ib)].program, rng, config_.genConfig));
             }
         }
-        totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size());
+        // Annealer pool: one mutation of the walker's current state (or a
+        // fresh random program on its very first round). Scored the same
+        // as everything else; acceptance is decided after scoring, below.
+        std::vector<Program> annealPool;
+        if (config_.annealingTemperature > 0.0) {
+            annealPool.push_back(annealState ? growProgram(*annealState, size, rng, config_.genConfig)
+                                              : generateRandomProgram(rng, size, config_.genConfig));
+        }
+
+        totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size()) + static_cast<int>(annealPool.size());
         genPhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - genStart).count();
 
         int timeouts = 0, errors = 0;
@@ -287,13 +313,40 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (threadCount == 0) threadCount = 1;
 
         auto scoreStart = std::chrono::steady_clock::now();
-        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size());
+        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors);
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
                          timeouts, errors);
+        size_t annealIndex = grownPool.size() + freshPool.size() + crossoverPool.size();
+        scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors);
         totalCandidatesScored += static_cast<long>(scored.size());
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
+
+        if (!annealPool.empty()) {
+            // Boltzmann acceptance: always take an improving/equal move;
+            // take a worsening one anyway with probability
+            // exp(delta/temperature), delta normalized by instance count
+            // so the configured temperature means roughly the same thing
+            // regardless of how many instances this level has. Rejecting
+            // simply leaves annealState as-is (the walker stays put, tries
+            // a different local mutation from the same spot next round) --
+            // real SA behavior, never a hard reset.
+            const CandidateRecord& candidate = scored[annealIndex];
+            double normalizedFitness = static_cast<double>(instances.size()) > 0
+                                            ? candidate.fitness / static_cast<double>(instances.size())
+                                            : candidate.fitness;
+            double prevNormalized = annealFitness;
+            double temperature =
+                config_.annealingTemperature * (1.0 - static_cast<double>(size) / static_cast<double>(std::max(1, config_.maxProgramSize)));
+            temperature = std::max(temperature, 0.02);
+            bool accept = !annealState || normalizedFitness >= prevNormalized ||
+                          rng.chance(std::exp((normalizedFitness - prevNormalized) / temperature));
+            if (accept) {
+                annealState = candidate.program->clone();
+                annealFitness = normalizedFitness;
+            }
+        }
 
         if (scored.empty()) {
             log::progress(0, 0, static_cast<int>(instances.size()), 0, timeouts, errors);
