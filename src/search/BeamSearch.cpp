@@ -21,6 +21,9 @@ namespace algosearch {
 
 namespace {
 
+// Number of score deciles used by score-band niching (SearchConfig::scoreBandRate).
+constexpr int kScoreBands = 10;
+
 // Stable, short id for a program: a hex hash of its canonical text. Every
 // per-N row produced by one promotion cascade shares this id, since they
 // all describe the exact same unmutated program.
@@ -461,7 +464,12 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             behaviorNicheCount = static_cast<int>(std::lround(config_.behaviorNicheRate * config_.beamWidth));
             behaviorNicheCount = std::clamp(behaviorNicheCount, 0, eliteCount - shapeNicheCount);
         }
-        int nicheCount = shapeNicheCount + behaviorNicheCount;
+        int scoreBandCount = 0;
+        if (config_.scoreBandRate > 0.0) {
+            scoreBandCount = static_cast<int>(std::lround(config_.scoreBandRate * config_.beamWidth));
+            scoreBandCount = std::clamp(scoreBandCount, 0, eliteCount - shapeNicheCount - behaviorNicheCount);
+        }
+        int nicheCount = shapeNicheCount + behaviorNicheCount + scoreBandCount;
         int pureEliteCount = eliteCount - nicheCount;
 
         if (nicheCount > 0 && static_cast<int>(scored.size()) > pureEliteCount) {
@@ -496,11 +504,34 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             if (behaviorNicheCount > 0) {
                 std::unordered_set<std::string> behaviorsInBeam;
                 for (const auto& b : nextBeam) behaviorsInBeam.insert(behaviorSignature(b));
+                int behaviorTarget = pureEliteCount + shapeNicheCount + behaviorNicheCount;
                 for (size_t i = static_cast<size_t>(pureEliteCount);
-                     i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount; ++i) {
+                     i < scored.size() && static_cast<int>(nextBeam.size()) < behaviorTarget; ++i) {
                     if (!scored[i].program) continue;  // already claimed by the elite core or shape-niche pass
                     std::string behavior = behaviorSignature(scored[i]);
                     if (behaviorsInBeam.insert(behavior).second) {
+                        nextBeam.push_back(std::move(scored[i]));
+                    }
+                }
+            }
+
+            // Fill the score-band slots: one representative per score
+            // decile, taken in ranking order so each band contributes its
+            // own best member. Because the elite core has already claimed
+            // the top bands, this pass necessarily reaches DOWN the
+            // ranking and keeps lineages the beam would otherwise discard
+            // -- the whole point (see SearchConfig::scoreBandRate).
+            if (scoreBandCount > 0) {
+                auto bandOf = [&](const CandidateRecord& c) {
+                    int denom = std::max(1, c.totalTests);
+                    return c.score * kScoreBands / (denom + 1);
+                };
+                std::unordered_set<int> bandsInBeam;
+                for (const auto& b : nextBeam) bandsInBeam.insert(bandOf(b));
+                for (size_t i = static_cast<size_t>(pureEliteCount);
+                     i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount; ++i) {
+                    if (!scored[i].program) continue;  // already claimed by an earlier pass
+                    if (bandsInBeam.insert(bandOf(scored[i])).second) {
                         nextBeam.push_back(std::move(scored[i]));
                     }
                 }

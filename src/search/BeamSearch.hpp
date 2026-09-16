@@ -137,6 +137,33 @@ struct SearchConfig {
     // prior behavior exactly.
     double behaviorNicheRate = 0.0;
 
+    // Score-band niching: reserves `scoreBandRate * beamWidth` beam slots
+    // for the best candidate of each distinct SCORE BAND (score bucketed
+    // into kScoreBands deciles of the instance count), scanning the
+    // ranking downward so each band contributes its own best member.
+    //
+    // Motivated by a direct measurement, not a hypothesis. Probing the
+    // mod problem's true solution (v1=arr[0]; v2=arr[1];
+    // while (v1 > v2-1) { v1 = v1-v2; } arr[0]=v1) showed it scores
+    // 100/100 while EVERY program one mutation away from it scores <= 73
+    // -- and the plateau the search reaches unaided is 79. The correct
+    // answer therefore sits on an isolated peak whose entire
+    // neighbourhood is strictly below the incumbent, so a purely elitist
+    // beam culls exactly the 72-73 candidates that are a single mutation
+    // from 100. Several of those neighbours differ from the solution by
+    // one variable index, so the final step is genuinely reachable -- the
+    // search just never gets to keep a program standing on it.
+    //
+    // The four mechanisms already tried (diversityRate, shapeNicheRate,
+    // behaviorNicheRate, annealingTemperature) all diversify within the
+    // top score tier, which is why they failed identically here: none of
+    // them preserves a lineage whose score is well below the best. This
+    // one deliberately does, and is still problem-agnostic -- it knows
+    // nothing about any specific problem, it only refuses to discard
+    // fitness diversity. 0.0 (default) disables it and reproduces prior
+    // behavior exactly.
+    double scoreBandRate = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure
