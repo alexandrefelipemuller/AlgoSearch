@@ -38,6 +38,7 @@ struct CliArgs {
     int invarianceLookahead = 3;
     double diversityRate = 0.0;
     double crossoverRate = 0.0;
+    double shapeNicheRate = 0.0;
     double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
@@ -71,6 +72,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--invariance-lookahead") args.invarianceLookahead = std::stoi(next("--invariance-lookahead"));
         else if (arg == "--diversity-rate") args.diversityRate = std::stod(next("--diversity-rate"));
         else if (arg == "--crossover-rate") args.crossoverRate = std::stod(next("--crossover-rate"));
+        else if (arg == "--shape-niche-rate") args.shapeNicheRate = std::stod(next("--shape-niche-rate"));
         else if (arg == "--loop-bias") args.loopBias = std::stod(next("--loop-bias"));
         else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
         else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
@@ -92,7 +94,7 @@ void printUsage() {
     std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
-                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--loop-bias 0.4] "
+                 "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--output solutions.json] "
@@ -150,6 +152,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.invarianceLookahead = args.invarianceLookahead;
         config.diversityRate = args.diversityRate;
         config.crossoverRate = args.crossoverRate;
+        config.shapeNicheRate = args.shapeNicheRate;
         config.genConfig.loopAccumulatorBias = args.loopBias;
         config.genConfig.indexIncrementBias = args.indexIncrementBias;
         config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
@@ -266,6 +269,7 @@ int main(int argc, char** argv) {
     config.invarianceLookahead = args.invarianceLookahead;
     config.diversityRate = args.diversityRate;
     config.crossoverRate = args.crossoverRate;
+    config.shapeNicheRate = args.shapeNicheRate;
     config.genConfig.loopAccumulatorBias = args.loopBias;
     config.genConfig.indexIncrementBias = args.indexIncrementBias;
     config.genConfig.bareSwapPenalty = args.bareSwapPenalty;

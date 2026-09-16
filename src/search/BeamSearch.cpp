@@ -324,8 +324,40 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             immigrantCount = std::clamp(immigrantCount, 0, config_.beamWidth);
             eliteCount = config_.beamWidth - immigrantCount;
         }
-        if (static_cast<int>(scored.size()) > eliteCount) scored.resize(static_cast<size_t>(eliteCount));
-        beam = std::move(scored);
+
+        int nicheCount = 0;
+        if (config_.shapeNicheRate > 0.0) {
+            nicheCount = static_cast<int>(std::lround(config_.shapeNicheRate * config_.beamWidth));
+            nicheCount = std::clamp(nicheCount, 0, eliteCount);
+        }
+        int pureEliteCount = eliteCount - nicheCount;
+
+        if (nicheCount > 0 && static_cast<int>(scored.size()) > pureEliteCount) {
+            // Pure top-score core, exactly as before (move-constructed:
+            // CandidateRecord holds a unique_ptr program, not copyable).
+            std::vector<CandidateRecord> nextBeam;
+            size_t coreEnd = std::min(static_cast<size_t>(pureEliteCount), scored.size());
+            nextBeam.reserve(static_cast<size_t>(eliteCount));
+            for (size_t i = 0; i < coreEnd; ++i) nextBeam.push_back(std::move(scored[i]));
+            std::unordered_set<std::string> shapesInBeam;
+            for (const auto& b : nextBeam) shapesInBeam.insert(structuralShape(*b.program));
+
+            // Fill the reserved niche slots with the best NOT-yet-covered
+            // shape found further down the ranking -- scanning in sorted
+            // order means the first candidate of a given shape we see is
+            // already that shape's best-scoring representative.
+            for (size_t i = static_cast<size_t>(pureEliteCount); i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount;
+                 ++i) {
+                std::string shape = structuralShape(*scored[i].program);
+                if (shapesInBeam.insert(shape).second) {
+                    nextBeam.push_back(std::move(scored[i]));
+                }
+            }
+            beam = std::move(nextBeam);
+        } else {
+            if (static_cast<int>(scored.size()) > eliteCount) scored.resize(static_cast<size_t>(eliteCount));
+            beam = std::move(scored);
+        }
 
         if (adaptiveBiasOn) {
             // Measured on the fitness-selected elite only (before random

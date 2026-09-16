@@ -77,6 +77,26 @@ struct SearchConfig {
     // whether it was kept on.
     double crossoverRate = 0.0;
 
+    // Shape-niche elitism: reserves `shapeNicheRate * beamWidth` beam
+    // slots for the single best candidate of each distinct structural
+    // "shape" (see structuralShape() in BeamSearch.cpp -- counts of each
+    // statement kind plus max while-nesting, already computed every round
+    // for the beam_diversity diagnostic, just never acted on before this)
+    // not already covered by the pure top-score elite core. Different
+    // from diversityRate (which injects brand-new RANDOM programs,
+    // i.e. noise): this preserves the actual BEST candidate of each
+    // structurally-different lineage already found, so a lineage that is
+    // genuinely progressing toward a correct structure (but currently
+    // scores lower than some other, unrelated family that got a lucky
+    // high score by coincidence rather than real partial progress -- see
+    // the ContainsProblem "v0 rewrite" and gcd's "guess b" gambiarras
+    // this project found) doesn't get crowded out of the beam and lost.
+    // This is the classic evolutionary-computation "niching" fix for
+    // premature convergence onto a single deceptive local optimum. 0.0
+    // (default) disables it and reproduces prior behavior exactly (pure
+    // top-K-by-score, same as always).
+    double shapeNicheRate = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure
