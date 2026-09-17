@@ -45,6 +45,9 @@ JOBS=(
   "average:10:5"
   "reverse:10:4"
   "power:10:6"
+  "three_sum:8:6"
+  "single_number:6:4"
+  "graph_reachability:6:6"
 )
 
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') modest battery starting, out=$OUT_ROOT ===" | tee "$OUT_ROOT/driver.log"

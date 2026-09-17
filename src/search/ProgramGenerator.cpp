@@ -31,6 +31,23 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     // (not recursing further), giving genuine 25% weight to "just a
     // variable" at every non-leaf level, not only when the leaf branch
     // above happens to roll one.
+    // Arithmetic/bitwise extension (FINDINGS.md section 16, added for the
+    // Graph/BitManip problems): a small, always-on 8% substitution instead
+    // of folding these into the 4-way choice below, which would dilute the
+    // carefully-tuned Add/Sub/ArrayAccess/Var split documented above (the
+    // exact kind of dilution the Sub(Var,Var) bug was about). Universal for
+    // every problem, same "single trigger, no problem-specific knob"
+    // principle as loopAccumulatorBias -- not gated per-problem, since a
+    // per-problem CLI flag would reveal which algorithm a problem needs
+    // (see GenConfig's loopAccumulatorBias comment). Mul/Div/Mod/BitAnd/
+    // BitOr/BitXor/Shl/Shr are otherwise unreachable by the free grammar.
+    if (depthBudget > 0 && rng.chance(0.08)) {
+        static const ExprKind extKinds[] = {ExprKind::Mul,    ExprKind::Div,    ExprKind::Mod,   ExprKind::BitAnd,
+                                             ExprKind::BitOr, ExprKind::BitXor, ExprKind::Shl,   ExprKind::Shr};
+        ExprKind k = extKinds[rng.uniformInt(0, 7)];
+        return makeBinOp(k, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+    }
+
     int choice = rng.uniformInt(0, 3);
     switch (choice) {
         case 0:
@@ -66,11 +83,11 @@ std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig
 // array inside the loop body and must NOT get an extra write-back (it
 // would silently clobber a correct result with acc's stale/unrelated
 // value).
-enum class AccumKind { Sum, Min, Max, Membership, Swap, CountIf };
+enum class AccumKind { Sum, Min, Max, Membership, Swap, CountIf, Xor };
 
 bool accumKindNeedsWriteBack(AccumKind k) {
     return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max || k == AccumKind::Membership ||
-           k == AccumKind::CountIf;
+           k == AccumKind::CountIf || k == AccumKind::Xor;
 }
 
 // One canonical accumulation body for the counting-loop skeleton below.
@@ -123,6 +140,12 @@ StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, int target
             then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
             return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
         }
+        case AccumKind::Xor:  // running xor: acc = acc ^ arr[vi] -- the "Single Number" bit trick
+                              // (see SingleNumberProblem): every value that appears an even
+                              // number of times XORs away to 0, leaving only the odd one out.
+                              // Needs the BitXor primitive (GenConfig arithmetic/bitwise
+                              // extension, FINDINGS.md section 16) -- unreachable before it.
+            return makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), makeArrayAccess(makeVar(vi))));
         default:  // adjacent compare-and-swap: if (arr[vi] > arr[vi+1]) swap(arr[vi], arr[vi+1])
         {
             auto next = makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1));
@@ -188,7 +211,7 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
     //     same reason: it also compares against a query slot at arr[0],
     //     not ordinary haystack data.
     bool canTargetKind = cfg.numVars >= 4;  // Membership and CountIf both need the extra captured-target scalar
-    int kindCount = canTargetKind ? 6 : 4;  // + Membership, CountIf when there's room for the target scalar
+    int kindCount = canTargetKind ? 7 : 5;  // + Membership, CountIf when there's room for the target scalar
     int draw = rng.uniformInt(0, kindCount - 1);
     AccumKind kind;
     switch (draw) {
@@ -196,7 +219,8 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
         case 1: kind = AccumKind::Min; break;
         case 2: kind = AccumKind::Max; break;
         case 3: kind = AccumKind::Swap; break;
-        case 4: kind = AccumKind::Membership; break;
+        case 4: kind = AccumKind::Xor; break;
+        case 5: kind = AccumKind::Membership; break;
         default: kind = AccumKind::CountIf; break;
     }
     bool needsArr0Init = (kind == AccumKind::Min || kind == AccumKind::Max);
@@ -309,6 +333,63 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
     return root;
 }
 
+// Native-arithmetic sibling of genNestedDivisorLoopBlock, added for
+// FINDINGS.md section 16 ("breaking the language ceiling"). Section 13
+// found the sqrt-bound version above still costs O(x log x) overall
+// because each candidate's divisibility check is repeated-subtraction
+// (O(x/d) per candidate) -- the CANDIDATE COUNT shrank to O(sqrt(x)) but
+// the PER-CANDIDATE COST didn't. With native Mul (for the `d*d <= x`
+// bound, no more incremental-square tracking needed) and native Mod (for
+// an O(1) `x mod d == 0` divisibility check), both halves are now O(1)
+// per candidate, so the whole loop is genuinely O(sqrt(x)) total, not
+// merely O(sqrt(x)) candidates each still doing linear work. Only needs 2
+// scratch scalars (x, d) -- no remainder or incremental-square variable --
+// and a single loop, so it's gated on nothing more than numVars >= 3,
+// one tier BELOW the original (a direct consequence of the primitives
+// doing the work the grammar used to have to spend variables/loops
+// simulating). Kept as a separate skeleton alongside the original rather
+// than replacing it, same "measurable A/B" reasoning as GcdModNative.
+StmtPtr genNestedDivisorNativeLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[2];
+    int used = 0;
+    while (used < 2) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int x = vars[0], d = vars[1];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(x, makeArrayAccess(makeIntConst(0))));    // x = arr[0]
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));  // arr[0] = 1 (assume prime)
+    {
+        std::vector<StmtPtr> guardBody;
+        guardBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+        root->body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(x), makeIntConst(2)), std::move(guardBody)));
+    }
+    root->body.push_back(makeAssign(d, makeIntConst(2)));  // d = 2
+
+    std::vector<StmtPtr> outerBody;
+    {
+        std::vector<StmtPtr> foundBody;
+        foundBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+        outerBody.push_back(
+            makeIf(makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, makeVar(x), makeVar(d)), makeIntConst(0)), std::move(foundBody)));
+    }
+    outerBody.push_back(makeAssign(d, makeBinOp(ExprKind::Add, makeVar(d), makeIntConst(1))));  // d = d + 1
+    loopsUsed++;
+    root->body.push_back(
+        makeWhile(makeCompare(ExprKind::Le, makeBinOp(ExprKind::Mul, makeVar(d), makeVar(d)), makeVar(x)), std::move(outerBody)));
+
+    return root;
+}
+
 // Which single-loop scalar recurrence genRecurrenceSkeletonBlock builds.
 // GcdEuclid and Fibonacci used to be two separate top-level Skeleton
 // options; merged into one draw (see the "fewer skeletons" note on the
@@ -319,7 +400,7 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
 // alternation gated on inequality vs an additive recurrence gated on a
 // counter) -- unifying the DRAW, not pretending the two algorithms are
 // actually the same computation.
-enum class RecurrenceKind { GcdSubtract, FibonacciAdd, GcdMod };
+enum class RecurrenceKind { GcdSubtract, FibonacciAdd, GcdMod, GcdModNative };
 
 // GcdSubtract: subtractive Euclidean GCD (a,b seeded from arr[0]/arr[1],
 // loop while a != b subtracting the smaller from the larger, write back
@@ -349,11 +430,20 @@ StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loops
     int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
     if (b == a) b = 1 + (a % (cfg.numVars - 1));
 
-    RecurrenceKind options[3];
+    RecurrenceKind options[4];
     int n = 0;
     options[n++] = RecurrenceKind::GcdSubtract;
     if (cfg.numVars >= 4) options[n++] = RecurrenceKind::FibonacciAdd;
     if (canNestedLoop && cfg.numVars >= 4) options[n++] = RecurrenceKind::GcdMod;
+    // GcdModNative added for FINDINGS.md section 16 ("breaking the language
+    // ceiling"): identical (a,b) = (b, a mod b) recurrence as GcdMod, but
+    // using the new native Mod primitive for `a mod b` in O(1) instead of
+    // GcdMod's repeated-subtraction inner loop -- a single loop, not two,
+    // so it only needs cfg.numVars >= 4 (no canNestedLoop requirement).
+    // Kept as a SEPARATE option rather than replacing GcdMod so the A/B
+    // complexity comparison against the honest repeated-subtraction version
+    // stays measurable.
+    if (cfg.numVars >= 4) options[n++] = RecurrenceKind::GcdModNative;
     RecurrenceKind kind = options[rng.uniformInt(0, n - 1)];
 
     auto root = makeBlock();
@@ -402,6 +492,30 @@ StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loops
 
         loopsUsed++;
         root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(b), makeIntConst(0)), std::move(outerBody)));
+        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
+        return root;
+    }
+
+    if (kind == RecurrenceKind::GcdModNative) {
+        int r = -1;
+        for (int cand = 1; cand < cfg.numVars; ++cand) {
+            if (cand != a && cand != b) {
+                r = cand;
+                break;
+            }
+        }
+        if (r < 0) r = a;  // numVars too small to give r its own slot; degenerate but safe
+
+        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
+        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
+
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(r, makeBinOp(ExprKind::Mod, makeVar(a), makeVar(b))));  // r = a % b (O(1))
+        body.push_back(makeAssign(a, makeVar(b)));                                        // a = b
+        body.push_back(makeAssign(b, makeVar(r)));                                        // b = r
+
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(b), makeIntConst(0)), std::move(body)));
         root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
         return root;
     }
@@ -790,6 +904,180 @@ StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
     return rootAst;
 }
 
+// Dedicated skeleton for 3SUM-shaped problems: does any triple of DISTINCT
+// indices i<j<k sum to zero? See FINDINGS.md section 15 -- added after the
+// free search couldn't find a genuinely generalizing solution even with a
+// 10x budget bump, same "give the search the shape it needs" motivation as
+// every other dedicated skeleton here (SelectionSort, NestedDivisor, ...).
+//
+//   i = 0;
+//   found = 0;
+//   while (i < v0) {
+//     j = i + 1;
+//     while (j < v0) {
+//       k = j + 1;
+//       while (k < v0) {
+//         if ((arr[i] + arr[j]) + arr[k] == 0) { found = 1; }
+//         k = k + 1;
+//       }
+//       j = j + 1;
+//     }
+//     i = i + 1;
+//   }
+//   arr[0] = found;
+//
+// A genuine triple-nested loop, not a template that happens to reuse two
+// loops like NestedDivisor/RepeatedMultiply do -- needs a full 3-loop
+// budget (gated on canTripleLoop, i.e. maxLoops - loopsUsed >= 3, same
+// budget arithmetic as canQuadLoop one tier down) and 4 scratch scalars
+// (i, j, k, found), one more than SelectionSort's 3 since the found flag
+// can't double as a loop index the way SelectionSort's `mi` does double
+// duty. Gated on numVars >= 5, same tier as NestedDivisor/Average.
+StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[4];
+    int used = 0;
+    while (used < 4) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int i = vars[0], j = vars[1], k = vars[2], found = vars[3];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(i, makeIntConst(0)));      // i = 0
+    root->body.push_back(makeAssign(found, makeIntConst(0)));  // found = 0
+
+    std::vector<StmtPtr> outerBody;
+    outerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));  // j = i + 1
+    {
+        std::vector<StmtPtr> midBody;
+        midBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));  // k = j + 1
+        {
+            std::vector<StmtPtr> innerBody;
+            {
+                auto sum = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeArrayAccess(makeVar(i)), makeArrayAccess(makeVar(j))),
+                                      makeArrayAccess(makeVar(k)));
+                std::vector<StmtPtr> then;
+                then.push_back(makeAssign(found, makeIntConst(1)));
+                innerBody.push_back(makeIf(makeCompare(ExprKind::Eq, std::move(sum), makeIntConst(0)), std::move(then)));
+            }
+            innerBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
+            loopsUsed++;
+            midBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(k), makeVar(0)), std::move(innerBody)));
+        }
+        midBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+        loopsUsed++;
+        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(0)), std::move(midBody)));
+    }
+    outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(0)), std::move(outerBody)));
+
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(found)));  // arr[0] = found
+
+    return root;
+}
+
+// Dedicated skeleton for GraphReachabilityProblem (FINDINGS.md section 16):
+// is vertex (V-1) reachable from vertex 0 in a directed graph, stored as
+// [V, V scratch "reached" cells, V*V row-major adjacency matrix] (see the
+// Problem's own header comment for the exact layout)? Fixed-point
+// relaxation, not real BFS/DFS (Mini-C has no queue/stack): repeat V times,
+// each round scanning every (i,j) pair and marking j reached whenever i is
+// already reached and an edge i->j exists. V rounds is always enough since
+// the longest possible simple path has fewer than V edges.
+//
+//   nv = arr[0];
+//   arr[1] = 1;                    // reached[0] = 1
+//   base = nv + 1;                 // where the adjacency matrix starts
+//   round = 0;
+//   while (round < nv) {
+//     i = 0;
+//     while (i < nv) {
+//       if (arr[1+i] == 1) {
+//         j = 0;
+//         while (j < nv) {
+//           if (arr[base + (i*nv+j)] == 1) { arr[1+j] = 1; }
+//           j = j + 1;
+//         }
+//       }
+//       i = i + 1;
+//     }
+//     round = round + 1;
+//   }
+//   arr[0] = arr[nv];              // reached[V-1] lives at arr[1+(nv-1)] = arr[nv]
+//
+// Genuinely needs the native Mul primitive for the i*nv+j row-major index --
+// unreachable before FINDINGS.md section 16's arithmetic extension. A true
+// triple-nested loop (round, i, j), so gated on canTripleLoop like ThreeSum;
+// needs 5 scratch scalars (nv, base, round, i, j), so numVars >= 6, one
+// tier up from ThreeSum's 5.
+StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[5];
+    int used = 0;
+    while (used < 5) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int nv = vars[0], base = vars[1], round = vars[2], i = vars[3], j = vars[4];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(nv, makeArrayAccess(makeIntConst(0))));                       // nv = arr[0]
+    root->body.push_back(makeAssignArray(makeIntConst(1), makeIntConst(1)));                      // arr[1] = 1
+    root->body.push_back(makeAssign(base, makeBinOp(ExprKind::Add, makeVar(nv), makeIntConst(1))));  // base = nv + 1
+    root->body.push_back(makeAssign(round, makeIntConst(0)));
+
+    std::vector<StmtPtr> roundBody;
+    roundBody.push_back(makeAssign(i, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> iBody;
+        {
+            std::vector<StmtPtr> ifReachedI;
+            ifReachedI.push_back(makeAssign(j, makeIntConst(0)));
+            {
+                std::vector<StmtPtr> jBody;
+                {
+                    auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
+                                              makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(nv)), makeVar(j)));
+                    std::vector<StmtPtr> markReached;
+                    markReached.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)), makeIntConst(1)));
+                    jBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(std::move(edgeIdx)), makeIntConst(1)),
+                                            std::move(markReached)));
+                }
+                jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+                loopsUsed++;
+                ifReachedI.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(nv)), std::move(jBody)));
+            }
+            iBody.push_back(makeIf(
+                makeCompare(ExprKind::Eq, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeIntConst(1)),
+                std::move(ifReachedI)));
+        }
+        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        loopsUsed++;
+        roundBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(iBody)));
+    }
+    roundBody.push_back(makeAssign(round, makeBinOp(ExprKind::Add, makeVar(round), makeIntConst(1))));
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(round), makeVar(nv)), std::move(roundBody)));
+
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(makeVar(nv))));  // arr[0] = arr[nv] (reached[V-1])
+
+    return root;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -804,7 +1092,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
     bool canNestedLoop = canNest && (cfg.maxLoops - loopsUsed) >= 2;
-    bool canQuadLoop = canNest && (cfg.maxLoops - loopsUsed) >= 4;  // heapsort's 4-loop shape
+    bool canTripleLoop = canNest && (cfg.maxLoops - loopsUsed) >= 3;  // ThreeSum's 3-loop shape
+    bool canQuadLoop = canNest && (cfg.maxLoops - loopsUsed) >= 4;    // heapsort's 4-loop shape
 
     // One universal trigger probability, not one flag per problem: a tool
     // that hands the search a different CLI knob per problem it's meant to
@@ -834,7 +1123,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, SelectionSort, RepeatedMultiply, Average, HeapSort };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -879,7 +1168,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[7];
+        WeightedOption options[10];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -889,10 +1178,13 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         if (allowed("counting")) addOption(Skeleton::Counting, 3);
         if (allowed("recurrence")) addOption(Skeleton::Recurrence, 3);
         if (canNestedLoop && cfg.numVars >= 5 && allowed("nesteddivisor")) addOption(Skeleton::NestedDivisor, 3);
+        if (cfg.numVars >= 3 && allowed("nesteddivisornative")) addOption(Skeleton::NestedDivisorNative, 3);
         if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
         if (canNestedLoop && cfg.numVars >= 5 && allowed("repeatedmultiply")) addOption(Skeleton::RepeatedMultiply, 3);
         if (canNestedLoop && cfg.numVars >= 5 && allowed("average")) addOption(Skeleton::Average, 3);
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
+        if (canTripleLoop && cfg.numVars >= 5 && allowed("threesum")) addOption(Skeleton::ThreeSum, 3);
+        if (canTripleLoop && cfg.numVars >= 6 && allowed("graphreachability")) addOption(Skeleton::GraphReachability, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -910,6 +1202,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed, canNestedLoop);
                 case Skeleton::NestedDivisor:
                     return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
+                case Skeleton::NestedDivisorNative:
+                    return genNestedDivisorNativeLoopBlock(rng, cfg, loopsUsed);
                 case Skeleton::SelectionSort:
                     return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::HeapSort:
@@ -918,6 +1212,10 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genRepeatedMultiplySkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::Average:
                     return genAverageSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::ThreeSum:
+                    return genThreeSumSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::GraphReachability:
+                    return genGraphReachabilitySkeletonBlock(rng, cfg, loopsUsed);
             }
         }
     }

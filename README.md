@@ -18,8 +18,11 @@ pointers to the raw data backing each claim.
 ## How it works
 
 1. **Mini-C**: a minimal language with scalar variables, one array, `if`,
-   `while`, `swap`, and integer expressions (`+`, `-`, and native
-   comparisons `<`, `>`, `==`, `<=`, `>=`, `!=`).
+   `while`, `swap`, native comparisons (`<`, `>`, `==`, `<=`, `>=`, `!=`),
+   arithmetic (`+`, `-`, `*`, `/`, `%`), and bitwise operators (`&`, `|`,
+   `^`, `<<`, `>>`) — the arithmetic/bitwise extension is recent (see
+   `FINDINGS.md` section 17) and gated to an 8% substitution probability
+   so it doesn't dilute the tuned grammar every earlier problem depends on.
 2. **Generator**: builds random Mini-C programs from a grammar, optionally
    biased toward a canonical counting-loop idiom
    (`GenConfig::loopAccumulatorBias`) — see `FINDINGS.md` for why that
@@ -43,7 +46,7 @@ pointers to the raw data backing each claim.
 
 ```sh
 make            # builds ./algosearch
-make test       # builds and runs ./algosearch_tests (49 unit/integration tests)
+make test       # builds and runs ./algosearch_tests (58 unit/integration tests)
 ```
 
 ## Running a search
@@ -58,67 +61,70 @@ diversity/crossover/niching knobs, grammar-bias knobs, etc. — all of them
 are either "confirmed default" or "opt-in, mixed evidence" per
 `FINDINGS.md`).
 
-## Results: all 14 problems, one modest-budget sweep
+## Results: all 17 problems, one modest-budget sweep
 
-The table below is from a single sweep across every problem this project
-currently supports, at the **same modest search budget** for each
-(`--beam-width 500 --candidates 1500 --max-program-size 150
---benchmark-seeds 5`, current grammar defaults — `loopAccumulatorBias=0.4`,
-native `Le`/`Ge`/`Ne`, the consolidated 7-skeleton library from
-`FINDINGS.md` sections 11-14). Every row is a solution that survived
-`--benchmark`'s independent adversarial re-check, not just the training
-score. "Time to generate" is the search wall-clock time per seed (mean
-across the 5 benchmark seeds) on an 8-core machine — how long it took to
-*find* the solution, not how fast the discovered algorithm runs.
+The table below is from a single sweep (2026-09-17, `data/modest_battery_20260917_1518/`)
+across every problem this project currently supports, at the **same modest
+search budget** for each (`--beam-width 500 --candidates 1500
+--max-program-size 150 --benchmark-seeds 5`, current grammar defaults --
+`loopAccumulatorBias=0.4`, native `Le`/`Ge`/`Ne`, native `Mul`/`Div`/`Mod`/
+bitwise, the 10-skeleton library from `FINDINGS.md` sections 11-17). Every
+row is a solution that survived `--benchmark`'s independent adversarial
+re-check, not just the training score. "Time to generate" is the search
+wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core
+machine -- how long it took to *find* the solution, not how fast the
+discovered algorithm runs.
 
 | Problem | Result | Complexity | Time to generate (avg/seed) |
 |---|---|---|---|
-| `sorting` | 5 solutions confirmed | O(n²) | ~0.04s |
-| `min` | 2 solutions confirmed | O(n) | ~0.04s |
-| `max` | 4 solutions confirmed | O(n) | ~0.04s |
-| `sum` | 4 solutions confirmed | O(n) | ~0.05s |
-| `contains` | 4 solutions confirmed | O(n) | ~0.05s |
-| `contains_ordered` | 4 solutions confirmed | O(n) | ~0.07s |
-| `is_prime` | 5 solutions confirmed | O(n) | ~0.04s |
-| `gcd` | 3 solutions confirmed (subtractive Euclidean GCD) | O(n) | ~0.08s |
-| `factorial` | 5 solutions confirmed (nested-loop multiply-by-repeated-addition) | O(n²) | ~39.7s |
-| `fibonacci` | 4 solutions confirmed | O(n) | ~0.06s |
-| `count` | 4 solutions confirmed | O(n) | ~0.11s |
-| `average` | 4 solutions confirmed | O(n) | ~0.06s |
-| `reverse` | 5 solutions confirmed | O(n²) | ~21.9s |
-| `power` | 5 solutions confirmed | O(n) | ~0.04s |
+| `sorting` | 5 solutions confirmed | O(n²) | ~0.03s |
+| `min` | 5 solutions confirmed | O(n) | ~0.03s |
+| `max` | 4 solutions confirmed | O(n) | ~0.03s |
+| `sum` | 4 solutions confirmed | O(n) | ~0.04s |
+| `contains` | 2 solutions confirmed | O(n) | ~0.03s |
+| `contains_ordered` | 2 solutions confirmed | O(n) | ~0.04s |
+| `is_prime` | 4 solutions confirmed | **O(√n)** | ~0.03s |
+| `gcd` | 5 solutions confirmed (native-mod Euclidean) | **O(1)** | ~0.05s |
+| `factorial` | 4 solutions confirmed | O(n²) | ~28.5s |
+| `fibonacci` | 4 solutions confirmed | O(n) | ~0.03s |
+| `count` | 4 solutions confirmed | O(n) | ~0.05s |
+| `average` | 5 solutions confirmed | O(n) | ~0.04s |
+| `reverse` | 5 solutions confirmed | O(n²) | ~16.3s |
+| `power` | 5 solutions confirmed | O(n) | ~0.03s |
+| `three_sum` | 5 solutions confirmed | O(n²)\* | ~0.91s |
+| `single_number` | 3 solutions confirmed (XOR reduce) | O(n) | ~0.03s |
+| `graph_reachability` | 1 solution confirmed, 5 rejected | O(n^1.5) | ~0.28s |
+
+\* the algorithm is a genuine triple-nested O(n³) loop; the curve fit's
+exponent (~2.1, r²=0.91-0.92) is measured over a small `n` range (max-n=8)
+where constant-factor effects still dominate the fit -- see the O(n log n)
+heapsort caveat below for the same "not a pure power law over a bounded
+range" nuance.
 
 Results worth calling out:
 
-- **`gcd`** converges on genuine subtractive Euclidean GCD — a clean,
-  short, textbook algorithm, not an overfit blob:
+- **`gcd` now reaches genuine O(1), and `is_prime` genuine O(√n) --
+  the "language ceiling" from `FINDINGS.md` section 13 is broken.**
+  Section 13 found that a smarter loop bound (mod-based GCD, sqrt-bound
+  primality) never paid off, because each candidate's own check was
+  still built from repeated subtraction (O(a/b) or O(x/d) per check),
+  so total work stayed linear regardless of how few candidates the outer
+  loop considered. `FINDINGS.md` section 17 added native `Mul`/`Div`/`Mod`
+  to Mini-C, and the free search converges onto the native-mod variant of
+  both problems in every seed tested, confirmed by hand-timed A/B
+  (`gcd(n,1)`: exponent 0.99 -> ~0.00 across a 100x range; `is_prime` on
+  large primes: 10,544x faster at the larger test point) and now by
+  `--benchmark`'s own curve fit, shown in the table above.
+  `gcd`'s solution:
   ```
-  v2 = arr[0]; v1 = arr[1];
-  while (v2 != v1) {
-    if (v2>v1) v2 = v2-v1; else v1 = v1-v2;
+  v1 = arr[0]; v2 = arr[1];
+  while (v2 != 0) {
+    v3 = v1 % v2;
+    v1 = v2;
+    v2 = v3;
   }
-  arr[0] = v2;
+  arr[0] = v1;
   ```
-  This is notable because a documented "wall" (searches getting stuck at
-  63-79/100 on `gcd`/`mod` with the skeleton bias *disabled*, six
-  different selection/diversity mechanisms all failing identically) does
-  **not** appear here, with the skeleton bias at its normal default — see
-  `FINDINGS.md` section 9 for the full story of when the wall does and
-  doesn't show up. A mod-based Euclidean variant exists in the grammar
-  too (`RecurrenceKind::GcdMod`) but the search never picks it over the
-  smaller subtractive program, and — measured directly, bypassing the
-  search — it turns out not to be asymptotically better anyway; see
-  section 13.
-- **`is_prime`/`gcd` don't reach sub-linear complexity, and can't with
-  Mini-C's current primitives.** `is_prime`'s trial-division loop is now
-  bounded by `sqrt(x)` instead of `x` (a real ~2.4x constant-factor
-  speedup), and `gcd` has a mod-based skeleton alongside the subtractive
-  one — but the exponent in the table is O(n) either way, because
-  computing "a mod b" (or testing divisibility) via repeated subtraction
-  reintroduces linear-in-value cost regardless of how few candidates the
-  outer loop checks. This is a language ceiling (no native
-  multiply/divide), not a search or grammar-bias problem — see
-  `FINDINGS.md` section 13 for the full measurement.
 - **`sorting` CAN reach O(n log n)** — a from-scratch heapsort skeleton
   (`FINDINGS.md` section 14) measures a genuinely different complexity
   signature (exponent 1.13-1.26) from the selection-sort/bubble shape
@@ -127,13 +133,30 @@ Results worth calling out:
   heapsort AST over the smaller quadratic one on its own — reaching it
   currently needs the research-only `ALGOSEARCH_FORCE_SKELETON=heapsort`
   override, not the default `--benchmark` run.
-- **`factorial`** looked stuck in an earlier run (timed out at 240s,
-  plateaued 43/45) purely from CPU contention with other problems running
-  in the same sequential batch — rerun in isolation it converges in
-  under a minute. The remaining 2/45 "failures" at its hardest training
-  level aren't a search failure at all: `factorial(27)` overflows a
-  32-bit `int`, so the discovered algorithm is actually correct, just
-  bounded by the interpreter's integer type.
+- **`three_sum`, `single_number`, `graph_reachability` are new**
+  (`FINDINGS.md` sections 15-17), added to test coverage against
+  algorithm families the original problem set didn't touch at all:
+  relating three array elements, bit manipulation, and graphs. Two very
+  different stories: `single_number` (LeetCode's classic XOR trick) was
+  nearly free — one new accumulator variant reusing existing
+  infrastructure, solved by the free search in ~0.03s. `three_sum` and
+  `graph_reachability` needed dedicated skeletons the free grammar had no
+  chance of stumbling into on its own (3SUM: confirmed by a 65-minute,
+  10x-budget run finding zero genuinely generalizing solutions before the
+  skeleton was added; graph reachability needed the native-multiply
+  extension just to make the adjacency-matrix indexing *representable* at
+  all, plus a real bug fix in `Benchmark.cpp`'s magnitude-shift check,
+  which was corrupting the vertex-count/edge-flag metadata it was
+  shifting). `graph_reachability`'s lower confirmation rate (1/6 SUCCESS
+  candidates survived independent re-verification, vs. 0 rejected
+  everywhere else in the table) reflects it being the newest and least
+  battle-tested skeleton, not a weaker algorithm -- see section 17 for
+  the standalone correctness verification (8/8 hand-built test graphs)
+  done before ever trusting the search on it.
+- **`factorial`**'s remaining "failures" at its hardest training level
+  aren't a search failure: `factorial(27)` overflows a 32-bit `int`, so
+  the discovered algorithm is actually correct, just bounded by the
+  interpreter's integer type.
 - **`count`/`average`/`power`** (added to isolate compositional
   primitives the original ten didn't exercise: a counter gated by a
   condition, a division-via-subtraction skeleton, and a
@@ -145,6 +168,7 @@ Results worth calling out:
 
 See `FINDINGS.md` for the full experimental history (grammar bias sweeps,
 diversity/crossover/niching A/B tests, the native-comparison-operator
-change, the cross-skeleton study, the complexity-ceiling investigation,
-heapsort, and the honest negative results along the way) and
-`scripts/run_full_battery_modest.sh` to reproduce this sweep.
+change, the cross-skeleton study, the complexity-ceiling investigation and
+how it was later broken, heapsort, 3SUM, and the honest negative results
+along the way) and `scripts/run_full_battery_modest.sh` to reproduce this
+sweep.

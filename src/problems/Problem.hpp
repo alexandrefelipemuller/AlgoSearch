@@ -49,6 +49,26 @@ public:
     // correctness for all inputs. Default: none.
     virtual std::vector<Instance> generateAdversarialInstances(int /*level*/) const { return {}; }
 
+    // Whether Benchmark::verifyGeneralization's magnitude-shift stress
+    // check (adding a large constant to every array value, to catch a
+    // formula that only coincidentally works across the small bounded
+    // value range training data uses) is a MEANINGFUL perturbation for this
+    // problem's instance encoding. True for every ordinary magnitude/array
+    // problem (the existing default, unchanged for all of them) -- shifting
+    // arbitrary numeric values by a constant keeps the instance in-domain.
+    // False for a problem whose array encodes non-shiftable METADATA in
+    // specific slots (a declared count that must match the array's actual
+    // length, or boolean 0/1 flags whose meaning is destroyed by adding
+    // 997 to them) -- see GraphReachabilityProblem, whose vertex-count
+    // and adjacency-matrix-flag slots are exactly this shape. This is the
+    // same domain-appropriateness principle GcdProblem's shift-offset
+    // comment already established (only POSITIVE offsets, to keep gcd's
+    // positive-integers-only domain intact) -- generalized into a per-
+    // problem opt-out for encodings a uniform shift can't respect at all,
+    // rather than trying to pick offsets that happen to work for every
+    // possible encoding.
+    virtual bool supportsMagnitudeShift() const { return true; }
+
     // Whether `output` is a correct solution for `input`.
     virtual bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const = 0;
 

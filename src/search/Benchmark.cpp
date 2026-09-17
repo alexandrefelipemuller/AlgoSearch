@@ -91,7 +91,8 @@ bool verifyGeneralization(const Problem& problem, const Stmt& program, long step
             // values in a bounded, length-correlated range) -- caught
             // exactly this shape in ContainsProblem's benchmark output
             // before this check existed.
-            bool doShiftCheck = std::find(kShiftStressSizes.begin(), kShiftStressSizes.end(), n) != kShiftStressSizes.end();
+            bool doShiftCheck = problem.supportsMagnitudeShift() &&
+                                std::find(kShiftStressSizes.begin(), kShiftStressSizes.end(), n) != kShiftStressSizes.end();
             if (doShiftCheck) {
                 for (long offset : kShiftOffsets) {
                     Instance shifted = inst;

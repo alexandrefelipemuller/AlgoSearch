@@ -1,0 +1,1003 @@
+[benchmark] seed 1/5 (1000)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1502 | best score = 8/8 | best size = 8 | timeouts = 532 | errors = 5408
+  beam diversity at full solve: 34 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 8/8
+  size 8  held-out 42/104
+  program_id 1127217c86b96e7c  first_level 1  confirmed_levels 1
+  programa:
+arr[arr[1]] = (1 - arr[v3]);
+
+
+LEVEL 2
+sorted haystack N = 2
+instances = 80
+beam = 500
+  candidates = 2500 | best score = 80/80 | best size = 27 | timeouts = 7529 | errors = 74221
+  beam diversity at full solve: 92 distinct shapes / 500 candidates
+
+N=2
+  score 80/80
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 9
+
+N=9
+  score 384/384
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 10
+
+N=10
+  score 384/384
+  size 27  held-out 104/104
+  program_id a06b53229653d570  first_level 2  confirmed_levels 9
+  programa:
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+
+
+Search finished in 0.155125s
+  profile: gen=0.0542071s score=0.0784486s sort=0.00031007s other=0.0221592s | generated 12752 (82204/s), scored 4003 (25805/s)
+[benchmark] seed 2/5 (1001)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1502 | best score = 8/8 | best size = 27 | timeouts = 548 | errors = 5458
+  beam diversity at full solve: 42 distinct shapes / 500 candidates
+
+N=1
+  score 8/8
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 9
+
+N=9
+  score 384/384
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+ADVANCING TO LEVEL 10
+
+N=10
+  score 384/384
+  size 27  held-out 104/104
+  program_id 9c1cc48d7ef85254  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+
+Search finished in 0.0444145s
+  profile: gen=0.0246618s score=0.00517703s sort=0.000121769s other=0.0144539s | generated 9018 (203041/s), scored 1503 (33840/s)
+[benchmark] seed 3/5 (1002)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1502 | best score = 8/8 | best size = 27 | timeouts = 508 | errors = 5306
+  beam diversity at full solve: 45 distinct shapes / 500 candidates
+
+N=1
+  score 8/8
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 9
+
+N=9
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 10
+
+N=10
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+
+Search finished in 0.0403209s
+  profile: gen=0.0238291s score=0.00521767s sort=0.000124976s other=0.0111492s | generated 9051 (224473/s), scored 1503 (37275/s)
+[benchmark] seed 4/5 (1003)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1502 | best score = 8/8 | best size = 27 | timeouts = 488 | errors = 5340
+  beam diversity at full solve: 39 distinct shapes / 500 candidates
+
+N=1
+  score 8/8
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 9
+
+N=9
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 10
+
+N=10
+  score 384/384
+  size 27  held-out 104/104
+  program_id 144238ca901f063d  first_level 1  confirmed_levels 10
+  programa:
+v2 = arr[0];
+v1 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v2)) {
+    v1 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+
+Search finished in 0.0447566s
+  profile: gen=0.0235529s score=0.00470943s sort=0.000116691s other=0.0163776s | generated 8978 (200596/s), scored 1503 (33581/s)
+[benchmark] seed 5/5 (1004)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 500
+  candidates = 1502 | best score = 8/8 | best size = 27 | timeouts = 416 | errors = 5198
+  beam diversity at full solve: 44 distinct shapes / 500 candidates
+
+N=1
+  score 8/8
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 9
+
+N=9
+  score 384/384
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 10
+
+N=10
+  score 384/384
+  size 27  held-out 104/104
+  program_id dfab50d5d77ea8c  first_level 1  confirmed_levels 10
+  programa:
+v3 = arr[0];
+v2 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v3)) {
+    v2 = 1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v2;
+
+
+Search finished in 0.0445794s
+  profile: gen=0.0277276s score=0.00442858s sort=0.00013371s other=0.0122896s | generated 9098 (204085/s), scored 1503 (33715/s)
+
+[benchmark] 4 distinct SUCCESS-labeled program(s) found across 5 seed(s). Independently re-verifying generalization...
+
+[benchmark] 4 genuinely generalizing solution(s) kept, 0 rejected.
+
+#   size    time@maxN(us)   exponent  r2      complexity
+*   27      67.317          0.98      1.00    O(n) -- linear
+2   27      67.676          0.95      1.00    O(n) -- linear
+3   27      67.979          0.96      1.00    O(n) -- linear
+4   27      73.685          0.98      1.00    O(n) -- linear
+
+(* = fastest at the largest benchmarked size)
+
+=== fastest solution's program ===
+v1 = arr[0];
+v2 = 0;
+v3 = 1;
+while ((v3 < v0)) {
+  if ((arr[v3] == v1)) {
+    v2 = 1;
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v2;
+

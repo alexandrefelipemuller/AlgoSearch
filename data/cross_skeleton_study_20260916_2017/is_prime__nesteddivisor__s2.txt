@@ -1,0 +1,209 @@
+
+LEVEL 1
+range [0, 10]
+instances = 11
+beam = 300
+  candidates = 1 | best score = 1/11 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+range [0, 10]
+instances = 11
+beam = 300
+  candidates = 1002 | best score = 11/11 | best size = 42 | timeouts = 207 | errors = 6121
+  beam diversity at full solve: 24 distinct shapes / 300 candidates
+
+N=1
+  score 11/11
+  size 42  held-out 10/10
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 16/16
+  size 42  held-out 10/10
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 21/21
+  size 42  held-out 11/11
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 26/26
+  size 42  held-out 12/12
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 31/31
+  size 42  held-out 12/12
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 46/46
+  size 42  held-out 12/12
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 46/46
+  size 42  held-out 13/13
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 46/46
+  size 42  held-out 13/13
+  program_id bce7a7ba80ca5fa4  first_level 1  confirmed_levels 8
+  programa:
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  arr[0] = 0;
+}
+v4 = 2;
+while ((v4 < v1)) {
+  v2 = v1;
+  while ((v4 < v2)) {
+    v2 = (v2 - v4);
+  }
+  if ((v2 == v4)) {
+    arr[0] = 0;
+  }
+  v4 = (v4 + 1);
+}
+
+
+Search finished in 0.0702668s
+  profile: gen=0.050841s score=0.0134112s sort=0.000105899s other=0.00590869s | generated 6010 (85531/s), scored 1003 (14274/s)
+
+Saved 8 solution record(s) to solutions.json

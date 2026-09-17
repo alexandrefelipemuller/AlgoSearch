@@ -17,14 +17,28 @@ enum class ExprKind {
     Eq,           // lhs == rhs
     Le,           // lhs <= rhs
     Ge,           // lhs >= rhs
-    Ne            // lhs != rhs
+    Ne,           // lhs != rhs
+    // Arithmetic extension (FINDINGS.md section 13's "language ceiling"):
+    // native O(1) multiply/divide/modulo, gated OFF by default in the
+    // generator (GenConfig::enableArithmeticExt) so every existing problem's
+    // search space/probabilities are unchanged unless a problem opts in.
+    Mul,          // lhs * rhs
+    Div,          // lhs / rhs (truncating; rhs == 0 is a runtime error)
+    Mod,          // lhs % rhs (C++ semantics; rhs == 0 is a runtime error)
+    // Bit-manipulation extension, same opt-in gating
+    // (GenConfig::enableBitwiseExt).
+    BitAnd,       // lhs & rhs
+    BitOr,        // lhs | rhs
+    BitXor,       // lhs ^ rhs
+    Shl,          // lhs << rhs (rhs must be in [0,31], else a runtime error)
+    Shr           // lhs >> rhs (arithmetic shift; rhs must be in [0,31])
 };
 
 // A single expression AST node. Fields are only meaningful for the relevant kind:
 //  - IntConst: intValue
 //  - Var:      varIndex
 //  - ArrayAccess: lhs = index expression
-//  - Add/Sub/Lt/Gt/Eq/Le/Ge/Ne: lhs, rhs
+//  - Add/Sub/Lt/Gt/Eq/Le/Ge/Ne/Mul/Div/Mod/BitAnd/BitOr/BitXor/Shl/Shr: lhs, rhs
 struct Expr {
     ExprKind kind;
     int intValue = 0;

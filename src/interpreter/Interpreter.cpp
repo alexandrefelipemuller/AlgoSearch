@@ -1,5 +1,7 @@
 #include "interpreter/Interpreter.hpp"
 
+#include <limits>
+
 #include "ast/Expr.hpp"
 
 namespace algosearch {
@@ -59,7 +61,15 @@ int evalExpr(const Expr& e, Environment& env) {
         case ExprKind::Eq:
         case ExprKind::Le:
         case ExprKind::Ge:
-        case ExprKind::Ne: {
+        case ExprKind::Ne:
+        case ExprKind::Mul:
+        case ExprKind::Div:
+        case ExprKind::Mod:
+        case ExprKind::BitAnd:
+        case ExprKind::BitOr:
+        case ExprKind::BitXor:
+        case ExprKind::Shl:
+        case ExprKind::Shr: {
             // Operands are evaluated left-then-right and short-circuit on
             // abort; a completing run ticks both sides exactly as before, so
             // step counts (and hence timeouts) are unchanged.
@@ -75,6 +85,49 @@ int evalExpr(const Expr& e, Environment& env) {
                 case ExprKind::Le: return a <= b ? 1 : 0;
                 case ExprKind::Ge: return a >= b ? 1 : 0;
                 case ExprKind::Ne: return a != b ? 1 : 0;
+                case ExprKind::Mul: {
+                    // Randomly generated candidates can compound multiplies
+                    // arbitrarily deep; a plain `a * b` risks signed overflow
+                    // (UB), unlike Add/Sub whose small-array operands rarely
+                    // approach INT_MAX. Widen to 64-bit and treat overflow as
+                    // an ordinary runtime error, same bucket as an
+                    // out-of-bounds array access -- a generated candidate
+                    // that overflows just scores as broken, nothing crashes.
+                    long long wide = static_cast<long long>(a) * static_cast<long long>(b);
+                    if (wide < std::numeric_limits<int>::min() || wide > std::numeric_limits<int>::max()) {
+                        env.flow = Flow::Error;
+                        return 0;
+                    }
+                    return static_cast<int>(wide);
+                }
+                case ExprKind::Div:
+                    // INT_MIN / -1 overflows (UB) the same way Mul can.
+                    if (b == 0 || (a == std::numeric_limits<int>::min() && b == -1)) {
+                        env.flow = Flow::Error;
+                        return 0;
+                    }
+                    return a / b;
+                case ExprKind::Mod:
+                    if (b == 0 || (a == std::numeric_limits<int>::min() && b == -1)) {
+                        env.flow = Flow::Error;
+                        return 0;
+                    }
+                    return a % b;
+                case ExprKind::BitAnd: return a & b;
+                case ExprKind::BitOr: return a | b;
+                case ExprKind::BitXor: return a ^ b;
+                case ExprKind::Shl:
+                    if (b < 0 || b >= 32) {
+                        env.flow = Flow::Error;
+                        return 0;
+                    }
+                    return static_cast<int>(static_cast<unsigned>(a) << b);
+                case ExprKind::Shr:
+                    if (b < 0 || b >= 32) {
+                        env.flow = Flow::Error;
+                        return 0;
+                    }
+                    return a >> b;
                 default: return a == b ? 1 : 0;
             }
         }

@@ -463,6 +463,521 @@ No regression: `make test` 58/58; all 14 problems (the original ten plus
 smoke-test budget after the consolidation, build clean under
 `-Wall -Wextra`.
 
+## 12. Cross-skeleton study: does any problem converge on someone else's skeleton?
+
+Direct follow-up to consolidating skeletons (section 11): with 6 shapes
+now (`counting`, `recurrence`, `nesteddivisor`, `selectionsort`,
+`repeatedmultiply`, `average`), does any problem's search actually
+converge using a skeleton that wasn't built for it? Added
+`ALGOSEARCH_FORCE_SKELETON` (env var, not a CLI flag -- deliberately, see
+the comment in `genStmt`: a per-problem CLI knob was already rejected
+once for revealing the answer in the usage string, but a single override
+applied uniformly across an experiment doesn't reintroduce that) to
+restrict every skeleton draw to exactly one named shape, then ran 9
+problems x 6 forced skeletons x 3 seeds (`scripts/run_cross_skeleton_study.sh`,
+data in `data/cross_skeleton_study_20260916_2017/`), reading the max
+level each combination actually reached (careful to match only standalone
+`N=<k>` level-header lines -- an earlier pass double-counted numbers that
+appeared inside the UNCONFIRMED warning text, like "breaks before N=7",
+as if they were real progress).
+
+**No full cross-convergence anywhere.** `gcd`/`fibonacci` only reach
+N=8 with `recurrence`; `is_prime` only with `nesteddivisor`;
+`factorial`/`power` only with `repeatedmultiply`; `average`/`count` only
+with `average`/`counting` respectively. Every other forced skeleton for
+these problems can't even clear the trivial N=1 (magnitude problems) or
+N=1 (`average`/`count`, whose own real generalization needs their
+specific accumulator/division piece). `mod` is the extreme case: it
+never clears N=1 with ANY single skeleton forced, including every one
+that exists -- confirming section 9's finding that its (rare, 1/8-seed)
+solution needs the free, unrestricted composition pool, not a dedicated
+shape at all.
+
+**One genuine partial cross-convergence, though:** `sorting` reaches
+N=4 when forced onto `counting` -- a skeleton built for min/max/sum/
+contains/count, nothing to do with sorting -- while every OTHER foreign
+skeleton (`recurrence`, `nesteddivisor`, `repeatedmultiply`, `average`)
+gets stuck at N=1-2, same as the magnitude problems' foreign-skeleton
+failures. The reason is structural, not coincidental: `counting`'s `Swap`
+`AccumKind` variant is a single adjacent compare-and-swap pass
+(`if (arr[vi] > arr[vi+1]) swap(...)`), and the discovered program wraps
+that single pass in an OUTER while-loop that keeps re-running it --
+literally bubble sort, composed from a piece that was never designed
+with sorting in mind, just reused because a repeated bubble pass is,
+mechanically, the exact same "counting loop wrapping a per-element
+check" shape every other `AccumKind` already uses. It's not enough to
+fully generalize (still `UNCONFIRMED` past N=4, unlike `selectionsort`'s
+clean N=8), but it's a real signal that shared PIECES (the adjacent-swap
+idiom) can cross skeleton boundaries even when the enclosing algorithm
+can't.
+
+Practical upshot: the skeleton library is about as consolidated as it
+can honestly be -- section 11's two merges (`Recurrence`,
+`RepeatedMultiply`) were real duplicate shapes; the remaining 6 are each
+load-bearing and non-interchangeable for their own problem, confirmed
+empirically rather than assumed. The one soft spot (`counting`'s `Swap`
+variant partially serving `sorting`) is closer to an argument for
+factoring "the adjacent-swap idiom" out as its own even smaller
+building block than for merging two whole skeletons.
+
+## 13. Chasing better asymptotic complexity: gcd O(log n), is_prime O(sqrt n) -- both hit the same wall
+
+User question: can `gcd` reach real O(log n) (the textbook mod-based
+Euclidean algorithm, not the current O(n)-worst-case subtractive one),
+and can `is_prime` reach O(sqrt n) (bounding trial division by sqrt(x)
+instead of x)? Implemented both as new skeleton variants, then measured
+the actual complexity directly against hand-built reference programs
+(bypassing the search entirely, which always finds the smaller/simpler
+program first regardless of asymptotic quality -- see below) rather than
+trusting the `--benchmark` curve fit on whatever the search happened to
+discover.
+
+**`gcd`: added `RecurrenceKind::GcdMod`** (`(a,b) = (b, a mod b)`,
+`a mod b` computed via its own repeated-subtraction inner loop, gated on
+`canNestedLoop` since it's a 2-loop shape) to the `Recurrence` skeleton
+alongside the existing `GcdSubtract`. The search itself never picks it
+over `GcdSubtract` in practice -- across 10 `--benchmark` seeds forcing
+`ALGOSEARCH_FORCE_SKELETON=recurrence`, all 7 distinct solutions found
+were the smaller subtractive program (`GcdSubtract` fits in fewer AST
+nodes, so the size-by-size growth sweep finds it first every time; the
+search optimizes for correctness+size, never for the discovered
+program's own runtime). To measure `GcdMod`'s actual complexity
+independent of whether the search ever finds it, hand-built both
+programs and timed them directly (bypassing Problem/BeamSearch
+entirely) across three instance families:
+
+| family | GcdSubtract exponent | GcdMod exponent |
+|---|---|---|
+| `gcd(n, 1)` (worst case for both) | 0.96 | 1.00 |
+| consecutive Fibonacci pairs (classic Euclidean-iteration-count worst case) | 0.08 | 0.08 |
+| typical balanced pairs (b ~ half of a) | 0.14 | 0.14 |
+
+**Same exponent in every regime tested -- `GcdMod` buys nothing
+asymptotically.** The reason is exactly the honest caveat flagged when
+it was added: computing `a mod b` via repeated subtraction costs
+O(a/b) -- so whenever one operand is much smaller than the other
+(`gcd(n, 1)`: b=1 forces n subtractions in the very first mod step),
+`GcdMod` inherits the identical O(n) blowup `GcdSubtract` already has.
+Interesting side-finding: `GcdSubtract` is ALREADY near-logarithmic on
+Fibonacci pairs and typical balanced inputs (exponent ~0.08-0.14, not
+1.0) -- its O(n) worst case is a narrow pathological edge (extreme
+operand-ratio inputs), not the general case. `GcdMod` doesn't improve on
+any of the three regimes; it just implements the same complexity
+differently. **Conclusion: no, not reachable with Mini-C's current
+primitives** -- true O(log n) needs O(1)-ish division, which needs a
+native multiply/divide/modulo instruction Mini-C doesn't have. Kept
+`GcdMod` in the grammar anyway (it's a real, correct algorithm, verified
+via `--benchmark` at 10/10 held-out), just not the complexity win hoped
+for.
+
+**`is_prime`: bounded `NestedDivisor`'s outer loop by `d*d <= x`**
+instead of `d < x`, tracking `d`'s square incrementally via pure Add
+(`sq += 2d+1` each step, no multiply needed -- see the code comment).
+Gated on `numVars >= 5` (one tier up from the original). Hand-built both
+naive and sqrt-bound programs and timed large primes (worst case: no
+divisor ever found, loop runs to its bound) directly:
+
+| | naive (`d < x`) | sqrt-bound (`d*d <= x`) |
+|---|---|---|
+| exponent | 1.09 | 1.07 |
+| time at x=256019 | 117.9ms/1000 calls | 49.8ms/1000 calls |
+
+**Same exponent again, but a real ~2.4x constant-factor speedup.** The
+reason is the same shape as `gcd`'s: the OUTER loop bound did shrink
+from O(x) to O(sqrt(x)) candidates as intended, but each candidate's
+divisibility check (repeated subtraction, `r -= d` until `r <= d`)
+costs O(x/d), and `sum(x/d)` for `d` from 2 to `N` is `~x*ln(N)` --
+whether `N` is `x` (naive) or `sqrt(x)` (bounded), the total is
+`O(x log x)` either way, only differing by the constant `ln(sqrt(x)) =
+0.5 ln(x)` -- which is exactly the ~2x measured. **Conclusion: same
+answer as gcd, for the same underlying reason** -- cutting the number of
+candidates checked doesn't help when each candidate's own check cost
+(not the candidate count) is the actual bottleneck, and that per-
+candidate cost is itself linear-in-value because it's built from
+repeated subtraction. A genuine O(sqrt(n)) total would need O(1)-ish
+divisibility testing, i.e. real division.
+
+**The general lesson, stated once for both:** Mini-C's Add/Sub-only
+arithmetic (no native multiply/divide/modulo) is a hard ceiling on which
+VALUE-dependent complexity classes are reachable, independent of how
+clever the loop-bound skeleton is. Smarter skeletons can still deliver
+real constant-factor wins (is_prime's ~2.4x) or correctness/robustness
+without an asymptotic win (GcdMod), and those are worth having, but
+"give it a better skeleton" cannot substitute for a missing arithmetic
+primitive the way it substituted for a missing control-flow shape
+(sections 9-10's native comparisons, `CountIf`, division-via-
+subtraction for `average`, etc.) -- this is a genuinely different kind of
+limitation than every other wall documented in this file so far, one in
+the LANGUAGE's expressiveness rather than the search's exploration or
+the grammar's bias.
+
+No regression: `make test` 58/58; all 14 problems still solve every
+level at a quick smoke-test budget after both changes.
+
+## 14. Sorting reaches O(n log n) -- heapsort, gated behind maxLoops=4
+
+Direct follow-up to section 13's honest "no" on gcd/is_prime: those hit
+a LANGUAGE ceiling (no multiply/divide). Sorting's O(n log n) ceiling is
+different -- an ARCHITECTURE one (no second array rules out merge sort,
+no recursion/stack rules out quicksort) -- and heapsort is fully
+in-place and iterative, so it doesn't need either. Implemented it as
+`genHeapSortSkeletonBlock`.
+
+Two adaptations for what the grammar can/can't express, not just
+translating textbook heapsort directly:
+1. No multiply/divide, so the classic build-heap start index (`n/2 - 1`)
+   is unreachable. Starts from `n-1` instead (every index, not just
+   internal nodes) -- sift-down from a leaf is an immediate no-op
+   (finds no valid child), so this still builds a correct max-heap, just
+   with some redundant no-op work that doesn't change the overall
+   O(n log n) bound (the extract phase already dominates it).
+2. No `break` and no `&&`/`||` (the additive `!=` trick from section 9
+   doesn't generalize to AND). Sift-down's usual "loop until no swap
+   needed" became a `while (done == 0) { ...; if (no swap needed)
+   done = 1; }` flag loop, and the two-condition check ("a valid right
+   child exists AND it's bigger") is nested `if`s instead of a boolean
+   expression -- control flow gives the same short-circuit-AND behavior
+   for free.
+
+Needs 4 while-loops (build-heap wrapping sift-down, extract-max wrapping
+its own sift-down) -- raised `GenConfig::maxLoops` from 2 to 4
+specifically for this (purely additive: existing 1-2-loop skeletons
+never have to use the extra budget). Added as a 7th top-level skeleton,
+gated on a new `canQuadLoop` check and `numVars >= 5`.
+
+**Verified correct and genuinely faster, but the free search never
+finds it on its own.** Forcing it (`ALGOSEARCH_FORCE_SKELETON=heapsort`)
+at a generous budget (beam=1500, candidates=5000, size=400, 10
+`--benchmark` seeds, max-n=12): 9/10 seeds genuinely generalizing, 0
+rejected, measured exponent **1.13-1.26** across seeds -- a real,
+consistent, measurably different complexity signature from
+`selectionsort`'s **1.90-2.00** in the identical setup (n log n isn't a
+pure power law, so a log-log fit over a bounded range shows up as
+"a bit above 1," not exactly 1 -- this is the expected signature, not
+noise). Running the SAME generous budget with no skeleton forced (free
+choice among all 7) found `selectionsort`/bubble-shaped O(n²) solutions
+in all 10 seeds, never heapsort -- unsurprising given heapsort's AST is
+~131 nodes against selection sort's ~37; the search's own size-by-size
+growth sweep finds the smaller structure first every time, same
+dynamic as section 13's `GcdMod` never winning over `GcdSubtract`.
+
+**Real cost found and fixed before calling this done:** giving
+`HeapSort` an equal 1-in-7 uniform draw (matching every other
+skeleton's weight) measurably slowed down EVERY problem's search, not
+just sorting's -- `reverse` at a modest budget went from ~15s to not
+converging within 3+ minutes once `HeapSort` joined the uniform draw,
+because a large, often structurally-irrelevant 131-node candidate
+eating a 1-in-7 share of every biased statement pollutes the candidate
+pool at every size step, for every problem, not just the one it could
+help. Fixed by switching the skeleton draw from uniform to weighted
+(`HeapSort` at 1/3 the weight of every other skeleton) -- `reverse`
+back to 3.2s, `sorting` with `heapsort` forced still resolves in
+0.07s, all 14 problems still solve every level at a quick smoke-test
+budget afterward.
+
+**Answers the original three-part question concretely:** `is_prime`
+O(sqrt n) and `gcd` O(log n) are not reachable with Mini-C's current
+arithmetic primitives (section 13) -- a language ceiling. `sorting`
+O(n log n) IS reachable and now implemented and verified (heapsort) --
+an architecture problem, solvable by extending the grammar/loop budget
+rather than needing new primitives -- but reaching it currently requires
+the research-only `ALGOSEARCH_FORCE_SKELETON` override, not the free
+search, which reliably prefers the smaller O(n^2) shape. Whether that's
+"good enough" depends on the goal: if it's finding SOME O(n log n)
+sorting via unassisted search, that remains open (same avoid-the-biggest-
+AST-first dynamic biasing away from it that every "smaller shape wins
+the race" finding in this file has shown); if it's demonstrating the
+grammar/architecture CAN express O(n log n) sorting at all, that's now
+answered yes.
+
+No regression: `make test` 58/58; all 14 problems solve every level at
+a quick smoke-test budget, build clean under `-Wall -Wextra`.
+
+## 15. 3SUM: free search fails cold, a dedicated 3-index skeleton fixes it outright
+
+Tried a new problem for variety (`ThreeSumProblem`, `src/problems/
+ThreeSumProblem.{hpp,cpp}`, registered as `--problem three_sum`): do
+three DISTINCT indices i, j, k exist in the array with
+`arr[i]+arr[j]+arr[k] == 0`? Output convention matches the other
+decision problems (`contains`-style: `output[0]` is 1/0). Needs
+negative values to be answerable at all, so instances are crafted
+directly rather than reused from `ArrayInstances`' mostly-non-negative
+base set: for each base/structural array, one "no" variant (perturbed
+until genuinely triple-free, checked by the same O(n^3) brute force
+used as the ground-truth oracle) and three "yes" variants with a
+zero-sum triple force-written at three different index patterns
+(front/middle/back) -- the same "don't let one fixed position become a
+shortcut" fix `ContainsProblem::addBothCases` already documents.
+
+**Free search, no dedicated skeleton: genuinely couldn't solve it, not
+even at N=3.** First pass (beam=500, candidates=1500, num-vars=6,
+~40s) stalled at 86-99% on N=3-4 and never closed. Assuming it just
+needed more budget, reran at 4x the beam/candidates with all 8 threads
+for ~65 minutes (`data/` run, `/tmp/threesum_run1.log`): it DID
+eventually hit 100% training score at N=3 and N=4, but both were
+`UNCONFIRMED` -- broke before N=6 with the unmutated program, and the
+N=4 "solution" was visibly not implementing anything triple-related (an
+accumulate-then-count mess that only coincided with all 128 of that
+level's instances). N=5 never even closed (stuck at 510/512) before the
+run ended. **Ten times the budget, 100x the wall-clock, zero genuinely
+generalizing programs found.** Unlike every other magnitude/array
+problem in this project (`contains` included, which resolves in
+<1s), the free grammar-composition search has no path INTO the
+"compare three related elements" shape -- none of the 6 existing named
+skeletons relate more than two array elements or nest more than 2
+loops for a comparison (the closest, `nesteddivisor`, nests 2 loops but
+for divisibility, not element comparison), and the plain unstructured
+statement grammar essentially never stumbles into a correct triple-
+nested-loop-plus-flag program by chance at these sizes.
+
+**Added a 7th skeleton, `genThreeSumSkeletonBlock`** (`src/search/
+ProgramGenerator.cpp`): a genuine triple-nested `while` loop (i, then
+j=i+1, then k=j+1, each bounded by `v0`) with `found=1` set inside the
+innermost `if (arr[i]+arr[j]+arr[k] == 0)`, writing `arr[0] = found` at
+the end -- literally the textbook O(n^3) reference algorithm. Needs a
+new `canTripleLoop` gate (`maxLoops - loopsUsed >= 3`, one tier below
+`HeapSort`'s existing `canQuadLoop`) and 4 scratch scalars (i, j, k,
+found), so gated on `numVars >= 5` same as `nesteddivisor`/`average`.
+Weighted at 3 (same as every skeleton except `HeapSort`) in the draw --
+its AST is small (~15 nodes, nothing like `HeapSort`'s ~131), so unlike
+that finding there's no a-priori reason to expect it to pollute other
+problems' candidate pools.
+
+**Fixed it outright, both forced and free.** `ALGOSEARCH_FORCE_SKELETON=
+threesum` at a modest budget (beam=500, candidates=1500) finds the
+EXACT reference triple-loop program, confirmed through N=8, held-out
+52/52, in 0.53s. More importantly, the FREE search (no override, all 7
+skeletons competing) now also finds a genuinely generalizing solution
+completely unassisted: `first_level 3`, `confirmed_levels 6`, held-out
+52/52, `Search finished in 0.127s` -- from "10x budget / 65 minutes /
+zero generalizing solutions" to "under a second, unforced" by adding
+exactly the one shape the free composition search had no other way to
+reach.
+
+**No regression checked directly** (this project's heapsort finding
+established that a wrongly-weighted new skeleton CAN slow down every
+OTHER problem, so this wasn't assumed): `make test` still 58/58. A
+smoke-test sweep across the other 14 problems post-change showed
+`reverse`/`mod`/`power` all slower than a quick glance expected (`reverse`
+over 40s, `mod`/`power` 20+s) -- looked like the same HeapSort-shaped
+regression at first, but a `git stash`-and-rerun of the exact same sweep
+on the PRE-change binary reproduced the identical slowness (`reverse`
+also >40s, `mod`/`power` also ~20s), which rules out `ThreeSum` as the
+cause -- this specific combination of flags (`num-vars=5`,
+`candidates=1500`, `seed=1`, `--loop-bias 0.4`) is just slow for those
+three problems already, unrelated to this change. Worth remembering:
+check the baseline before attributing a slow run to the latest diff,
+even when the shape of the slowdown matches a documented past bug.
+
+## 16. Where this sits relative to the academic/industrial state of the art
+
+Literature check (web search, September 2026) after the 3SUM episode
+made the project's core dynamic unusually legible: is this beam search
+fast/capable relative to what's actually out there for "discover an
+algorithm by search"?
+
+**Speed: competitive, but for a reason worth being honest about.**
+`PSB2` (the standard general-program-synthesis benchmark suite,
+includes a GCD task) recommends capping each PushGP run at **60
+million** program executions, and even combining PushGP with GPT-4o
+only closes 23/25 of its tasks -- classic genetic programming alone
+does noticeably worse per-task. This project's runs solve most problems
+in well under a second to low tens of seconds, generating thousands to
+low hundreds of thousands of candidates -- several orders of magnitude
+cheaper in raw evaluation count. Enumerative/deductive synthesis
+(SyGuS-style, counterexample-guided) lands in the same
+millisecond-to-second speed class, but for a narrower problem class
+(loop-free expressions guided by a handful of I/O examples); synthesizing
+*loops* from scratch, which is what every problem here actually needs,
+is a much harder and less mature corner of that literature.
+
+**The speed isn't free, though -- it's bought by the skeleton library,
+and section 15 just demonstrated that in the most direct way possible.**
+Every named skeleton (`counting`, `selectionsort`, `recurrence`,
+`threesum`, ...) is close to the target algorithm's shape already
+encoded as a template; the free search's job is closer to "wire the
+right variables into a pre-built structure" than "invent the
+structure." 3SUM made this undeniable: the untouched grammar failed for
+65 minutes at 10x budget, and flipped to sub-second unassisted success
+the moment a human wrote the triple-nested-loop template in by hand.
+That's the same "language ceiling" pattern section 13 already found for
+`gcd`/`is_prime`'s better asymptotic variants, now confirmed a third
+time on a completely different problem shape -- this project's actual
+search algorithm (beam search + structural-invariance/held-out
+verification) is solid and arguably more rigorous about not fooling
+itself than a lot of toy GP demos, but the RESULTS ceiling is set by how
+many algorithm shapes a human has pre-encoded as skeletons, not by the
+search's own exploration power.
+
+**Capability ceiling: far from the actual current frontier.** The real
+state of the art for "discover an algorithm via search" as of 2025 is
+no longer classical GP -- it's LLM-guided evolutionary search:
+DeepMind's FunSearch (2023) and its successor AlphaEvolve (2025), plus
+2025 open-source descendants (OpenEvolve, ShinkaEvolve, CodeEvolve).
+These evolve whole programs with an LLM supplying the mutation/
+recombination prior instead of a human-written grammar, and have
+produced results with **no pre-existing human template to fall back
+on** -- new constructions for the cap set problem, new bin-packing
+heuristics, and (via the sibling AlphaTensor line) matrix-multiplication
+algorithms nobody had written down before. That is exactly the
+capability this project's approach structurally cannot reach without a
+different mutation operator: every "discovery" here traces back to a
+human already knowing and encoding the target shape, which is the
+opposite of what makes FunSearch/AlphaEvolve's results notable.
+
+**Net position:** ahead of or level with classical GP baselines on
+raw search efficiency for problems whose shape is already in the
+skeleton library; nowhere near the LLM-guided-evolution frontier on
+genuine open-ended discovery, and structurally can't get there by
+tuning beam width or adding bias knobs -- would need either an LLM (or
+similar) supplying a general code-mutation prior, or accepting that
+growth here means one hand-written skeleton at a time, same as every
+other finding in this file involving a language/architecture ceiling.
+
+## 17. Breaking the language ceiling for real: native Mul/Div/Mod/bitwise, plus two new problem families
+
+Direct follow-up to section 16's SWOT ("expand the vocabulary carefully"):
+added native arithmetic (`Mul`, `Div`, `Mod`) and bitwise (`BitAnd`,
+`BitOr`, `BitXor`, `Shl`, `Shr`) as `ExprKind` primitives (evaluated in
+O(1) by the interpreter, overflow/div-by-zero/bad-shift all mapped to the
+existing `RUNTIME_ERROR` bucket, same as an out-of-bounds array access --
+nothing new crashes). **Foundational project decision, stated by
+Alexandre and now binding: no LLM, no neural nets, no learned component
+of any kind, ever** -- every extension in this section is pure grammar/
+interpreter work, no exception considered.
+
+**Gating, to protect the 15 existing problems:** the new ops are NOT
+folded into `genValueExpr`'s core 4-way Add/Sub/ArrayAccess/Var choice
+(that would dilute the carefully-tuned split the Sub(Var,Var) bug in
+section 5 was about) -- instead an 8% independent substitution
+probability, always-on for every problem (same "one universal trigger,
+no problem-specific knob" principle as `loopAccumulatorBias`), same
+precedent as native Le/Ge/Ne joining `genCondExpr`'s kinds array in
+section 9.
+
+### Breaking section 13's wall, confirmed both by hand and through the full search+verification pipeline
+
+Section 13 found `gcd`/`is_prime` stuck at the same wall: a smarter
+loop-bound skeleton shrinks the CANDIDATE count (O(log n) outer
+iterations, O(sqrt n) divisor candidates) but each candidate's own check
+was built from repeated subtraction, costing O(a/b) or O(x/d) -- so the
+TOTAL work stayed O(n) / O(x log x) regardless of the loop-bound
+cleverness. Native Mod/Mul removes that per-candidate cost entirely.
+
+Added two new skeleton variants, kept alongside the originals (not
+replacing them) so the A/B comparison stays measurable:
+`RecurrenceKind::GcdModNative` (`(a,b)=(b, a%b)`, one native `%` instead
+of a repeated-subtraction inner loop -- collapses from 2 loops to 1) and
+`genNestedDivisorNativeLoopBlock` (`d*d<=x` bound via native `*`, `x%d==0`
+divisibility via native `%` -- collapses from 4 scratch scalars to 2, no
+inner loop at all, one tier looser on `numVars` than the original).
+
+Hand-built-and-timed (bypassing search entirely, same methodology as
+section 13's table):
+
+| test | old (repeated subtraction) | new (native) |
+|---|---|---|
+| `gcd(n,1)`, n: 4000->400000 | exponent 0.99 (genuinely O(n)) | exponent ~0.00 -- **O(1)**, 100x n gives the same runtime |
+| `is_prime`, large primes, x: 100003->10000019 | exponent 1.08 | exponent ~0.44, **10544x faster** at the larger size |
+
+Then re-verified through the REAL pipeline, not just the hand-built
+programs -- forcing `ALGOSEARCH_FORCE_SKELETON=recurrence` for `gcd` and
+running free (unforced, default `loop-bias`) for both: **both problems'
+search converges onto the native variant in every seed tested (8/8 for
+gcd forced, 6/6 free for gcd, 6/6 free for is_prime)**, and
+`--benchmark`'s own independent curve fit reports it plainly: `gcd` **"O(1)
+-- constant"**, `is_prime` **"O(sqrt n) -- square root", r2=1.00**. The
+free search prefers the native variant not because it was told to, but
+because it's simultaneously smaller (fewer scratch vars, fewer loops)
+than the repeated-subtraction version AND asymptotically faster -- unlike
+`GcdMod` in section 13, which the free search never picked over
+`GcdSubtract` specifically because it was the same speed but bigger.
+**Conclusion: section 13's ceiling is not a permanent architecture limit
+-- it was a real, specific consequence of Mini-C having no O(1)
+arithmetic primitives, and adding exactly those (not a smarter skeleton,
+not more search budget) removes it outright, confirmed both by hand and
+end-to-end.**
+
+### Two new problem families, testing the SWOT's coverage gap directly
+
+**`single_number` (bit manipulation, LeetCode's "Single Number"):** every
+array value appears an even number of times except one; find it. Reused
+existing infrastructure almost for free -- added `AccumKind::Xor` to
+`genCountingLoopBlock` (identical shape to the existing Sum/Min/Max/
+CountIf accumulator kinds, just `acc = acc ^ arr[vi]`), no new dedicated
+skeleton needed. **Free search finds the exact canonical XOR-reduce
+solution unassisted**: `first_level 1`, `confirmed_levels 8`, held-out
+18/18, `Search finished in 0.041s`. The easiest new capability added in
+this project's history, because the shape was already 90% built.
+
+**`graph_reachability` (graph algorithm, is vertex V-1 reachable from
+vertex 0?):** the harder of the two, deliberately, to test whether a
+genuinely different algorithmic shape (relational, not aggregative)
+could be added at all. No pointers/structs in Mini-C, so the graph is
+folded into the one flat array by convention: `[V, V scratch "reached"
+cells, V*V row-major adjacency matrix]` -- the row-major indexing
+(`base + i*V + j`) is the FIRST thing in this project that only exists
+because of this section's arithmetic extension; before native `Mul` this
+problem was flatly unrepresentable, not just hard to search. Algorithm
+is fixed-point relaxation (repeat V times: mark j reached whenever i is
+reached and edge i->j exists) since Mini-C has no queue/stack for real
+BFS/DFS -- V rounds always suffices since the longest simple path has
+fewer than V edges. Verified correct in isolation first (hand-built the
+exact skeleton AST, ran it directly against 8 hand-constructed graphs --
+chains, broken chains, cycles, disconnected -- 8/8 matched a reference
+BFS before ever touching the search), the same "prove the algorithm
+before trusting the search" discipline sections 13/15 established.
+
+**Found and fixed a real gap in the benchmark's verification
+infrastructure along the way**, not a bug in the algorithm: 5 of 7
+initial `--benchmark` rejections were the magnitude-shift stress check
+(section on `kShiftOffsets` in `Benchmark.cpp`, added to catch a formula
+that only coincidentally works across a bounded value range) adding
+997/1997 to EVERY array value -- including `graph_reachability`'s vertex
+COUNT and boolean edge FLAGS, which have no meaningful "shifted"
+interpretation at all (a shifted vertex count no longer matches the
+array's real length; a shifted edge flag is neither 0 nor 1). This is
+the same domain-appropriateness issue `GcdProblem`'s existing
+shift-offset comment already flagged (positive-only offsets, to respect
+gcd's positive-integers domain) but for a shape the two fixed offsets
+can't rescue no matter what they're set to. Fixed properly rather than
+special-cased away: added `Problem::supportsMagnitudeShift()` (default
+`true`, so all 17 other problems are unaffected), overridden `false` for
+`GraphReachabilityProblem`. After that fix, both a forced-skeleton run
+and a completely FREE (default `loop-bias=0.4`, no override) run each
+found a genuinely generalizing solution that survived full independent
+re-verification: `--benchmark` fits it as **O(n^1.5)** (r2=0.84 -- noisier
+than the clean r2=1.00 fits elsewhere, consistent with a real O(V^3)
+algorithm's step count not being a pure power law over this size range,
+same caveat section 14 made for heapsort's n log n). **The free search
+finds this unassisted, unlike HeapSort** (section 14, never found free
+because smaller irrelevant skeletons out-compete its ~131-node AST for
+every OTHER problem's candidate slots) and unlike 3SUM's first attempt
+(section 15, needed 65 minutes before concluding it was unreachable) --
+here, no cheaper skeleton can score anything on V>=3 instances at all,
+so there's no wrong-but-smaller competitor for size-preference to get
+stuck on.
+
+**Regression discipline, same as every prior addition:** `make test`
+58/58; a `git stash`-based A/B sweep across all 15 pre-existing problems
+at matched parameters showed no new slowdowns (`mod`/`reverse`'s known
+flakiness at these specific parameters reproduces identically on the
+pre-change binary, confirmed before attributing it to this change --
+same lesson section 15 already learned the hard way).
+
+**Net effect on the section 16 SWOT:** two of the three biggest coverage
+gaps identified there (bit manipulation: 0%, graph algorithms: 0%) now
+have one genuine, verified representative each, and the single named
+"Weakness" from that SWOT with a concrete fix available (the arithmetic
+language ceiling) is now closed for the two cases it was measured
+against. What's NOT yet touched: the graph representation only supports
+one relation (adjacency-matrix reachability) on artificially small V
+(the O(V^2) instance size makes anything beyond V~10-15 expensive to even
+generate/score), and DP/2D-table problems, strings, and real data
+structures remain fully out of reach (still need a second array/table
+primitive Mini-C doesn't have at all -- a different, larger architecture
+change than this section's, not attempted here).
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,

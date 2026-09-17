@@ -12,6 +12,9 @@
 #include "problems/FactorialProblem.hpp"
 #include "problems/FibonacciProblem.hpp"
 #include "problems/ContainsProblem.hpp"
+#include "problems/ThreeSumProblem.hpp"
+#include "problems/SingleNumberProblem.hpp"
+#include "problems/GraphReachabilityProblem.hpp"
 #include "problems/GcdProblem.hpp"
 #include "problems/ModProblem.hpp"
 #include "problems/IsPrimeProblem.hpp"
@@ -102,7 +105,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -129,6 +132,9 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "average") return std::make_unique<AverageProblem>(6, 40, numVars, seed);
     if (name == "reverse") return std::make_unique<ReverseProblem>(6, 40, numVars, seed);
     if (name == "power") return std::make_unique<PowerProblem>(6, 40, numVars, seed);
+    if (name == "three_sum") return std::make_unique<ThreeSumProblem>(6, 40, numVars, seed);
+    if (name == "single_number") return std::make_unique<SingleNumberProblem>(4, 40, numVars, seed);
+    if (name == "graph_reachability") return std::make_unique<GraphReachabilityProblem>(6, 40, numVars, seed);
     return nullptr;
 }
 

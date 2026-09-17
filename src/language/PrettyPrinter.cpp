@@ -21,6 +21,14 @@ const char* opSymbol(ExprKind k) {
         case ExprKind::Le: return "<=";
         case ExprKind::Ge: return ">=";
         case ExprKind::Ne: return "!=";
+        case ExprKind::Mul: return "*";
+        case ExprKind::Div: return "/";
+        case ExprKind::Mod: return "%";
+        case ExprKind::BitAnd: return "&";
+        case ExprKind::BitOr: return "|";
+        case ExprKind::BitXor: return "^";
+        case ExprKind::Shl: return "<<";
+        case ExprKind::Shr: return ">>";
         default: return "?";
     }
 }
@@ -53,6 +61,14 @@ std::string printExpr(const Expr& e) {
         case ExprKind::Le:
         case ExprKind::Ge:
         case ExprKind::Ne:
+        case ExprKind::Mul:
+        case ExprKind::Div:
+        case ExprKind::Mod:
+        case ExprKind::BitAnd:
+        case ExprKind::BitOr:
+        case ExprKind::BitXor:
+        case ExprKind::Shl:
+        case ExprKind::Shr:
             return "(" + printExpr(*e.lhs) + " " + opSymbol(e.kind) + " " + printExpr(*e.rhs) + ")";
     }
     return "?";

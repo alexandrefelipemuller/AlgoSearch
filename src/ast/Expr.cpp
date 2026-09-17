@@ -33,6 +33,14 @@ bool isBinaryKind(ExprKind kind) {
         case ExprKind::Le:
         case ExprKind::Ge:
         case ExprKind::Ne:
+        case ExprKind::Mul:
+        case ExprKind::Div:
+        case ExprKind::Mod:
+        case ExprKind::BitAnd:
+        case ExprKind::BitOr:
+        case ExprKind::BitXor:
+        case ExprKind::Shl:
+        case ExprKind::Shr:
             return true;
         default:
             return false;
