@@ -12,7 +12,18 @@ struct GenConfig {
     int maxExprDepth = 3;
     int maxStatementsPerBlock = 4;
     int maxBlockDepth = 3;   // nesting depth of if/while
-    int maxLoops = 2;        // max number of while-loops in a whole program
+    // Max number of while-loops in a whole program. Raised from 2 to 4:
+    // heapsort (see genHeapSortSkeletonBlock in ProgramGenerator.cpp) is a
+    // genuinely 4-loop shape -- a build-heap loop wrapping a sift-down
+    // loop, then an extract-max loop wrapping its own sift-down loop --
+    // needed to try for O(n log n) sorting at all (see FINDINGS.md
+    // section 13's architecture discussion: Mini-C has no recursion and
+    // only one array, ruling out merge/quicksort, so an in-place,
+    // non-recursive shape is the only option, and heapsort is it). Purely
+    // additive: raising the budget never forces any existing 1-2-loop
+    // skeleton to use more loops than it already did, just makes room for
+    // ones that need more.
+    int maxLoops = 4;
     int maxConst = 3;        // generated integer literals are in [0, maxConst]
 
     // Grammar-level bias, in [0, 1], toward directly emitting a canonical

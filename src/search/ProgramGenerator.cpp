@@ -1,5 +1,7 @@
 #include "search/ProgramGenerator.hpp"
 
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <vector>
 
@@ -239,21 +241,36 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
 
 // Dedicated nested skeleton for trial-division-by-subtraction primality
 // testing -- see the loopAccumulatorBias comment in ProgramGenerator.hpp
-// for the full rationale. Reserves var 0 (array length, unused
-// here) and picks three distinct scalars for x (the value under test), d
-// (candidate divisor), and r (repeated-subtraction remainder).
+// for the full rationale. Reserves var 0 (array length, unused here) and
+// picks four distinct scalars: x (the value under test), d (candidate
+// divisor), r (repeated-subtraction remainder), and sq (see below).
+//
+// Bounds the outer loop by `d*d <= x` (trial division only needs
+// divisors up to sqrt(x): if x has no divisor <= sqrt(x), it has none
+// above it either) instead of the naive `d < x` -- O(sqrt(n)) candidate
+// divisors instead of O(n). Mini-C has no multiply primitive, so `d*d`
+// can't be computed directly each round, but it doesn't need to be:
+// `sq` tracks d^2 incrementally, using the identity (d+1)^2 = d^2 + 2d+1
+// -- pure Add, updated once per outer iteration right before `d` itself
+// increments, so `sq` is always exactly the square of the CURRENT `d`
+// when the loop condition checks it. Needs one more scratch scalar than
+// the naive O(n) version, hence numVars >= 5 (one tier up from the
+// original's numVars >= 3).
 StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int x = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    int d = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    if (d == x) d = 1 + (x % (cfg.numVars - 1));
-    int r = -1;
-    for (int cand = 1; cand < cfg.numVars; ++cand) {
-        if (cand != x && cand != d) {
-            r = cand;
-            break;
+    int vars[4];
+    int used = 0;
+    while (used < 4) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
         }
+        if (!dup) vars[used++] = cand;
     }
-    if (r < 0) r = x;  // numVars too small to give r its own slot; reuse x's (degenerate but safe)
+    int x = vars[0], d = vars[1], r = vars[2], sq = vars[3];
 
     auto root = makeBlock();
     root->body.push_back(makeAssign(x, makeArrayAccess(makeIntConst(0))));    // x = arr[0]
@@ -263,7 +280,8 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
         guardBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
         root->body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(x), makeIntConst(2)), std::move(guardBody)));
     }
-    root->body.push_back(makeAssign(d, makeIntConst(2)));  // d = 2
+    root->body.push_back(makeAssign(d, makeIntConst(2)));   // d = 2
+    root->body.push_back(makeAssign(sq, makeIntConst(4)));  // sq = 2*2  (d^2, kept in sync with d below)
 
     std::vector<StmtPtr> outerBody;
     outerBody.push_back(makeAssign(r, makeVar(x)));  // r = x
@@ -278,9 +296,15 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
         foundBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
         outerBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(r), makeVar(d)), std::move(foundBody)));
     }
+    // sq = sq + 2*d + 1 (using CURRENT d, i.e. (d+1)^2 = d^2 + 2d + 1),
+    // THEN d = d + 1 -- order matters: sq must advance to match the new
+    // d exactly, using the old d's value one last time.
+    outerBody.push_back(
+        makeAssign(sq, makeBinOp(ExprKind::Add, makeVar(sq), makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeVar(d), makeVar(d)),
+                                                                          makeIntConst(1)))));
     outerBody.push_back(makeAssign(d, makeBinOp(ExprKind::Add, makeVar(d), makeIntConst(1))));  // d = d + 1
     loopsUsed++;
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(d), makeVar(x)), std::move(outerBody)));
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Le, makeVar(sq), makeVar(x)), std::move(outerBody)));
 
     return root;
 }
@@ -295,23 +319,42 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
 // alternation gated on inequality vs an additive recurrence gated on a
 // counter) -- unifying the DRAW, not pretending the two algorithms are
 // actually the same computation.
-enum class RecurrenceKind { GcdSubtract, FibonacciAdd };
+enum class RecurrenceKind { GcdSubtract, FibonacciAdd, GcdMod };
 
 // GcdSubtract: subtractive Euclidean GCD (a,b seeded from arr[0]/arr[1],
 // loop while a != b subtracting the smaller from the larger, write back
-// a). FibonacciAdd: iterative Fibonacci (a,b seeded 0,1, a third counter i
-// looping while i < arr[0]; `b = a + b; a = b - a;` recovers the new `a`
-// from the just-updated `b` and the OLD `a`, still available since it
-// hasn't been overwritten yet, avoiding a third temp variable). Picked
-// uniformly; FibonacciAdd needs one more scratch scalar (the counter) so
-// it's only offered when numVars leaves room for it.
-StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+// a) -- O(max(a,b)) steps in the worst case (e.g. gcd(n, 1) takes n
+// subtractions). FibonacciAdd: iterative Fibonacci (a,b seeded 0,1, a
+// third counter i looping while i < arr[0]; `b = a + b; a = b - a;`
+// recovers the new `a` from the just-updated `b` and the OLD `a`, still
+// available since it hasn't been overwritten yet, avoiding a third temp
+// variable). GcdMod: the REAL fast Euclidean algorithm, `(a,b) = (b, a
+// mod b)` repeated until b hits 0 -- O(log(min(a,b))) OUTER iterations
+// (a Fibonacci-ratio bound, the classic result), each computing `a mod
+// b` via its own repeated-subtraction inner loop since Mini-C has no
+// divide primitive. Honest caveat, not swept under the rug: that inner
+// mod step costs O(a/b) subtractions, so unlike a language with a native
+// divide/modulo instruction, this does NOT guarantee O(log n) total
+// primitive-operation count in the worst case (e.g. gcd(n, 2) still costs
+// O(n) subtractions in that one mod step) -- what it guarantees is
+// O(log n) *outer* iterations, and empirically much less total work than
+// GcdSubtract whenever the two operands stay reasonably balanced across
+// iterations, which --benchmark's curve fit can measure directly. Picked
+// among whichever variants fit the current numVars/loop budget:
+// FibonacciAdd needs one extra scratch scalar (the counter); GcdMod needs
+// two extra (the mod loop's own remainder, plus reusing GcdSubtract's a/b
+// slots) and a free nested-loop budget slot, being itself a 2-loop shape.
+StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed, bool canNestedLoop) {
     int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
     int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
     if (b == a) b = 1 + (a % (cfg.numVars - 1));
 
-    bool canFibonacci = cfg.numVars >= 4;  // needs a third scratch scalar for the counter
-    RecurrenceKind kind = (canFibonacci && rng.chance(0.5)) ? RecurrenceKind::FibonacciAdd : RecurrenceKind::GcdSubtract;
+    RecurrenceKind options[3];
+    int n = 0;
+    options[n++] = RecurrenceKind::GcdSubtract;
+    if (cfg.numVars >= 4) options[n++] = RecurrenceKind::FibonacciAdd;
+    if (canNestedLoop && cfg.numVars >= 4) options[n++] = RecurrenceKind::GcdMod;
+    RecurrenceKind kind = options[rng.uniformInt(0, n - 1)];
 
     auto root = makeBlock();
 
@@ -328,6 +371,37 @@ StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loops
 
         loopsUsed++;
         root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(a), makeVar(b)), std::move(body)));
+        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
+        return root;
+    }
+
+    if (kind == RecurrenceKind::GcdMod) {
+        int r = -1;
+        for (int cand = 1; cand < cfg.numVars; ++cand) {
+            if (cand != a && cand != b) {
+                r = cand;
+                break;
+            }
+        }
+        if (r < 0) r = a;  // numVars too small to give r its own slot; degenerate but safe
+
+        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
+        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
+
+        std::vector<StmtPtr> outerBody;
+        outerBody.push_back(makeAssign(r, makeVar(a)));  // r = a
+        {
+            std::vector<StmtPtr> innerBody;
+            innerBody.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), makeVar(b))));  // r = r - b
+            loopsUsed++;
+            // r ends up as a mod b: repeated subtraction until r < b.
+            outerBody.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), makeVar(b)), std::move(innerBody)));
+        }
+        outerBody.push_back(makeAssign(a, makeVar(b)));  // a = b
+        outerBody.push_back(makeAssign(b, makeVar(r)));  // b = a mod b
+
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(b), makeIntConst(0)), std::move(outerBody)));
         root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
         return root;
     }
@@ -588,6 +662,134 @@ StmtPtr genSelectionSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
     return root;
 }
 
+// Attempt at O(n log n) sorting -- see FINDINGS.md section 13 for the
+// architecture discussion this follows from. Merge sort needs a second
+// scratch array (Mini-C has exactly one, doubling as both input and
+// output); quicksort needs recursion or an explicit stack (Mini-C has
+// neither -- no function calls, no dynamic structures beyond the one
+// array). Heapsort is the shape that fits: fully in-place, iterative,
+// only needs comparisons/swaps on the one array it already has. Needs
+// FOUR while-loops (a build-heap loop wrapping a sift-down loop, then an
+// extract-max loop wrapping its own sift-down loop) -- see
+// GenConfig::maxLoops, raised from 2 to 4 specifically for this.
+//
+// Two adaptations for what Mini-C's grammar can and can't express:
+//  1. No multiply/divide, so the classic build-heap start index
+//     (`n/2 - 1`) is unreachable. Starts from `n-1` instead (every index,
+//     not just internal nodes) -- sift-down from a leaf immediately finds
+//     no valid child and becomes a no-op, so this is still a CORRECT
+//     max-heap construction, just doing some redundant no-op work; it
+//     doesn't change the overall O(n log n) bound (build-heap is already
+//     dominated by the O(n log n) extract phase either way).
+//  2. No `break` statement, so sift-down's usual "loop until no swap
+//     needed" is a `while (done == 0) { ...; if (no swap needed) done = 1;
+//     }` flag loop instead. No `&&`/`||` either (Mini-C's only multi-
+//     condition trick is the additive != from section 9, which doesn't
+//     generalize to AND) -- composed via nested `if` instead, which gives
+//     the same short-circuit-AND behavior for free through control flow,
+//     no boolean-expression algebra needed.
+//
+// Needs 4 scratch scalars, reused across both phases since they run
+// strictly sequentially (build-heap fully finishes before extraction
+// starts, so there's no lifetime conflict): `k` (the outer loop's
+// counter, first counting down from n-1 for build-heap, then reused
+// counting down from n-1 for extraction), `root`/`child` (sift-down's
+// current node and the child it's comparing against), `done` (the
+// sift-down flag). Gated on numVars >= 5 and a full 4-loop budget.
+StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[4];
+    int used = 0;
+    while (used < 4) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int k = vars[0], root = vars[1], child = vars[2], done = vars[3];
+
+    // Builds one sift-down: `root = <rootInit>; done = 0; while (done==0)
+    // { child = root+root+1; if (child >= size) done=1; else { if
+    // (child+1 < size) { if (arr[child+1] > arr[child]) child=child+1; }
+    // if (arr[root] >= arr[child]) done=1; else { swap(arr[root],
+    // arr[child]); root=child; } } }`. `size` is cloned fresh at each of
+    // its two uses (child-in-range check, child+1-in-range check).
+    auto buildSiftDown = [&](ExprPtr rootInit, ExprPtr sizeExpr, std::vector<StmtPtr>& out) {
+        out.push_back(makeAssign(root, std::move(rootInit)));
+        out.push_back(makeAssign(done, makeIntConst(0)));
+
+        std::vector<StmtPtr> loopBody;
+        loopBody.push_back(makeAssign(child, makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeVar(root), makeVar(root)),
+                                                          makeIntConst(1))));  // child = root + root + 1
+
+        std::vector<StmtPtr> thenNoChild;
+        thenNoChild.push_back(makeAssign(done, makeIntConst(1)));
+
+        std::vector<StmtPtr> elseHasChild;
+        {
+            // if (child+1 < size) { if (arr[child+1] > arr[child]) child = child+1; }
+            std::vector<StmtPtr> pickRight;
+            {
+                std::vector<StmtPtr> doPick;
+                doPick.push_back(makeAssign(child, makeBinOp(ExprKind::Add, makeVar(child), makeIntConst(1))));
+                auto rightIdx = makeBinOp(ExprKind::Add, makeVar(child), makeIntConst(1));
+                pickRight.push_back(
+                    makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(std::move(rightIdx)), makeArrayAccess(makeVar(child))),
+                           std::move(doPick)));
+            }
+            auto childPlusOne = makeBinOp(ExprKind::Add, makeVar(child), makeIntConst(1));
+            elseHasChild.push_back(
+                makeIf(makeCompare(ExprKind::Lt, std::move(childPlusOne), sizeExpr->clone()), std::move(pickRight)));
+
+            // if (arr[root] >= arr[child]) done = 1; else { swap; root = child; }
+            std::vector<StmtPtr> stop;
+            stop.push_back(makeAssign(done, makeIntConst(1)));
+            std::vector<StmtPtr> descend;
+            descend.push_back(makeSwap(makeVar(root), makeVar(child)));
+            descend.push_back(makeAssign(root, makeVar(child)));
+            elseHasChild.push_back(makeIf(makeCompare(ExprKind::Ge, makeArrayAccess(makeVar(root)), makeArrayAccess(makeVar(child))),
+                                            std::move(stop), std::move(descend)));
+        }
+        loopBody.push_back(
+            makeIf(makeCompare(ExprKind::Ge, makeVar(child), sizeExpr->clone()), std::move(thenNoChild), std::move(elseHasChild)));
+
+        loopsUsed++;
+        out.push_back(makeWhile(makeCompare(ExprKind::Eq, makeVar(done), makeIntConst(0)), std::move(loopBody)));
+    };
+
+    auto rootAst = makeBlock();
+
+    // Phase 1: build max-heap. k = n-1 downto 0, sift-down(k) with heap
+    // size fixed at n (var 0).
+    rootAst->body.push_back(makeAssign(k, makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1))));  // k = n - 1
+    {
+        std::vector<StmtPtr> buildBody;
+        buildSiftDown(makeVar(k), makeVar(0), buildBody);
+        buildBody.push_back(makeAssign(k, makeBinOp(ExprKind::Sub, makeVar(k), makeIntConst(1))));
+        loopsUsed++;
+        rootAst->body.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(k), makeIntConst(0)), std::move(buildBody)));
+    }
+
+    // Phase 2: extract max repeatedly. k = n-1 downto 1: swap arr[0] with
+    // arr[k] (the current largest to its final sorted slot), then
+    // sift-down(0) with heap size shrunk to k.
+    rootAst->body.push_back(makeAssign(k, makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1))));  // k = n - 1 (reused)
+    {
+        std::vector<StmtPtr> extractBody;
+        extractBody.push_back(makeSwap(makeIntConst(0), makeVar(k)));
+        buildSiftDown(makeIntConst(0), makeVar(k), extractBody);
+        extractBody.push_back(makeAssign(k, makeBinOp(ExprKind::Sub, makeVar(k), makeIntConst(1))));
+        loopsUsed++;
+        rootAst->body.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(k), makeIntConst(1)), std::move(extractBody)));
+    }
+
+    return rootAst;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -602,6 +804,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
     bool canNestedLoop = canNest && (cfg.maxLoops - loopsUsed) >= 2;
+    bool canQuadLoop = canNest && (cfg.maxLoops - loopsUsed) >= 4;  // heapsort's 4-loop shape
 
     // One universal trigger probability, not one flag per problem: a tool
     // that hands the search a different CLI knob per problem it's meant to
@@ -631,28 +834,91 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, SelectionSort, RepeatedMultiply, Average };
-        Skeleton options[6];
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, SelectionSort, RepeatedMultiply, Average, HeapSort };
+        // Research-only override, never a production knob (matches the
+        // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
+        // env-var pattern elsewhere in this codebase): restricts every
+        // skeleton draw to exactly one named shape, for a cross-skeleton
+        // study of whether a problem's search ever converges using a
+        // skeleton that wasn't built for it. Deliberately an env var, not
+        // a CLI flag -- the whole reason per-problem skeleton bias flags
+        // were removed (see GenConfig::loopAccumulatorBias's comment) was
+        // to keep the CLI itself from revealing which algorithm a given
+        // problem needs; an env var used for a one-off cross-skeleton
+        // experiment doesn't reintroduce that, since it's the same
+        // override for every problem in the run, not a per-problem
+        // pre-known answer. Unset (the default) reproduces the uniform
+        // random choice among whichever shapes fit the loop/numVars
+        // budget, exactly as before this existed. An unrecognized or
+        // budget-incompatible name yields zero options, which just skips
+        // the skeleton branch entirely for that statement (falls through
+        // to the plain unstructured grammar below) rather than erroring.
+        const char* forcedSkeletonEnv = std::getenv("ALGOSEARCH_FORCE_SKELETON");
+        auto allowed = [&](const char* name) {
+            return forcedSkeletonEnv == nullptr || std::strcmp(forcedSkeletonEnv, name) == 0;
+        };
+
+        // Weighted, not uniform: HeapSort is a much bigger AST (~131
+        // nodes for a small array) than any other skeleton here (all
+        // under 30), and giving it an equal 1-in-7 draw measurably slowed
+        // down EVERY problem's search, not just sorting's -- confirmed
+        // directly: `reverse` at a modest budget went from ~15s to not
+        // converging in 3+ minutes once HeapSort joined the uniform
+        // draw, because a large, structurally-irrelevant-for-reverse
+        // candidate eating a 1-in-7 share of every biased statement
+        // pollutes the candidate pool at every size step for every
+        // problem, not just the ones it could help. Weight it at 1/3 of
+        // a normal skeleton's share instead -- still reachable when it's
+        // actually useful (sorting), rare enough elsewhere to stop
+        // costing everyone else. Weight is a total-weight-then-roll
+        // scheme (options carry a weight, not literal repeated entries)
+        // to avoid quietly changing the RNG's per-call consumption
+        // pattern for other skeletons based on how many array slots they
+        // occupy.
+        struct WeightedOption {
+            Skeleton skeleton;
+            int weight;
+        };
+        WeightedOption options[7];
         int n = 0;
-        options[n++] = Skeleton::Counting;
-        options[n++] = Skeleton::Recurrence;
-        if (canNestedLoop) options[n++] = Skeleton::NestedDivisor;
-        if (canNestedLoop && cfg.numVars >= 4) options[n++] = Skeleton::SelectionSort;
-        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::RepeatedMultiply;
-        if (canNestedLoop && cfg.numVars >= 5) options[n++] = Skeleton::Average;
-        switch (options[rng.uniformInt(0, n - 1)]) {
-            case Skeleton::Counting:
-                return genCountingLoopBlock(rng, cfg, loopsUsed);
-            case Skeleton::Recurrence:
-                return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed);
-            case Skeleton::NestedDivisor:
-                return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
-            case Skeleton::SelectionSort:
-                return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
-            case Skeleton::RepeatedMultiply:
-                return genRepeatedMultiplySkeletonBlock(rng, cfg, loopsUsed);
-            case Skeleton::Average:
-                return genAverageSkeletonBlock(rng, cfg, loopsUsed);
+        int totalWeight = 0;
+        auto addOption = [&](Skeleton s, int w) {
+            options[n++] = {s, w};
+            totalWeight += w;
+        };
+        if (allowed("counting")) addOption(Skeleton::Counting, 3);
+        if (allowed("recurrence")) addOption(Skeleton::Recurrence, 3);
+        if (canNestedLoop && cfg.numVars >= 5 && allowed("nesteddivisor")) addOption(Skeleton::NestedDivisor, 3);
+        if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
+        if (canNestedLoop && cfg.numVars >= 5 && allowed("repeatedmultiply")) addOption(Skeleton::RepeatedMultiply, 3);
+        if (canNestedLoop && cfg.numVars >= 5 && allowed("average")) addOption(Skeleton::Average, 3);
+        if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
+        if (n > 0) {
+            int roll = rng.uniformInt(0, totalWeight - 1);
+            Skeleton chosen = options[0].skeleton;
+            for (int i = 0; i < n; ++i) {
+                if (roll < options[i].weight) {
+                    chosen = options[i].skeleton;
+                    break;
+                }
+                roll -= options[i].weight;
+            }
+            switch (chosen) {
+                case Skeleton::Counting:
+                    return genCountingLoopBlock(rng, cfg, loopsUsed);
+                case Skeleton::Recurrence:
+                    return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed, canNestedLoop);
+                case Skeleton::NestedDivisor:
+                    return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
+                case Skeleton::SelectionSort:
+                    return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::HeapSort:
+                    return genHeapSortSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::RepeatedMultiply:
+                    return genRepeatedMultiplySkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::Average:
+                    return genAverageSkeletonBlock(rng, cfg, loopsUsed);
+            }
         }
     }
 

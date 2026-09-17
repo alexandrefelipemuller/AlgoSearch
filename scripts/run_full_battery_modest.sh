@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Modest-budget benchmark sweep across all 10 problems in --help, using
+# Modest-budget benchmark sweep across all problems in --help, using
 # current best-known defaults (loopAccumulatorBias=0.4, everything else
 # at its confirmed-default value -- see FINDINGS.md sections 5-9). Each
 # run uses --benchmark, which independently re-verifies every SUCCESS
@@ -37,10 +37,14 @@ JOBS=(
   "sum:10:4"
   "contains:10:4"
   "contains_ordered:10:4"
-  "is_prime:20:4"
+  "is_prime:20:5"
   "gcd:20:4"
   "factorial:15:5"
   "fibonacci:20:4"
+  "count:10:4"
+  "average:10:5"
+  "reverse:10:4"
+  "power:10:6"
 )
 
 echo "=== $(date '+%Y-%m-%d %H:%M:%S') modest battery starting, out=$OUT_ROOT ===" | tee "$OUT_ROOT/driver.log"
