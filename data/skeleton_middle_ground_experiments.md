@@ -465,3 +465,40 @@ grammar) still needs a human to write it once, the way
 along the way (`ALGOSEARCH_DISABLE_SKELETON`, `continue`/`break`,
 `speedBonusWeight`, `exprMutationRate`) stays available for the next
 capability gap this project runs into, where the answer might differ.
+
+## Combined test: all four mechanisms together (2026-09-17)
+
+Ran `tspbbscaffold` (forced, so the DFS/hole shape is guaranteed in
+play) with all four levers stacked simultaneously:
+`--crossover-rate 0.3 --control-flow-bias 0.1 --speed-bonus-weight 0.5
+--expr-mutation-rate 0.3`, `--max-n 9`, `--step-limit 1000000`, seed=7.
+
+**Result: still negative.**
+
+- N=2-7: confirmed (`confirmed_levels` 6, held-out 8/8), guard =
+  `(1 | 2) >= 2` -- a pure CONSTANT expression (`1|2` = 3, `3 >= 2` is
+  always true), not even referencing a variable. If anything, MORE
+  degenerate than any single-lever run found on its own.
+- N=8: held-out 8/8 (robust), guard = `best != nv` -- the same
+  near-tautology shape Test 3 already found alone (best starts at
+  100000, nv is tiny, essentially always true).
+- `grep -c "continue;\|break;"` across the whole run: **0**. Crossover
+  and the control-flow primitive contributed nothing detectable either.
+
+**Verdict:** combining all four mechanisms did not unlock anything the
+individual tests didn't already show, and if anything the extra
+mutation pressure (crossover + expr-mutation both active) pushed the
+search toward an even more trivially-constant guard (no variables at
+all) rather than a more selective one. This is consistent with -- not
+contradicting -- the four tests' individual conclusions: each lever
+removes a different KIND of obstacle (existing idioms, a place to put a
+guard, a reason to prefer speed, room to tweak without breaking
+correctness), but none of them, alone or together, supplies what's
+actually missing -- a gradient connecting "vacuous but correct" to
+"selective and correct" through small steps. Stacking obstacle-removers
+doesn't help when the real barrier is that the target sits in an
+isolated point of expression-space with no nearby correct neighbors to
+climb through. Closes this experiment series: the branch-and-bound
+skeleton stays a case that needed a human to write it directly, and
+that conclusion has now survived five independent attempts (four
+individual + this combined one) to avoid it.
