@@ -86,6 +86,22 @@ struct GenConfig {
     // inside an if; capped so at least a 0.05 residual chance remains.
     double bareSwapPenalty = 0.0;
 
+    // Opt-in (0.0 = off, reproduces today's behavior exactly): probability,
+    // when generating a GENERIC statement (not a dedicated skeleton) INSIDE
+    // a while loop's body, of emitting `continue` or `break` instead. This
+    // is Mini-C's missing early-exit primitive -- see
+    // data/skeleton_middle_ground_experiments.md Test 4: every exact
+    // branch-and-bound-style pruning algorithm needs a way to abandon the
+    // rest of a loop iteration (or the loop itself) early, and until now
+    // nothing in the grammar could express that at all, no matter how
+    // biased generation got. Only ever emitted inside a while body (the
+    // generator threads `insideLoop` through genStmt to enforce this), so
+    // it can never appear as a structurally invalid orphan statement.
+    // Split 70/30 continue/break when it fires: continue (skip to the next
+    // candidate) is the shape branch-and-bound-style pruning actually
+    // needs; break is included for completeness/symmetry at a lower rate.
+    double controlFlowBias = 0.0;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current

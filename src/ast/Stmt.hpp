@@ -16,7 +16,18 @@ enum class StmtKind {
     While,        // while (cond) { body }
     Swap,         // swap(arr[indexExpr], arr[indexExpr2])
     Return,       // return (ends execution; final array state is the output)
-    Block         // sequence of statements (body)
+    Block,        // sequence of statements (body)
+    // Control-flow extension (see GenConfig::enableControlFlowExt): the
+    // missing primitive an exact/pruning algorithm (branch-and-bound-style
+    // early exit) needs and Mini-C didn't have -- every other statement
+    // kind runs unconditionally to completion, so nothing could express
+    // "abandon the rest of this loop iteration/this loop entirely." Valid
+    // only inside a While's body (possibly nested through If); the
+    // generator only ever emits them there (see genStmt's `insideLoop`
+    // threading), and the interpreter treats one that escapes past every
+    // enclosing loop as a runtime error rather than silently completing.
+    Continue,     // skip to the nearest enclosing while's condition re-check
+    Break         // exit the nearest enclosing while loop entirely
 };
 
 // A single statement AST node. Fields are only meaningful for the relevant kind:
@@ -52,5 +63,7 @@ StmtPtr makeIf(ExprPtr cond, std::vector<StmtPtr> body, std::vector<StmtPtr> els
 StmtPtr makeWhile(ExprPtr cond, std::vector<StmtPtr> body);
 StmtPtr makeSwap(ExprPtr index1, ExprPtr index2);
 StmtPtr makeReturn();
+StmtPtr makeContinue();
+StmtPtr makeBreak();
 
 }  // namespace algosearch

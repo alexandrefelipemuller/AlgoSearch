@@ -14,7 +14,7 @@ namespace {
 // so these are propagated as an ordinary status flag checked after each
 // recursive call rather than thrown -- exception unwinding at that frequency
 // costs more than the interpretation itself.
-enum class Flow : unsigned char { Ok, Return, Timeout, Error };
+enum class Flow : unsigned char { Ok, Return, Continue, Break, Timeout, Error };
 
 struct Environment {
     std::vector<int> vars;
@@ -181,6 +181,14 @@ void execStmt(const Stmt& s, Environment& env) {
                 tick(env);
                 if (aborted(env)) return;
                 execBlock(s.body, env);
+                if (env.flow == Flow::Continue) {
+                    env.flow = Flow::Ok;  // absorbed here -- just re-check this loop's condition
+                    continue;
+                }
+                if (env.flow == Flow::Break) {
+                    env.flow = Flow::Ok;  // absorbed here -- exit this loop, resume after it
+                    return;
+                }
                 if (aborted(env)) return;
             }
         }
@@ -199,6 +207,12 @@ void execStmt(const Stmt& s, Environment& env) {
         }
         case StmtKind::Return:
             env.flow = Flow::Return;
+            return;
+        case StmtKind::Continue:
+            env.flow = Flow::Continue;
+            return;
+        case StmtKind::Break:
+            env.flow = Flow::Break;
             return;
         case StmtKind::Block:
             execBlock(s.body, env);
@@ -234,6 +248,12 @@ RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, i
         case Flow::Timeout:
             return RunStatus::TIMEOUT;
         case Flow::Error:
+        // A Continue/Break that escapes every enclosing while (e.g. one
+        // placed directly in the top-level program block) is malformed,
+        // not a valid "normal completion" -- score it as broken like any
+        // other structurally invalid candidate, not a silent success.
+        case Flow::Continue:
+        case Flow::Break:
             return RunStatus::RUNTIME_ERROR;
         default:  // Ok, or Return (normal early termination)
             break;

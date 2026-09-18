@@ -114,6 +114,14 @@ std::string printStmt(const Stmt& s, int indent) {
             indentLine(out, indent);
             out << "return;\n";
             break;
+        case StmtKind::Continue:
+            indentLine(out, indent);
+            out << "continue;\n";
+            break;
+        case StmtKind::Break:
+            indentLine(out, indent);
+            out << "break;\n";
+            break;
         case StmtKind::Block:
             printStmtList(out, s.body, indent);
             break;

@@ -48,7 +48,10 @@ void tallyShape(const Stmt& s, int depth, int counts[6], int& maxDepth) {
         case StmtKind::While: counts[3]++; break;
         case StmtKind::Swap: counts[4]++; break;
         case StmtKind::Return: counts[5]++; break;
-        case StmtKind::Block: break;
+        case StmtKind::Block:
+        case StmtKind::Continue:
+        case StmtKind::Break:
+            break;
     }
     int childDepth = depth + (s.kind == StmtKind::While ? 1 : 0);
     maxDepth = std::max(maxDepth, childDepth);

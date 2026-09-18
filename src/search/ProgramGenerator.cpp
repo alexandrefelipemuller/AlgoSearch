@@ -1397,7 +1397,17 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
 // uBase, chBase, pcBase, mBase, best, level, c, w, cost), one fewer loop
 // than the brute-force skeleton's 4, so gated on canNestedLoop rather than
 // canQuadLoop.
-StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+// `guardAsHole`: Test 2 in data/skeleton_middle_ground_experiments.md --
+// when true, the ONE line encoding the actual pruning insight (`cost <
+// best`) is replaced by an ordinary randomly-generated comparison (same
+// grammar as any other if-condition, same in-scope variable pool) instead
+// of the hand-written correct one. Everything else (the DFS/choice-stack
+// shape, array layout, backtracking) is unchanged -- this hands the search
+// the expensive-to-discover SHAPE but leaves the actual insight as a hole
+// for search/mutation to fill, testing whether the shape alone is enough
+// scaffolding for evolution to find (or converge near) a working guard on
+// its own.
+StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed, bool guardAsHole = false) {
     int vars[11];
     int used = 0;
     while (used < 11) {
@@ -1548,7 +1558,9 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
                         notPrunedBranch.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(level), makeVar(size)), std::move(leafBranch),
                                                           std::move(descendBranch)));
                     }
-                    validEdgeBranch.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), std::move(notPrunedBranch)));
+                    ExprPtr pruneGuard = guardAsHole ? genCondExpr(rng, cfg.maxExprDepth, cfg)
+                                                      : makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best));
+                    validEdgeBranch.push_back(makeIf(std::move(pruneGuard), std::move(notPrunedBranch)));
                 }
                 notUsedBranch.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(validEdgeBranch)));
             }
@@ -1584,6 +1596,14 @@ StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
 
 StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, bool insideIf = false,
                 bool insideWhile = false) {
+    // Control-flow extension (see GenConfig::controlFlowBias): only valid,
+    // and only ever emitted, directly inside a while loop's reach (its own
+    // body or an if nested inside it) -- checked first, before anything
+    // else gets a chance to consume this statement slot, same early-out
+    // style as the small always-on arithmetic-op substitution below.
+    if (insideWhile && cfg.controlFlowBias > 0.0 && rng.chance(cfg.controlFlowBias)) {
+        return rng.chance(0.7) ? makeContinue() : makeBreak();
+    }
     // Weighted choice among available statement kinds.
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
@@ -1619,7 +1639,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, TspBranchAndBoundScaffold };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1639,7 +1659,18 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // the skeleton branch entirely for that statement (falls through
         // to the plain unstructured grammar below) rather than erroring.
         const char* forcedSkeletonEnv = std::getenv("ALGOSEARCH_FORCE_SKELETON");
+        // Companion research-only override, same non-production status as
+        // FORCE above: excludes exactly one named shape instead of
+        // restricting to exactly one, for testing whether a NEW skeleton
+        // was actually necessary or whether the rest of the existing pool
+        // (plus crossover/mutation) can already reach a comparable result
+        // without it (see data/skeleton_middle_ground_experiments.md,
+        // Test 1). Mutually exclusive in practice with FORCE (setting both
+        // to the same name yields zero options, same as any other
+        // budget-incompatible name).
+        const char* disabledSkeletonEnv = std::getenv("ALGOSEARCH_DISABLE_SKELETON");
         auto allowed = [&](const char* name) {
+            if (disabledSkeletonEnv != nullptr && std::strcmp(disabledSkeletonEnv, name) == 0) return false;
             return forcedSkeletonEnv == nullptr || std::strcmp(forcedSkeletonEnv, name) == 0;
         };
 
@@ -1664,7 +1695,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[13];
+        WeightedOption options[14];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1697,6 +1728,14 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // (biggest ASTs here, would slow every other problem's search if
         // drawn at a normal skeleton's rate).
         if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
+        // Test 2 (data/skeleton_middle_ground_experiments.md): same shape
+        // as TspBranchAndBound, but the pruning guard itself is a hole
+        // filled by the ordinary condition grammar instead of the
+        // hand-written `cost < best`. Same weight/gating as its sibling --
+        // part of the normal pool like every other skeleton here, just
+        // named separately so ALGOSEARCH_FORCE_SKELETON=tspbbscaffold can
+        // isolate it for the experiment.
+        if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbbscaffold")) addOption(Skeleton::TspBranchAndBoundScaffold, 1);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1733,7 +1772,9 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                 case Skeleton::TspBruteForce:
                     return genTspBruteForceSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::TspBranchAndBound:
-                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed);
+                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed, /*guardAsHole=*/false);
+                case Skeleton::TspBranchAndBoundScaffold:
+                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed, /*guardAsHole=*/true);
             }
         }
     }
@@ -1755,12 +1796,19 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             return makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
         }
         case 2: {
+            // insideWhile is threaded through (not hard-reset to false) so
+            // an if directly inside a loop still counts as "inside the
+            // loop" for controlFlowBias -- `if (cond) continue;` is the
+            // shape pruning actually needs, not a bare unconditional
+            // continue as a loop's own top-level statement. Existing
+            // indexIncrementBias (also insideWhile-gated) is unaffected by
+            // default since both stay off (0.0) unless explicitly enabled.
             auto thenBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
-                                           /*insideWhile=*/false);
+                                           insideWhile);
             std::vector<StmtPtr> elseBody;
             if (rng.chance(0.4))
                 elseBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
-                                          /*insideWhile=*/false);
+                                          insideWhile);
             return makeIf(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(thenBody), std::move(elseBody));
         }
         case 3:

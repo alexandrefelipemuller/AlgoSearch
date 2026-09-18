@@ -85,4 +85,16 @@ StmtPtr makeReturn() {
     return n;
 }
 
+StmtPtr makeContinue() {
+    auto n = std::make_unique<Stmt>();
+    n->kind = StmtKind::Continue;
+    return n;
+}
+
+StmtPtr makeBreak() {
+    auto n = std::make_unique<Stmt>();
+    n->kind = StmtKind::Break;
+    return n;
+}
+
 }  // namespace algosearch
