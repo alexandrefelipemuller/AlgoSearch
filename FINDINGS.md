@@ -1368,6 +1368,61 @@ in some run order. Not yet tested.
 
 Data: `data/bsearch_ladder_20260918/` (per-stage logs + solution JSONs).
 
+## 23. Section 22's open question, answered: the skeleton never gets a chance to compete, regardless of speedBonusWeight
+
+Ran the two matched cases section 22 left open: `contains_ordered` with
+`genBinarySearchSkeletonBlock` (stage 4, fully correct O(log n)) sitting
+un-forced in the default skeleton pool alongside every other option,
+`--speed-bonus-weight 0.0` (default) vs. `0.3`, 5 seeds each, same
+budget (`--max-n 8 --beam-width 3000 --candidates 3000 --num-vars 9`).
+
+**Result: identical in both cases -- 4/5 and 5/5 seeds all converge to
+the same trivial size-27 O(n) linear scan.** The binary-search skeleton
+is never picked up, with or without the speed bonus.
+
+**Root cause, confirmed directly from the logs, and it's not (only) the
+size tie-break section 20 identified:** `BeamSearch.cpp:606` advances
+(and, per the cascade check right below it, often exits the run
+entirely once the cascade confirms across every level) the INSTANT any
+candidate reaches a full score on the current level -- it never keeps
+searching a level for something faster once anything correct is found.
+Every seed's log shows the trivial scan discovered at `candidates =
+3002` (the very first mutation batch after the initial seed program) on
+LEVEL 1, N=1, immediately cascading to `confirmed_levels 8` and ending
+the run right there. A `While`-loop-plus-`If` linear scan is a 3-4
+statement program reachable by ordinary unbiased statement generation
+almost immediately; the binary-search skeleton needs ONE loop-bias draw
+to independently land on this specific skeleton (weight 3 among ~15
+options) AND commit 8 coordinated scratch variables in that same
+statement -- reliably rarer than stumbling into a correct tiny linear
+scan within the same couple thousand candidates. By the time that could
+plausibly happen, the run has already exited. `speedBonusWeight` only
+ever affects ranking BETWEEN candidates that coexist in the same scored
+generation -- it can't help a candidate that never gets the chance to
+exist before the run stops.
+
+**This refines, not contradicts, section 20's tie-break argument**:
+score+fitness+size tie-break is real and would ALSO block the skeleton
+even if both candidates somehow coexisted in one generation, but it
+turns out to be moot here -- the dominant, more immediate cause is that
+the search stops looking the moment anything correct exists at all, so
+the two almost never get the chance to compete in the same generation
+in the first place.
+
+**Where this leaves the skeleton**: `genBinarySearchSkeletonBlock`
+(stage 4, the validated correct algorithm) stays in the default pool --
+same status as every other `gen*SkeletonBlock` here, available for
+whatever problem's search actually needs it and reachable via
+`ALGOSEARCH_FORCE_SKELETON=binarysearch` for direct verification (see
+section 22's stage-4 result: 5/5 genuinely generalizing). For
+`contains_ordered` specifically, getting the search to prefer it over
+the trivial linear scan by default would need either (a) disabling or
+delaying exit-on-first-full-solve so a level stays open for more
+competition once solved once -- a real engine change, out of scope for
+this investigation -- or (b) starting the search past the trivial-scan-
+discovery regime some other way. Not pursued further here; flagged as
+an open thread below rather than assumed away.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
