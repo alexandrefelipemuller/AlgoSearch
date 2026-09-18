@@ -189,6 +189,20 @@ std::vector<int> pickDistinctVars(Random& rng, const GenConfig& cfg, int n) {
     return vars;
 }
 
+// Builds `base + (i * width + j)`, the flattened-2D-into-1D row-major
+// index every skeleton needing a matrix/table (GraphReachability,
+// ShortestPath, DtwProblem, TSP's edge matrix) hand-derived on its own
+// because Mini-C has no native 2D array -- 10 call sites, byte-identical
+// shape, confirmed while cataloguing the skeleton library's primitives
+// (FINDINGS.md section 24). Pure expression construction, no RNG
+// involved, so this carries none of pickDistinctVars' determinism risk:
+// every call site below builds the exact same AST it built inline
+// before, just via one shared function.
+ExprPtr makeFlatIndex(ExprPtr base, ExprPtr i, ExprPtr width, ExprPtr j) {
+    return makeBinOp(ExprKind::Add, std::move(base),
+                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, std::move(i), std::move(width)), std::move(j)));
+}
+
 // The canonical "counting loop" skeleton every array algorithm needs:
 // an index that starts at 0, is bounds-checked against n (var 0, by
 // interpreter convention initialized to the array length), and
@@ -985,8 +999,7 @@ StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int
             {
                 std::vector<StmtPtr> jBody;
                 {
-                    auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
-                                              makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(nv)), makeVar(j)));
+                    auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
                     std::vector<StmtPtr> markReached;
                     markReached.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)), makeIntConst(1)));
                     jBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(std::move(edgeIdx)), makeIntConst(1)),
@@ -1070,8 +1083,7 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
         iBody.push_back(makeAssign(j, makeIntConst(0)));
         {
             std::vector<StmtPtr> jBody;
-            auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
-                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(nv)), makeVar(j)));
+            auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
             jBody.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
             {
                 std::vector<StmtPtr> relax;
@@ -1194,34 +1206,25 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             }
             auto iMinus1 = makeBinOp(ExprKind::Sub, makeVar(i), makeIntConst(1));
             auto jMinus1 = makeBinOp(ExprKind::Sub, makeVar(j), makeIntConst(1));
-            auto upIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
-                                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), makeVar(j)));
+            auto upIdx = makeFlatIndex(makeIntConst(1), iMinus1->clone(), makeVar(tw), makeVar(j));
             jBody.push_back(makeAssign(best, makeArrayAccess(std::move(upIdx))));
-            auto leftIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
-                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), jMinus1->clone()));
+            auto leftIdx = makeFlatIndex(makeIntConst(1), makeVar(i), makeVar(tw), jMinus1->clone());
             {
                 std::vector<StmtPtr> updateLeft;
-                auto leftIdx2 = makeBinOp(
-                    ExprKind::Add, makeIntConst(1),
-                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), jMinus1->clone()));
+                auto leftIdx2 = makeFlatIndex(makeIntConst(1), makeVar(i), makeVar(tw), jMinus1->clone());
                 updateLeft.push_back(makeAssign(best, makeArrayAccess(std::move(leftIdx2))));
                 jBody.push_back(
                     makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(std::move(leftIdx)), makeVar(best)), std::move(updateLeft)));
             }
-            auto diagIdx = makeBinOp(
-                ExprKind::Add, makeIntConst(1),
-                makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), jMinus1->clone()));
+            auto diagIdx = makeFlatIndex(makeIntConst(1), iMinus1->clone(), makeVar(tw), jMinus1->clone());
             {
                 std::vector<StmtPtr> updateDiag;
-                auto diagIdx2 = makeBinOp(
-                    ExprKind::Add, makeIntConst(1),
-                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), jMinus1->clone()));
+                auto diagIdx2 = makeFlatIndex(makeIntConst(1), iMinus1->clone(), makeVar(tw), jMinus1->clone());
                 updateDiag.push_back(makeAssign(best, makeArrayAccess(std::move(diagIdx2))));
                 jBody.push_back(
                     makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(std::move(diagIdx)), makeVar(best)), std::move(updateDiag)));
             }
-            auto cellIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
-                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), makeVar(j)));
+            auto cellIdx = makeFlatIndex(makeIntConst(1), makeVar(i), makeVar(tw), makeVar(j));
             jBody.push_back(makeAssignArray(std::move(cellIdx), makeBinOp(ExprKind::Add, makeVar(cost), makeVar(best))));
             jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
             loopsUsed++;
@@ -1232,8 +1235,7 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(tw)), std::move(iBody)));
     }
 
-    auto finalIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
-                               makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(n), makeVar(tw)), makeVar(n)));
+    auto finalIdx = makeFlatIndex(makeIntConst(1), makeVar(n), makeVar(tw), makeVar(n));
     root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(std::move(finalIdx))));  // arr[0] = table[n][n]
 
     return root;
@@ -1404,10 +1406,8 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
         stmts.push_back(makeAssign(valid, makeIntConst(1)));
         {
             std::vector<StmtPtr> body;
-            auto edgeIdx = makeBinOp(
-                ExprKind::Add, makeVar(base),
-                makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(prevVertex), makeVar(nv)),
-                          makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t)))));
+            auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(prevVertex), makeVar(nv),
+                                          makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t))));
             body.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
             std::vector<StmtPtr> invalidate;
             invalidate.push_back(makeAssign(valid, makeIntConst(0)));
@@ -1420,9 +1420,7 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
         }
         // Closing edge back to vertex 0.
         {
-            auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
-                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(prevVertex), makeVar(nv)),
-                                                makeIntConst(0)));
+            auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(prevVertex), makeVar(nv), makeIntConst(0));
             stmts.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
             std::vector<StmtPtr> invalidate;
             invalidate.push_back(makeAssign(valid, makeIntConst(0)));
@@ -1663,14 +1661,10 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
 
             std::vector<StmtPtr> notUsedBranch;  // used[c] == 0
             {
-                auto edgeIdx = makeBinOp(
-                    ExprKind::Add, makeVar(mBase),
-                    makeBinOp(ExprKind::Add,
-                              makeBinOp(ExprKind::Mul,
-                                        makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1),
-                                                                   makeBinOp(ExprKind::Sub, makeVar(level), makeIntConst(1)))),
-                                        makeVar(nv)),
-                              makeVar(c)));
+                auto edgeIdx = makeFlatIndex(
+                    makeVar(mBase),
+                    makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Sub, makeVar(level), makeIntConst(1)))),
+                    makeVar(nv), makeVar(c));
                 notUsedBranch.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));  // w = weight(path[level-1], c)
 
                 std::vector<StmtPtr> validEdgeBranch;  // w > 0
@@ -1690,9 +1684,7 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
 
                         std::vector<StmtPtr> leafBranch;  // level == size: complete tour, close the cycle
                         {
-                            auto closeIdx = makeBinOp(ExprKind::Add, makeVar(mBase),
-                                                       makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(c), makeVar(nv)),
-                                                                 makeIntConst(0)));
+                            auto closeIdx = makeFlatIndex(makeVar(mBase), makeVar(c), makeVar(nv), makeIntConst(0));
                             leafBranch.push_back(makeAssign(w, makeArrayAccess(std::move(closeIdx))));  // w = weight(c, 0)
                             std::vector<StmtPtr> closeValidBranch;                                      // w > 0: valid closing edge
                             {
