@@ -1078,6 +1078,502 @@ StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int
     return root;
 }
 
+// Dedicated skeleton for ShortestPathProblem: Bellman-Ford-style relaxation
+// on the same flat layout as GraphReachabilityProblem, but with weighted
+// edges (0 = no edge) and a `dist` scratch array the program must
+// initialize itself (dist[0]=0, dist[i]=INF otherwise) before relaxing.
+//
+//   nv = arr[0];
+//   base = nv + 1;
+//   i = 0;
+//   while (i < nv) { arr[1+i] = 100000; i = i + 1; }   // dist[i] = INF
+//   arr[1] = 0;                                        // dist[0] = 0
+//   round = 0;
+//   while (round < nv) {
+//     i = 0;
+//     while (i < nv) {
+//       j = 0;
+//       while (j < nv) {
+//         w = arr[base + (i*nv+j)];
+//         if (w > 0) {
+//           if (arr[1+i] + w < arr[1+j]) { arr[1+j] = arr[1+i] + w; }
+//         }
+//         j = j + 1;
+//       }
+//       i = i + 1;
+//     }
+//     round = round + 1;
+//   }
+//   arr[0] = arr[nv];   // dist[V-1] lives at arr[1+(nv-1)] = arr[nv]
+//
+// Needs 6 scratch scalars (nv, base, round, i, j, w), so numVars >= 7, one
+// tier up from GraphReachability's 6. Same triple-nested-loop budget gate.
+StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[6];
+    int used = 0;
+    while (used < 6) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int nv = vars[0], base = vars[1], round = vars[2], i = vars[3], j = vars[4], w = vars[5];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(nv, makeArrayAccess(makeIntConst(0))));                          // nv = arr[0]
+    root->body.push_back(makeAssign(base, makeBinOp(ExprKind::Add, makeVar(nv), makeIntConst(1))));  // base = nv + 1
+
+    // dist[i] = INF for all i
+    root->body.push_back(makeAssign(i, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> initBody;
+        initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i)), makeIntConst(100000)));
+        initBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(initBody)));
+    }
+    root->body.push_back(makeAssignArray(makeIntConst(1), makeIntConst(0)));  // dist[0] = 0
+
+    root->body.push_back(makeAssign(round, makeIntConst(0)));
+    std::vector<StmtPtr> roundBody;
+    roundBody.push_back(makeAssign(i, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> iBody;
+        iBody.push_back(makeAssign(j, makeIntConst(0)));
+        {
+            std::vector<StmtPtr> jBody;
+            auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
+                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(nv)), makeVar(j)));
+            jBody.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
+            {
+                std::vector<StmtPtr> relax;
+                auto candDist = makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeVar(w));
+                std::vector<StmtPtr> update;
+                update.push_back(makeAssignArray(
+                    makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)),
+                    makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeVar(w))));
+                relax.push_back(makeIf(
+                    makeCompare(ExprKind::Lt, std::move(candDist),
+                                makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)))),
+                    std::move(update)));
+                jBody.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(relax)));
+            }
+            jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+            loopsUsed++;
+            iBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(nv)), std::move(jBody)));
+        }
+        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        loopsUsed++;
+        roundBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(iBody)));
+    }
+    roundBody.push_back(makeAssign(round, makeBinOp(ExprKind::Add, makeVar(round), makeIntConst(1))));
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(round), makeVar(nv)), std::move(roundBody)));
+
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(makeVar(nv))));  // arr[0] = arr[nv] (dist[V-1])
+
+    return root;
+}
+
+// Dedicated skeleton for TspProblem: exact brute-force TSP via Heap's
+// algorithm, run ITERATIVELY (no recursion -- Mini-C has none) over the
+// permutations of vertices 1..V-1 (vertex 0 is fixed as the tour's
+// start/end), keeping the minimum-cost valid tour seen. Unlike every other
+// dedicated skeleton in this file, this is deliberately exponential
+// ((V-1)! permutations) -- there is no polynomial fixed-point trick for
+// exact TSP (the "visit each vertex once" constraint isn't monotone the
+// way reachability/shortest-path's relaxation is), so brute force is the
+// only exact option, and the whole point of this skeleton is to test
+// whether the search can find genuine brute-force enumeration at all, not
+// to find something smarter than brute force.
+//
+// Mini-C layout (see TspProblem.hpp): arr[0]=V; arr[1..2*(V-1)] is scratch
+// -- perm[k] at arr[1+k] (a permutation of vertices 1..V-1) and Heap's
+// counter c[k] at arr[1+size+k], where size=V-1; arr[1+2*size..] is the
+// row-major V*V weight matrix (0 = no edge). Needs 11 scratch scalars
+// (nv, size, base, k, i, t, cost, w, prevVertex, valid, best), so
+// numVars >= 12.
+//
+// Iterative Heap's algorithm (classic non-recursive form): c[] all start
+// at 0; repeatedly, at index i, if c[i] < i swap perm[0] (i even) or
+// perm[c[i]] (i odd) with perm[i], evaluate the new permutation, bump
+// c[i], and restart i at 0; otherwise reset c[i] and advance i. This
+// visits all (V-1)! permutations exactly once, using only scalar state
+// and array swaps -- no recursion, no dynamic-size structures.
+StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[11];
+    int used = 0;
+    while (used < 11) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k2 = 0; k2 < used; ++k2) {
+            if (vars[k2] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int nv = vars[0], size = vars[1], base = vars[2], k = vars[3], i = vars[4], t = vars[5], cost = vars[6],
+        w = vars[7], prevVertex = vars[8], valid = vars[9], best = vars[10];
+
+    // Builds (fresh each call -- AST nodes are move-only) the "compute the
+    // current permutation's tour cost, then update `best` if it's a valid
+    // and cheaper tour" block. Reused for the identity permutation and
+    // after every Heap's-algorithm swap.
+    auto buildCostAndUpdateBest = [&]() {
+        std::vector<StmtPtr> stmts;
+        stmts.push_back(makeAssign(t, makeIntConst(0)));
+        stmts.push_back(makeAssign(cost, makeIntConst(0)));
+        stmts.push_back(makeAssign(prevVertex, makeIntConst(0)));
+        stmts.push_back(makeAssign(valid, makeIntConst(1)));
+        {
+            std::vector<StmtPtr> body;
+            auto edgeIdx = makeBinOp(
+                ExprKind::Add, makeVar(base),
+                makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(prevVertex), makeVar(nv)),
+                          makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t)))));
+            body.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
+            std::vector<StmtPtr> invalidate;
+            invalidate.push_back(makeAssign(valid, makeIntConst(0)));
+            body.push_back(makeIf(makeCompare(ExprKind::Le, makeVar(w), makeIntConst(0)), std::move(invalidate)));
+            body.push_back(makeAssign(cost, makeBinOp(ExprKind::Add, makeVar(cost), makeVar(w))));
+            body.push_back(makeAssign(prevVertex, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t)))));
+            body.push_back(makeAssign(t, makeBinOp(ExprKind::Add, makeVar(t), makeIntConst(1))));
+            loopsUsed++;
+            stmts.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(t), makeVar(size)), std::move(body)));
+        }
+        // Closing edge back to vertex 0.
+        {
+            auto edgeIdx = makeBinOp(ExprKind::Add, makeVar(base),
+                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(prevVertex), makeVar(nv)),
+                                                makeIntConst(0)));
+            stmts.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
+            std::vector<StmtPtr> invalidate;
+            invalidate.push_back(makeAssign(valid, makeIntConst(0)));
+            stmts.push_back(makeIf(makeCompare(ExprKind::Le, makeVar(w), makeIntConst(0)), std::move(invalidate)));
+            stmts.push_back(makeAssign(cost, makeBinOp(ExprKind::Add, makeVar(cost), makeVar(w))));
+        }
+        {
+            std::vector<StmtPtr> updateBest;
+            updateBest.push_back(makeAssign(best, makeVar(cost)));
+            std::vector<StmtPtr> checkCheaper;
+            checkCheaper.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), std::move(updateBest)));
+            stmts.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(valid), makeIntConst(0)), std::move(checkCheaper)));
+        }
+        return stmts;
+    };
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(nv, makeArrayAccess(makeIntConst(0))));                          // nv = arr[0]
+    root->body.push_back(makeAssign(size, makeBinOp(ExprKind::Sub, makeVar(nv), makeIntConst(1))));   // size = nv - 1
+    // base = 1 + 4*nv -- matches TspProblem's unified scratch region (see
+    // TspProblem.hpp), sized for the branch-and-bound skeleton's larger
+    // four-array layout; this skeleton only uses the first 2*size cells
+    // of it (perm[]/c[]), leaving the rest unused but zero-initialized.
+    root->body.push_back(
+        makeAssign(base, makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeIntConst(4), makeVar(nv)))));
+    root->body.push_back(makeAssign(best, makeIntConst(100000)));                                     // best = INF sentinel
+
+    // V == 1: trivial single-vertex tour, cost 0 -- no permutation to try.
+    std::vector<StmtPtr> trivialBranch;
+    trivialBranch.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+
+    std::vector<StmtPtr> mainBranch;
+    // perm[k] = k+1 (identity permutation of vertices 1..V-1); c[k] = 0.
+    mainBranch.push_back(makeAssign(k, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> initBody;
+        initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(k)),
+                                            makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
+        initBody.push_back(makeAssignArray(
+            makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(k)), makeIntConst(0)));
+        initBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
+        loopsUsed++;
+        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(k), makeVar(size)), std::move(initBody)));
+    }
+
+    // Evaluate the identity permutation before entering Heap's algorithm.
+    for (auto& s : buildCostAndUpdateBest()) mainBranch.push_back(std::move(s));
+
+    // Iterative Heap's algorithm: enumerate every remaining permutation.
+    mainBranch.push_back(makeAssign(i, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> heapBody;
+        auto cAtI = makeArrayAccess(
+            makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(i)));
+        std::vector<StmtPtr> thenBranch;  // c[i] < i
+        {
+            std::vector<StmtPtr> evenSwap;
+            evenSwap.push_back(
+                makeSwap(makeIntConst(1), makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))));  // perm[0] <-> perm[i]
+            std::vector<StmtPtr> oddSwap;
+            auto cAtI2 = makeArrayAccess(
+                makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(i)));
+            oddSwap.push_back(makeSwap(makeBinOp(ExprKind::Add, makeIntConst(1), std::move(cAtI2)),
+                                        makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))));  // perm[c[i]] <-> perm[i]
+            thenBranch.push_back(makeIf(
+                makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, makeVar(i), makeIntConst(2)), makeIntConst(0)),
+                std::move(evenSwap), std::move(oddSwap)));
+            for (auto& s : buildCostAndUpdateBest()) thenBranch.push_back(std::move(s));
+            auto cAtI3 = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(i));
+            auto cAtI3Idx = cAtI3->clone();
+            auto cAtI3Read = makeArrayAccess(std::move(cAtI3));
+            thenBranch.push_back(
+                makeAssignArray(std::move(cAtI3Idx), makeBinOp(ExprKind::Add, std::move(cAtI3Read), makeIntConst(1))));
+            thenBranch.push_back(makeAssign(i, makeIntConst(0)));
+        }
+        std::vector<StmtPtr> elseBranch;  // c[i] = 0; i = i + 1
+        {
+            auto cAtI4 = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(i));
+            elseBranch.push_back(makeAssignArray(std::move(cAtI4), makeIntConst(0)));
+            elseBranch.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        }
+        heapBody.push_back(
+            makeIf(makeCompare(ExprKind::Lt, std::move(cAtI), makeVar(i)), std::move(thenBranch), std::move(elseBranch)));
+        loopsUsed++;
+        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(size)), std::move(heapBody)));
+    }
+
+    mainBranch.push_back(makeAssignArray(makeIntConst(0), makeVar(best)));
+    std::vector<StmtPtr> noTour;
+    noTour.push_back(makeAssignArray(makeIntConst(0), makeIntConst(-1)));
+    mainBranch.push_back(makeIf(makeCompare(ExprKind::Ge, makeVar(best), makeIntConst(100000)), std::move(noTour)));
+
+    root->body.push_back(
+        makeIf(makeCompare(ExprKind::Le, makeVar(size), makeIntConst(0)), std::move(trivialBranch), std::move(mainBranch)));
+
+    return root;
+}
+
+// Second, more advanced TSP skeleton: exact branch-and-bound, iterative DFS
+// (no recursion -- Mini-C has none) with an explicit backtracking stack
+// held in arrays, PLUS pruning (cut a partial path the moment its cost
+// already reaches the best complete tour found so far). Unlike
+// genTspBruteForceSkeletonBlock's Heap's-algorithm enumeration (which
+// always visits all (V-1)! permutations, no matter how bad a partial path
+// looks), this can skip huge swaths of the search tree once a decent
+// `best` is found -- same worst-case complexity, but a genuinely different
+// (and typically much faster in practice) constant/average case. Built to
+// A/B against the brute-force skeleton and answer "does pruning actually
+// help" empirically rather than by assumption.
+//
+// Mini-C layout is the SAME as TspProblem's brute-force encoding (see
+// TspProblem.hpp) -- V, then 2*(V-1) scratch cells, then the V*V weight
+// matrix -- but this skeleton repurposes/extends the scratch region into
+// FOUR parallel arrays of length V instead of two of length (V-1):
+//   path[k]         at arr[1+k]              -- path[0]=0 fixed; path[1..
+//                                                size] is the partial/full
+//                                                tour being built.
+//   used[k]         at arr[1+nv+k]           -- 1 if vertex k is already
+//                                                in the current partial
+//                                                path, else 0.
+//   choice[k]       at arr[1+2*nv+k]         -- choice[level] is the next
+//                                                candidate vertex to try
+//                                                at DFS depth `level`
+//                                                (the iterative
+//                                                equivalent of a
+//                                                recursive call's local
+//                                                loop variable).
+//   partialCost[k]  at arr[1+3*nv+k]         -- partialCost[level] is the
+//                                                accumulated edge weight
+//                                                of path[0..level].
+// This needs V cells per array (4*V total) rather than the brute-force
+// skeleton's 2*(V-1) -- more scratch than TspProblem's own doc comment
+// reserves, but harmlessly so: the extra cells simply overlap into what
+// would otherwise be unused padding since 4*V > 2*(V-1) only by a small,
+// bounded margin, and every index used here is still < 1+4*nv, safely
+// before the matrix -- TspProblem.hpp's scratch-region doc comment should
+// be read as "at least this much", not "exactly this much".
+//
+// Needs only 2 while loops (an init loop, then ONE flat DFS loop -- no
+// recursion means no separate loop per depth, just an explicit `level`
+// variable the single loop pushes/pops) and 11 scratch scalars (nv, size,
+// uBase, chBase, pcBase, mBase, best, level, c, w, cost), one fewer loop
+// than the brute-force skeleton's 4, so gated on canNestedLoop rather than
+// canQuadLoop.
+StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[11];
+    int used = 0;
+    while (used < 11) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k2 = 0; k2 < used; ++k2) {
+            if (vars[k2] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int nv = vars[0], size = vars[1], uBase = vars[2], chBase = vars[3], pcBase = vars[4], mBase = vars[5],
+        best = vars[6], level = vars[7], c = vars[8], w = vars[9], cost = vars[10];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(nv, makeArrayAccess(makeIntConst(0))));                        // nv = arr[0]
+    root->body.push_back(makeAssign(size, makeBinOp(ExprKind::Sub, makeVar(nv), makeIntConst(1))));  // size = nv - 1
+    root->body.push_back(makeAssign(uBase, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(nv))));  // uBase = 1 + nv
+    root->body.push_back(makeAssign(
+        chBase, makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeIntConst(2), makeVar(nv)))));  // 1+2nv
+    root->body.push_back(makeAssign(
+        pcBase, makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeIntConst(3), makeVar(nv)))));  // 1+3nv
+    root->body.push_back(makeAssign(
+        mBase, makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeIntConst(4), makeVar(nv)))));   // 1+4nv
+    root->body.push_back(makeAssign(best, makeIntConst(100000)));                                    // best = INF sentinel
+
+    // V == 1: trivial single-vertex tour, cost 0 -- no path to search.
+    std::vector<StmtPtr> trivialBranch;
+    trivialBranch.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
+
+    std::vector<StmtPtr> mainBranch;
+    // used[k] = 0 for all k in [0, nv) -- reuses `c` as the init counter,
+    // safe since it's overwritten with its real meaning before the main
+    // loop ever reads it.
+    mainBranch.push_back(makeAssign(c, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> initBody;
+        initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c)), makeIntConst(0)));
+        initBody.push_back(makeAssign(c, makeBinOp(ExprKind::Add, makeVar(c), makeIntConst(1))));
+        loopsUsed++;
+        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(c), makeVar(nv)), std::move(initBody)));
+    }
+    mainBranch.push_back(makeAssignArray(makeIntConst(1), makeIntConst(0)));                     // path[0] = 0
+    mainBranch.push_back(makeAssignArray(makeVar(uBase), makeIntConst(1)));                       // used[0] = 1
+    mainBranch.push_back(makeAssignArray(makeVar(pcBase), makeIntConst(0)));                      // partialCost[0] = 0
+    mainBranch.push_back(makeAssign(level, makeIntConst(1)));                                     // level = 1
+    mainBranch.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level)), makeIntConst(1)));  // choice[1] = 1
+
+    // Iterative DFS with pruning: the single flat loop IS the whole call
+    // stack -- `level` is the current depth, and the array reads/writes
+    // below are exactly what a recursive solve(level) would keep on its
+    // stack frame.
+    {
+        std::vector<StmtPtr> loopBody;
+        auto choiceExpr = makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level)));
+
+        // Branch A: choice[level] > size -- no candidates left at this
+        // depth. Backtrack: free the vertex placed here and go up one
+        // level, or (if level==1) terminate the whole search by driving
+        // `level` to 0, which fails the outer while's `level >= 1` guard.
+        std::vector<StmtPtr> exhaustedBranch;
+        {
+            std::vector<StmtPtr> terminateBranch;
+            terminateBranch.push_back(makeAssign(level, makeIntConst(0)));
+            // Undo the PARENT's placement, not this (exhausted) level's own
+            // -- this level never leaves anything of its own to undo here
+            // (every candidate it placed was already undone right after
+            // use, in notPrunedBranch/leafBranch). The vertex that needs
+            // freeing is the one the parent placed at path[level-1] before
+            // descending into this level, so decrement `level` FIRST and
+            // only then read path[level] (now the parent's slot). Reading
+            // path[level] before decrementing (the original, buggy order)
+            // reads this level's own slot instead -- stale/never-written
+            // whenever every candidate here was skipped (used or invalid
+            // edge) without ever placing one, corrupting `used[]` with
+            // garbage (confirmed directly: it incorrectly zeroed used[0],
+            // unmarking the permanently-used start vertex, causing missed
+            // valid tours -- e.g. V=3 with edges 0->1,0->2,1->0,2->0,2->1
+            // wrongly returned -1 instead of the real answer 12).
+            std::vector<StmtPtr> backtrackBranch;
+            backtrackBranch.push_back(makeAssign(level, makeBinOp(ExprKind::Sub, makeVar(level), makeIntConst(1))));
+            backtrackBranch.push_back(makeAssign(c, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(level)))));  // c = path[level] (parent's slot)
+            backtrackBranch.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c)), makeIntConst(0)));      // used[c] = 0
+            exhaustedBranch.push_back(
+                makeIf(makeCompare(ExprKind::Eq, makeVar(level), makeIntConst(1)), std::move(terminateBranch), std::move(backtrackBranch)));
+        }
+
+        // Branch B: a candidate remains -- try it, with pruning.
+        std::vector<StmtPtr> tryBranch;
+        {
+            tryBranch.push_back(makeAssign(c, makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level)))));  // c = choice[level]
+            tryBranch.push_back(makeAssignArray(
+                makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level)),
+                makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level))), makeIntConst(1))));  // choice[level] += 1
+
+            std::vector<StmtPtr> notUsedBranch;  // used[c] == 0
+            {
+                auto edgeIdx = makeBinOp(
+                    ExprKind::Add, makeVar(mBase),
+                    makeBinOp(ExprKind::Add,
+                              makeBinOp(ExprKind::Mul,
+                                        makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1),
+                                                                   makeBinOp(ExprKind::Sub, makeVar(level), makeIntConst(1)))),
+                                        makeVar(nv)),
+                              makeVar(c)));
+                notUsedBranch.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));  // w = weight(path[level-1], c)
+
+                std::vector<StmtPtr> validEdgeBranch;  // w > 0
+                {
+                    validEdgeBranch.push_back(makeAssign(
+                        cost, makeBinOp(ExprKind::Add,
+                                        makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(pcBase),
+                                                                   makeBinOp(ExprKind::Sub, makeVar(level), makeIntConst(1)))),
+                                        makeVar(w))));  // cost = partialCost[level-1] + w
+
+                    std::vector<StmtPtr> notPrunedBranch;  // cost < best -- worth exploring
+                    {
+                        notPrunedBranch.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(level)), makeVar(c)));  // path[level] = c
+                        notPrunedBranch.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c)), makeIntConst(1)));  // used[c] = 1
+                        notPrunedBranch.push_back(
+                            makeAssignArray(makeBinOp(ExprKind::Add, makeVar(pcBase), makeVar(level)), makeVar(cost)));  // partialCost[level] = cost
+
+                        std::vector<StmtPtr> leafBranch;  // level == size: complete tour, close the cycle
+                        {
+                            auto closeIdx = makeBinOp(ExprKind::Add, makeVar(mBase),
+                                                       makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(c), makeVar(nv)),
+                                                                 makeIntConst(0)));
+                            leafBranch.push_back(makeAssign(w, makeArrayAccess(std::move(closeIdx))));  // w = weight(c, 0)
+                            std::vector<StmtPtr> closeValidBranch;                                      // w > 0: valid closing edge
+                            {
+                                std::vector<StmtPtr> betterBranch;
+                                betterBranch.push_back(makeAssign(best, makeBinOp(ExprKind::Add, makeVar(cost), makeVar(w))));
+                                closeValidBranch.push_back(makeIf(
+                                    makeCompare(ExprKind::Lt, makeBinOp(ExprKind::Add, makeVar(cost), makeVar(w)), makeVar(best)),
+                                    std::move(betterBranch)));
+                            }
+                            leafBranch.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(closeValidBranch)));
+                            leafBranch.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c)), makeIntConst(0)));  // used[c]=0, undo immediately (leaf, no descend)
+                        }
+                        std::vector<StmtPtr> descendBranch;  // level < size: go one level deeper
+                        {
+                            descendBranch.push_back(makeAssign(level, makeBinOp(ExprKind::Add, makeVar(level), makeIntConst(1))));
+                            descendBranch.push_back(makeAssignArray(
+                                makeBinOp(ExprKind::Add, makeVar(chBase), makeVar(level)), makeIntConst(1)));  // choice[level] = 1
+                        }
+                        notPrunedBranch.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(level), makeVar(size)), std::move(leafBranch),
+                                                          std::move(descendBranch)));
+                    }
+                    validEdgeBranch.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), std::move(notPrunedBranch)));
+                }
+                notUsedBranch.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(validEdgeBranch)));
+            }
+            tryBranch.push_back(makeIf(
+                makeCompare(ExprKind::Eq, makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c))), makeIntConst(0)),
+                std::move(notUsedBranch)));
+        }
+
+        loopBody.push_back(makeIf(makeCompare(ExprKind::Gt, std::move(choiceExpr), makeVar(size)), std::move(exhaustedBranch),
+                                   std::move(tryBranch)));
+        loopsUsed++;
+        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(level), makeIntConst(1)), std::move(loopBody)));
+    }
+
+    mainBranch.push_back(makeAssignArray(makeIntConst(0), makeVar(best)));
+    std::vector<StmtPtr> noTour;
+    noTour.push_back(makeAssignArray(makeIntConst(0), makeIntConst(-1)));
+    mainBranch.push_back(makeIf(makeCompare(ExprKind::Ge, makeVar(best), makeIntConst(100000)), std::move(noTour)));
+
+    root->body.push_back(
+        makeIf(makeCompare(ExprKind::Le, makeVar(size), makeIntConst(0)), std::move(trivialBranch), std::move(mainBranch)));
+
+    return root;
+}
+
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
@@ -1123,7 +1619,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1168,7 +1664,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[10];
+        WeightedOption options[13];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1185,6 +1681,22 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
         if (canTripleLoop && cfg.numVars >= 5 && allowed("threesum")) addOption(Skeleton::ThreeSum, 3);
         if (canTripleLoop && cfg.numVars >= 6 && allowed("graphreachability")) addOption(Skeleton::GraphReachability, 3);
+        if (canTripleLoop && cfg.numVars >= 7 && allowed("shortestpath")) addOption(Skeleton::ShortestPath, 3);
+        // TSP brute force needs 4 While loops (init + identity-permutation
+        // cost eval + Heap's-algorithm outer loop + its nested cost-eval
+        // loop) and 11 scratch scalars -- weighted like HeapSort (1/3 of a
+        // normal skeleton's share): it's the biggest AST here by far (an
+        // exponential-enumeration shape, not a fixed-round relaxation), so
+        // giving it an equal draw would slow down every OTHER problem's
+        // search too, the same lesson HeapSort's weight comment already
+        // documents above.
+        if (canQuadLoop && cfg.numVars >= 12 && allowed("tspbruteforce")) addOption(Skeleton::TspBruteForce, 1);
+        // Branch-and-bound needs only 2 loops (canNestedLoop, not
+        // canQuadLoop) but the same 11-variable budget as brute force;
+        // weighted the same low 1 as brute force for the same reason
+        // (biggest ASTs here, would slow every other problem's search if
+        // drawn at a normal skeleton's rate).
+        if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1216,6 +1728,12 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genThreeSumSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::GraphReachability:
                     return genGraphReachabilitySkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::ShortestPath:
+                    return genShortestPathSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::TspBruteForce:
+                    return genTspBruteForceSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::TspBranchAndBound:
+                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
     }
