@@ -1870,6 +1870,15 @@ void collectBlocks(Stmt& s, std::vector<BlockTarget>& out) {
     for (auto& c : s.elseBody) collectBlocks(*c, out);
 }
 
+// Collects mutable pointers to every if/while node in the tree, for
+// GenConfig::exprMutationRate -- fine-grained mutation targets whose
+// `cond` can be regenerated in place without touching `body`/`elseBody`.
+void collectCondSites(Stmt& s, std::vector<Stmt*>& out) {
+    if (s.kind == StmtKind::If || s.kind == StmtKind::While) out.push_back(&s);
+    for (auto& c : s.body) collectCondSites(*c, out);
+    for (auto& c : s.elseBody) collectCondSites(*c, out);
+}
+
 // Collects every statement node in the tree (read-only), for picking an
 // arbitrary donor subtree in crossover -- deliberately every node, not
 // just top-level block members, so a deeply nested `if` or `while` found
@@ -1929,6 +1938,21 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
             int loopsUsed = countLoops(*root);
             (*target)[idx] = genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed, /*insideIf=*/targetInfo.parentKind == StmtKind::If,
                                       /*insideWhile=*/targetInfo.parentKind == StmtKind::While);
+        }
+    }
+
+    // Fine-grained expression-level point mutation (see
+    // GenConfig::exprMutationRate): regenerate ONE existing if/while's
+    // condition in place, leaving its body/else-body untouched. Unlike
+    // the whole-statement mutation above, this can tweak a comparison
+    // (e.g. a pruning guard) without destroying whatever correct logic is
+    // nested inside it.
+    if (cfg.exprMutationRate > 0.0 && rng.chance(cfg.exprMutationRate)) {
+        std::vector<Stmt*> condSites;
+        collectCondSites(*root, condSites);
+        if (!condSites.empty()) {
+            Stmt* target = condSites[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(condSites.size()) - 1))];
+            target->cond = genCondExpr(rng, cfg.maxExprDepth, cfg);
         }
     }
     return root;

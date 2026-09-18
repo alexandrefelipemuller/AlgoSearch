@@ -102,6 +102,24 @@ struct GenConfig {
     // needs; break is included for completeness/symmetry at a lower rate.
     double controlFlowBias = 0.0;
 
+    // Opt-in (0.0 = off, reproduces today's behavior exactly): probability
+    // that growProgram, on top of its existing whole-STATEMENT point
+    // mutation (which replaces an entire if/while -- condition, body, AND
+    // else-body -- with a freshly generated one), also tries a finer-
+    // grained EXPRESSION-level mutation: pick one existing if/while
+    // somewhere in the tree and regenerate ONLY its condition, leaving its
+    // body/else-body completely untouched. See
+    // data/skeleton_middle_ground_experiments.md Test 3: a real gap found
+    // while investigating why the branch-and-bound "hole" experiment never
+    // refined a vacuous guard into a real one after its first random
+    // draw -- the only existing mutation that could touch a guard replaces
+    // the WHOLE enclosing if, destroying whatever correct logic lives
+    // inside its body, so any such mutation is almost always fatal to a
+    // candidate's score and never survives selection. This gives the
+    // search a way to tweak a comparison in place without also blowing
+    // away everything nested under it.
+    double exprMutationRate = 0.0;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current

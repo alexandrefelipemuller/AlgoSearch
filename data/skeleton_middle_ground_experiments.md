@@ -391,3 +391,77 @@ only lever, or whether one of Tests 1/2/4 generalizes as a cheaper
 alternative across problems, not just this one. Once a test produces a
 result on TSP, spot-check at least one other problem with a known
 skeleton-dependency story before treating the conclusion as general.
+
+## Test 3 (scoped): expression-level point mutation
+
+**Implemented, scoped down from the full modular-skeleton re-architecture
+described above:** the real gap found while running Test 2 was that
+`growProgram`'s only existing point mutation replaces an ENTIRE
+if/while statement (condition + body + else-body) with a fresh one --
+so any mutation that touches a guard's `if` also destroys whatever
+correct logic is nested inside it (the placement/leaf/descend logic in
+the branch-and-bound scaffold), making it almost always fatal and never
+selected. Added `GenConfig::exprMutationRate` (0.0 default, CLI
+`--expr-mutation-rate`): with this probability, `growProgram` now ALSO
+regenerates just one existing if/while's `cond` in place via a new
+`collectCondSites` helper, leaving body/else-body untouched. All 58
+tests + a clean ASan/UBSan build pass with the feature at its default.
+
+### Result (2026-09-17): still negative on the core question, one positive side-effect
+
+Re-ran the `tspbbscaffold` hole experiment combined with BOTH
+`--speed-bonus-weight 0.5` and `--expr-mutation-rate 0.5`, `--max-n 9`,
+`--step-limit 1000000`, seed=7:
+
+- N=3-7: confirmed (`confirmed_levels` 5, held-out 8/8), guard = `(3 ^ v6) != 2` -- a bitwise XOR against constants, still not referencing
+  `cost`/`best` at all.
+- N=8: **held-out 8/8 this time** (an improvement -- the equivalent run
+  without expr-mutation had a broken 7/8 candidate here). Guard =
+  `((best - best) + best) != nv`, which simplifies to `best != nv` --
+  still an almost-always-true near-tautology (best starts at 100000 and
+  nv is tiny), just a more convoluted way to express one.
+
+**Conclusion:** fine-grained mutation measurably diversified WHICH
+vacuous guard the search lands on (bitwise tricks, self-cancelling
+arithmetic) and incidentally improved held-out robustness at N=8, but it
+still never converged toward anything resembling `cost < best`. Being
+able to tweak a guard without destroying its body was a real, confirmed
+gap (worth keeping as a general-purpose operator regardless), but fixing
+it alone wasn't sufficient to cross into genuine pruning within this
+budget either.
+
+## Overall status across all four tests
+
+Four independent approaches to growing this capability WITHOUT a human
+hand-authoring the branch-and-bound skeleton directly, all tested on the
+same TSP pruning case:
+
+1. **Crossover with existing skeleton vocabulary** -- negative (no
+   partial-path state to prune on in brute force's enumeration shape).
+2. **Scaffold with a hole** (hand over the DFS shape, leave the guard
+   open) -- negative (evolution settles on a vacuous tautology; shape IS
+   learnable, insight is not).
+3. **Speed-aware fitness signal** -- negative (didn't change the
+   outcome; the correct comparison likely sits in too narrow a corridor
+   of expression-space for the existing mutation granularity).
+4. **Expression-level point mutation** (fixing the granularity gap Test
+   3's investigation surfaced) + **missing language primitive**
+   (`continue`/`break`) -- both negative on the core question, though
+   the mutation fix improved robustness as a side effect and is worth
+   keeping.
+
+**Working conclusion:** for a capability this qualitatively different
+from what the search already has priors for (an enumeration algorithm
+with an early-exit condition based on a running best-so-far, evaluated
+against a partial/incomplete solution rather than a complete one), none
+of the four levers tested -- recombination, partial scaffolding, a speed
+signal, or finer mutation granularity -- got the free search to
+rediscover it within the budgets tried here. This doesn't prove no
+combination or larger budget ever could, but it's a real, reproducible
+ceiling worth respecting rather than assuming away: for now, a
+genuinely new algorithmic SHAPE (not a variant of one already in the
+grammar) still needs a human to write it once, the way
+`genTspBranchAndBoundSkeletonBlock` was written. The useful infra built
+along the way (`ALGOSEARCH_DISABLE_SKELETON`, `continue`/`break`,
+`speedBonusWeight`, `exprMutationRate`) stays available for the next
+capability gap this project runs into, where the answer might differ.

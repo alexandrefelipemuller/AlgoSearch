@@ -57,6 +57,7 @@ struct CliArgs {
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
     double controlFlowBias = 0.0;
+    double exprMutationRate = 0.0;
     double adaptiveSkeletonBiasRate = 0.0;
     std::string adaptiveBiasLog;
     std::string output = "solutions.json";
@@ -96,6 +97,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
         else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
         else if (arg == "--control-flow-bias") args.controlFlowBias = std::stod(next("--control-flow-bias"));
+        else if (arg == "--expr-mutation-rate") args.exprMutationRate = std::stod(next("--expr-mutation-rate"));
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
         else if (arg == "--output") args.output = next("--output");
@@ -116,7 +118,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--expr-mutation-rate 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--output solutions.json] "
                  "[--benchmark] [--benchmark-seeds 5]\n";
@@ -192,6 +194,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.indexIncrementBias = args.indexIncrementBias;
         config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
         config.genConfig.controlFlowBias = args.controlFlowBias;
+        config.genConfig.exprMutationRate = args.exprMutationRate;
 
         std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
         BeamSearch search(*problem, config);
@@ -316,6 +319,7 @@ int main(int argc, char** argv) {
     config.genConfig.indexIncrementBias = args.indexIncrementBias;
     config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
     config.genConfig.controlFlowBias = args.controlFlowBias;
+    config.genConfig.exprMutationRate = args.exprMutationRate;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
 
