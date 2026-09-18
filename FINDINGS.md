@@ -1206,6 +1206,80 @@ missing-shape problem in this log.
 Data: `data/contains_binarysearch_20260918/` (both run logs + solution
 JSONs).
 
+## 21. contains_ordered with ALL quota strategies + crossover + speed bonus: still no binary search
+
+Follow-up to section 20's hypothesis discussion: does the beam's existing
+niche-quota infrastructure (`shapeNicheRate`, `behaviorNicheRate`,
+`scoreBandRate` -- BeamSearch.cpp:468-549, each reserving beam slots for
+the best-scoring representative of a structural/behavioral/score niche,
+protecting it from being crowded out by an already-100%-correct but
+differently-shaped competitor) let a *raw, partially-correct* two-pointer
+idiom survive long enough to mature into binary search, instead of being
+discarded outright the instant a fully-correct linear scan appears?
+
+Matched A/B, same budget class as section 20 but with every relevant
+lever turned on at once: `--diversity-rate 0.2 --shape-niche-rate 0.2
+--behavior-niche-rate 0.15 --score-band-rate 0.15 --crossover-rate 0.3
+--speed-bonus-weight 0.05`, `--max-n 10 --beam-width 6000 --candidates
+6000 --max-program-size 100 --step-limit 40000 --num-vars 8`,
+`--benchmark --benchmark-seeds 5`, contains vs. contains_ordered.
+
+**The quotas measurably did their job**: beam structural diversity at
+full-solve roughly TRIPLED vs. section 20's plain-diversity-only run
+(contains_ordered: ~1500-1660 distinct AST shapes / ~4200-4400
+candidates here, vs. ~500-640 / 4000 before). So the mechanism the user
+asked about -- "protect interesting raw candidates via quotas instead of
+letting pure score dominate" -- is real and working as designed.
+
+**Result: still negative, 4/4 and 5/5.** Identical program in every
+seed of both problems, byte-for-byte the same shape as section 20 (still
+no early-exit `break` even with the speed bonus on -- `controlFlowBias`,
+which gates `if (cond) break/continue` generation, was left at its
+default 0.0 in this run, so that idiom was never offered to the
+generator regardless of what the fitness function would have rewarded
+once it existed):
+```
+v2 = arr[0]; v1 = 0; v5 = 1;
+while (v5 < v0) { if (arr[v5] == v2) { v1 = 1; } v5 = v5 + 1; }
+arr[0] = v1;
+```
+
+**What this isolates:** tripling surviving structural diversity changed
+nothing about the outcome. That rules out "the beam converges too fast
+and prunes away the raw material before it can mature" as the bottleneck
+-- there was 3x more raw material surviving, generation after generation,
+and none of it was ever a two-pointer/bisection fragment, because
+`scoreBandRate`'s guarantee is only "best-scoring member of this score
+decile survives," not "best member *on the way to a specific coherent
+algorithm* survives." A broken/partial bisection attempt (say, `lo`/`hi`
+initialized but never correctly updated) scores in the same low bands as
+every other unrelated wrong program, and there is nothing in a
+score-decile or AST-shape-count signature that distinguishes "wrong but
+structurally promising toward binary search" from "wrong and randomly
+wrong" -- both look identical to every niche criterion currently
+implemented, all of which are deliberately problem-agnostic (never
+inspect *what a correct answer means*, only whether a candidate's score/
+shape/behavior differs from what's already kept).
+
+**Conclusion:** the bottleneck sections 18/20 already identified is
+confirmed to sit at construction, not survival -- no realistic amount of
+beam-diversity protection rescues a compound idiom (two converging
+pointers + `Div`-based midpoint + branch-on-comparison to move one
+pointer) that no single mutation/crossover event ever assembles enough
+of to register as "closer" by any generic, problem-agnostic signal. A
+genuinely new niche criterion built to detect "two scalars moving toward
+each other under a shared loop condition" would be problem-specific
+knowledge disguised as a general mechanism -- exactly the kind of
+per-problem hint the project's `loopAccumulatorBias` design note argues
+against. This closes out the "can generic search-mechanism tuning find
+it" question for now: **the answer is no, matching TSP's precedent
+exactly**, and the honest next step is a dedicated skeleton (built and
+verified via `ALGOSEARCH_FORCE_SKELETON`, same protocol as `genDtwSkeletonBlock`),
+not further tuning of `diversityRate`/`shapeNicheRate`/`scoreBandRate`/
+`crossoverRate`/`speedBonusWeight`.
+
+Data: `data/contains_quotas_20260918/` (flags, both run logs, solution JSONs).
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
