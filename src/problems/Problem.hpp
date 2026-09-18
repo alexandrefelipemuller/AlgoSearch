@@ -106,10 +106,13 @@ public:
     // result via isSolution(). Problem-agnostic; implemented once here.
     // `output` is a caller-owned scratch buffer so the hot scoring loop can
     // reuse one allocation across millions of runs; it holds the program's
-    // final array only when the result is SUCCESS/WRONG_OUTPUT.
+    // final array only when the result is SUCCESS/WRONG_OUTPUT. `stepsOut`,
+    // when non-null, receives the interpreter step count the run consumed
+    // -- see Interpreter::run; optional, default null, no cost for callers
+    // that don't need a speed signal.
     ExecStatus evaluateInto(const Stmt& program, const Instance& instance, const Interpreter& interp,
-                            std::vector<int>& output) const {
-        RunStatus rs = interp.run(program, instance.input, numVars(), output);
+                            std::vector<int>& output, long* stepsOut = nullptr) const {
+        RunStatus rs = interp.run(program, instance.input, numVars(), output, stepsOut);
         switch (rs) {
             case RunStatus::TIMEOUT:
                 return ExecStatus::TIMEOUT;

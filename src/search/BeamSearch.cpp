@@ -165,7 +165,8 @@ std::string behaviorSignature(const CandidateRecord& rec) {
 // mutable state), so this is embarrassingly parallel and needs no locking.
 void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& instances, const Problem& problem,
                       const Interpreter& interp, unsigned numThreads, std::vector<CandidateRecord>& scored, size_t outOffset,
-                      int& timeouts, int& errors, bool trackCorrectness = false) {
+                      int& timeouts, int& errors, bool trackCorrectness = false, double speedBonusWeight = 0.0,
+                      long stepLimit = 1) {
     size_t n = pool.size();
     for (size_t i = 0; i < n; ++i) {
         scored[outOffset + i].program = std::move(pool[i]);
@@ -192,10 +193,16 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                 double fitness = 0.0;
                 if (trackCorrectness) rec.correctness.reserve(instances.size());
                 for (const auto& inst : instances) {
-                    ExecStatus status = problem.evaluateInto(*rec.program, inst, interp, output);
+                    long steps = 0;
+                    ExecStatus status = problem.evaluateInto(*rec.program, inst, interp, output,
+                                                              speedBonusWeight > 0.0 ? &steps : nullptr);
                     if (status == ExecStatus::SUCCESS) {
                         score++;
                         fitness += 1.0;
+                        if (speedBonusWeight > 0.0 && stepLimit > 0) {
+                            double frac = std::clamp(static_cast<double>(steps) / static_cast<double>(stepLimit), 0.0, 1.0);
+                            fitness += speedBonusWeight * (1.0 - frac);
+                        }
                     } else if (status == ExecStatus::TIMEOUT) {
                         timeoutsPerThread[t]++;
                     } else if (status == ExecStatus::RUNTIME_ERROR) {
@@ -349,14 +356,15 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         bool trackCorrectness = config_.behaviorNicheRate > 0.0 || debugLandscape;
         auto scoreStart = std::chrono::steady_clock::now();
         std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
-        scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness);
+        scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness,
+                         config_.speedBonusWeight, config_.stepLimit);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors,
-                         trackCorrectness);
+                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
-                         timeouts, errors, trackCorrectness);
+                         timeouts, errors, trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
         size_t annealIndex = grownPool.size() + freshPool.size() + crossoverPool.size();
         scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors,
-                         trackCorrectness);
+                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
         totalCandidatesScored += static_cast<long>(scored.size());
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 

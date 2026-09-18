@@ -176,6 +176,66 @@ completing correctly) so a genuinely faster, still-correct candidate has
 somewhere to climb toward. Worth testing directly before trying Test 3's
 much larger re-architecture.
 
+## Follow-up: speed-aware fitness signal (2026-09-17)
+
+**Implemented:** `SearchConfig::speedBonusWeight` (0.0 default, CLI
+`--speed-bonus-weight`). Adds `speedBonusWeight * (1 - steps_used/stepLimit)`
+to `fitness` per SUCCESS instance -- never touches `score` (promotion/
+labeling stays exactly as before), only breaks ties among equally-correct
+candidates in favor of the faster one. Wired `Interpreter::run`'s new
+optional `stepsOut` param through `Problem::evaluateInto` into
+`BeamSearch::scoreCandidates` (all optional/default-null, zero cost or
+behavior change when unused). All 58 tests + a clean build pass with the
+feature at its default (off).
+
+### Result: still negative
+
+Re-ran the `tspbbscaffold` hole experiment (Test 2) with
+`--speed-bonus-weight 0.5`, `--max-n 9`, `--step-limit 1000000` (the
+timeout-pressured regime Test 4 flagged as the one place speed SHOULD
+matter for fitness), seed=7:
+
+- N=2-7: confirmed generalizing (`confirmed_levels` 6, held-out 8/8), but
+  the converged guard is `c <= mBase` (`v7 <= v5` in that run's variable
+  labeling) -- `c` is always a tiny vertex index (0..V-1), `mBase` is
+  always a large constant offset (`1+4*nv`) that grows with V. Still a
+  tautology, structurally identical in spirit to the pre-speed-bonus
+  result (a different constant relationship, same vacuous shape).
+- N=8: a NEW, different candidate took over (`confirmed_levels` reset to
+  1, i.e. it doesn't hold at N=8's own lookahead), scoring 16/16 on
+  training but only 7/8 held-out -- i.e. actually WRONG on an
+  out-of-distribution case, not a faster correct algorithm. Its guard,
+  `(w + cost) != (uBase - used[size])`, is essentially noise: it passed
+  this level's specific 16 training instances by coincidence, not
+  because it encodes anything resembling a real comparison.
+
+**Conclusion:** a speed bonus at this weight/budget did not change the
+outcome. Evolution still resolves the hole toward either a safe
+tautology (at low N, where nothing is under real time pressure yet) or a
+broken-but-lucky condition (at N=8, precisely where pressure exists) --
+never toward a genuinely correct AND faster guard. This suggests the
+working hypothesis from Test 2 (no speed signal => no gradient toward
+pruning) was necessary but not sufficient to explain the failure, or the
+weight/budget tested here still isn't enough to overcome it. A plausible
+deeper reason: even with a speed gradient, `cost < best` sits in a very
+narrow corridor of expression-space -- almost every single-mutation
+neighbor of a tautology is either still vacuous or actively wrong, so
+there's no smooth path for local mutation to climb even with the right
+incentive pointing the way; discovering the exact right comparison still
+needs something closer to "get lucky in one shot" than "gradually
+improve."
+
+**Not concluded yet, still open:** whether a much higher
+`speedBonusWeight`, many more generations, or a narrower/more targeted
+mutation operator (one that specifically tries swapping comparison
+operators/operands on an EXISTING guard rather than regenerating a whole
+new random expression) would do better. Given three independent
+approaches (Tests 1, 2+speed-bonus, 4) have now all failed to produce
+real pruning without a human writing the branch-and-bound skeleton
+directly, Test 3's larger re-architecture (or simply accepting that this
+specific capability needs a hand-authored skeleton, at least for now) is
+the next honest fork in the road.
+
 ## Test 4: missing language primitive, not missing algorithm
 
 (Moved up and run before Test 2 -- implementation was straightforward and

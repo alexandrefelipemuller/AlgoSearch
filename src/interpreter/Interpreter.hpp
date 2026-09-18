@@ -21,8 +21,13 @@ public:
     // Runs `program` (a Block) with `input` loaded into the array and
     // `numVars` scalar variables (all initialized to 0, except var 0 which
     // is initialized to the array length). On COMPLETED, `output` holds the
-    // final array contents.
-    RunStatus run(const Stmt& program, const std::vector<int>& input, int numVars, std::vector<int>& output) const;
+    // final array contents. `stepsOut`, when non-null, receives the number
+    // of interpreter steps the run actually consumed -- optional (default
+    // null, zero cost/behavior change for every existing caller) so a
+    // caller that wants a speed signal (see SearchConfig::speedBonusWeight)
+    // can have one without every other call site needing to change.
+    RunStatus run(const Stmt& program, const std::vector<int>& input, int numVars, std::vector<int>& output,
+                  long* stepsOut = nullptr) const;
 
 private:
     long stepLimit_;

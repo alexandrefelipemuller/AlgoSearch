@@ -164,6 +164,24 @@ struct SearchConfig {
     // behavior exactly.
     double scoreBandRate = 0.0;
 
+    // Speed-aware fitness tie-break (data/skeleton_middle_ground_experiments.md,
+    // "Tests 2 and 4" follow-up hypothesis): `score` (exact-correctness
+    // count, used for promotion/labeling) is NEVER affected by this -- it
+    // only adds `speedBonusWeight * (1 - steps_used/stepLimit)` per
+    // SUCCESS instance to `fitness`, the search-internal ranking-only
+    // field already used to break ties between equally-scoring candidates
+    // (see CandidateRecord::fitness). Without this, two candidates that
+    // solve the same instances identically-right/wrong are fitness-tied
+    // regardless of how many interpreter steps either one took, so nothing
+    // ever rewards a genuinely faster (still 100% correct) algorithm over
+    // a slower one that happens to reach the same score first -- the
+    // mechanism Test 2 found responsible for evolution settling on a
+    // vacuous always-true pruning guard (correct, no speedup) instead of a
+    // real one (correct AND faster): both scored identically, so nothing
+    // ever preferred the real one. 0.0 (default) disables it and
+    // reproduces prior behavior exactly.
+    double speedBonusWeight = 0.0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure
