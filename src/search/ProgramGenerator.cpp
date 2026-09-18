@@ -1397,17 +1397,15 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
 // uBase, chBase, pcBase, mBase, best, level, c, w, cost), one fewer loop
 // than the brute-force skeleton's 4, so gated on canNestedLoop rather than
 // canQuadLoop.
-// `guardAsHole`: Test 2 in data/skeleton_middle_ground_experiments.md --
-// when true, the ONE line encoding the actual pruning insight (`cost <
-// best`) is replaced by an ordinary randomly-generated comparison (same
-// grammar as any other if-condition, same in-scope variable pool) instead
-// of the hand-written correct one. Everything else (the DFS/choice-stack
-// shape, array layout, backtracking) is unchanged -- this hands the search
-// the expensive-to-discover SHAPE but leaves the actual insight as a hole
-// for search/mutation to fill, testing whether the shape alone is enough
-// scaffolding for evolution to find (or converge near) a working guard on
-// its own.
-StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed, bool guardAsHole = false) {
+// (A `guardAsHole` variant of this skeleton -- replacing the `cost <
+// best` line with a randomly-generated hole, to test whether the DFS
+// shape alone is enough scaffolding for evolution to discover a working
+// guard on its own -- was built and tested as Test 2 in
+// data/skeleton_middle_ground_experiments.md. Conclusion: the shape is
+// reliably learnable but the hole always converges to a vacuous
+// tautology, never real pruning; removed after the experiment concluded,
+// see FINDINGS.md section 18.)
+StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     int vars[11];
     int used = 0;
     while (used < 11) {
@@ -1558,9 +1556,8 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
                         notPrunedBranch.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(level), makeVar(size)), std::move(leafBranch),
                                                           std::move(descendBranch)));
                     }
-                    ExprPtr pruneGuard = guardAsHole ? genCondExpr(rng, cfg.maxExprDepth, cfg)
-                                                      : makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best));
-                    validEdgeBranch.push_back(makeIf(std::move(pruneGuard), std::move(notPrunedBranch)));
+                    validEdgeBranch.push_back(
+                        makeIf(makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), std::move(notPrunedBranch)));
                 }
                 notUsedBranch.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(validEdgeBranch)));
             }
@@ -1639,7 +1636,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, TspBranchAndBoundScaffold };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1695,7 +1692,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[14];
+        WeightedOption options[13];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1728,14 +1725,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // (biggest ASTs here, would slow every other problem's search if
         // drawn at a normal skeleton's rate).
         if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
-        // Test 2 (data/skeleton_middle_ground_experiments.md): same shape
-        // as TspBranchAndBound, but the pruning guard itself is a hole
-        // filled by the ordinary condition grammar instead of the
-        // hand-written `cost < best`. Same weight/gating as its sibling --
-        // part of the normal pool like every other skeleton here, just
-        // named separately so ALGOSEARCH_FORCE_SKELETON=tspbbscaffold can
-        // isolate it for the experiment.
-        if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbbscaffold")) addOption(Skeleton::TspBranchAndBoundScaffold, 1);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1772,9 +1761,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                 case Skeleton::TspBruteForce:
                     return genTspBruteForceSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::TspBranchAndBound:
-                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed, /*guardAsHole=*/false);
-                case Skeleton::TspBranchAndBoundScaffold:
-                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed, /*guardAsHole=*/true);
+                    return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
     }

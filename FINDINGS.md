@@ -978,6 +978,133 @@ structures remain fully out of reach (still need a second array/table
 primitive Mini-C doesn't have at all -- a different, larger architecture
 change than this section's, not attempted here).
 
+## 18. TSP, and the "middle ground" question: can capability grow without a human writing a new skeleton?
+
+Added `TspProblem` (exact Hamiltonian-cycle-cost, ground truth via
+host-side Held-Karp bitmask DP). Confirmed free/generic search gets
+zero traction at all -- multiple runs up to num-vars=80/candidates=20000/
+30 CPU-minutes never got past V=2 at ~8/14, with no improvement from
+more compute, unlike every problem in sections 13-17. Two dedicated
+skeletons were hand-authored to fix this:
+
+- `genTspBruteForceSkeletonBlock`: iterative (no recursion -- Mini-C has
+  none) Heap's-algorithm permutation enumeration. Confirmed generalizing
+  via real search (`confirmed_levels` 3+ across seeds, held-out 8/8).
+- `genTspBranchAndBoundSkeletonBlock`: iterative DFS with an explicit
+  choice-stack and cost-based pruning. **Found and fixed a real
+  correctness bug** while building it: the backtrack step read
+  `path[level]` (to know which vertex to un-mark in `used[]`) BEFORE
+  decrementing `level`, instead of after -- reading the wrong stack
+  frame's slot, sometimes stale/zero, which could incorrectly un-mark
+  vertex 0 (permanently used) and silently drop valid tours. Found by
+  hand-tracing a failing V=3 instance (expected cost 12, got -1),
+  confirmed fixed across 7 seeds/V=1-8 with a standalone harness before
+  trusting it in the real search. Measured **2.6x-8.6x speedup** over
+  brute force at V=6-10 from pruning alone, growing with V as expected
+  of genuine pruning (not a constant-factor artifact).
+
+TspProblem's scratch region is 4*V cells (wider than the brute-force
+skeleton alone needs, at 2*(V-1)) so both skeletons can share one
+instance encoding -- the brute-force skeleton just leaves the unused
+cells alone.
+
+### The middle-ground question: four independent attempts to avoid hand-authoring branch-and-bound, all negative
+
+Going from brute-force to branch-and-bound required a human writing a
+second, structurally different algorithm by hand -- a real, felt
+ceiling: does skeleton *vocabulary* only grow by a human writing another
+one? Full writeup, methodology, and exact commands in
+`data/skeleton_middle_ground_experiments.md`; summary here:
+
+1. **Crossover with existing skeleton vocabulary** (new
+   `ALGOSEARCH_DISABLE_SKELETON` env var, a companion to the existing
+   `ALGOSEARCH_FORCE_SKELETON`, lets one named skeleton be excluded
+   instead of restricting to exactly one): negative even at
+   crossover-rate=0.6. Heap's-algorithm brute force has no partial-path
+   state to prune ON in the first place -- it always commits to a full
+   permutation via swaps before ever computing a cost -- so grafting a
+   guarded-comparison idiom from elsewhere (SelectionSort/ThreeSum's
+   `if (x < best)`) has nowhere to earn its keep as a real prune.
+2. **"Scaffold with a hole"**: a `guardAsHole` parameter on
+   `genTspBranchAndBoundSkeletonBlock` (registered as a separate
+   `tspbbscaffold` skeleton name for isolation, since removed -- see
+   below) replaces the hand-written `cost < best` with an ordinary
+   generated condition. The DFS/choice-stack SHAPE turned out to be
+   reliably learnable/keepable once handed over (held-out 8/8 across 7
+   seeds) -- but the hole always converges to a vacuous tautology
+   (`mBase >= chBase`, a constant relationship always true for any V;
+   other seeds found similar constant-derived non-guards), never
+   anything resembling `cost < best`. Never generalizes to genuine
+   pruning; correctness is preserved but speed never improves.
+3. **Speed-aware fitness signal**: added `SearchConfig::speedBonusWeight`
+   (0.0 default) -- adds `weight * (1 - steps_used/stepLimit)` to
+   `fitness` per SUCCESS instance, never touching `score`/promotion, to
+   test whether the hole converges to tautologies simply because nothing
+   rewards being faster. Still negative even in the exact regime
+   (V=8-9) where brute force already loses score to timeouts, i.e.
+   where a pruning candidate should have a real fitness edge: the hole
+   just finds a DIFFERENT tautology, or (once) a candidate that's wrong
+   on held-out (7/8) rather than genuinely faster-and-correct.
+4. **Finer mutation granularity + missing language primitive**: found a
+   real, generically useful gap while investigating why the hole never
+   refines after its first draw -- `growProgram`'s only point mutation
+   replaces an ENTIRE if/while (cond + body + else-body), so any
+   mutation touching a guard also destroys the correct logic nested
+   inside it, and is essentially always fatal to score. Added
+   `GenConfig::exprMutationRate` (0.0 default): regenerates just one
+   if/while's `cond` in place via a new `collectCondSites` helper,
+   leaving body/else-body untouched. Also added `Continue`/`Break` as
+   real `StmtKind`s (interpreter `Flow` signal, gated by
+   `GenConfig::controlFlowBias`, 0.0 default) -- Mini-C's missing
+   early-exit primitive, the same "add a primitive, not a skeleton"
+   move section 17 made for arithmetic. Both still negative on the core
+   question (never found `cost < best`; guards found were `v4 != v2`-
+   shaped near-tautologies with self-cancelling arithmetic), though the
+   mutation fix incidentally improved held-out robustness at N=8 (8/8
+   vs. the prior run's broken 7/8) and is worth keeping as a
+   general-purpose operator regardless.
+5. **All four stacked together** (crossover + control-flow +
+   speed-bonus + expr-mutation simultaneously, `tspbbscaffold` forced):
+   still negative -- if anything, the combined mutation pressure pushed
+   the guard toward an even MORE trivial constant (`(1|2) >= 2`, not
+   even referencing a variable) rather than a more selective one. Zero
+   `continue`/`break` adoption throughout every test in this series.
+
+**Working conclusion, stated plainly:** for a capability this
+qualitatively different from what the search already has priors for (an
+enumeration algorithm whose early-exit condition depends on a running
+best-so-far evaluated against a PARTIAL solution, not a complete one),
+none of recombination, partial scaffolding, a speed signal, or finer
+mutation granularity -- alone or combined -- got the free search to
+rediscover it. The most likely mechanistic reason: `cost < best` sits in
+an isolated point of expression-space with no correct-and-selective
+neighbors nearby, so there's no gradient for local search to climb even
+once every other obstacle (vocabulary, a place to put it, an incentive,
+room to tweak without breaking correctness) is removed. **The practical
+strategy going forward is the one already stated in section 16's SWOT
+and reaffirmed here empirically: keep expanding skeleton coverage by
+hand for as much of the known algorithm catalog as the project can
+reach, rather than expecting genuinely new algorithmic shapes to emerge
+from search-mechanism tuning alone.** This doesn't rule out a
+diminishing role for automatic discovery within a shape once it exists
+(constant-tuning, minor structural variants) -- section 12's
+cross-skeleton generalization work is exactly that -- but a new SHAPE
+still needs a human to write it once, the way both TSP skeletons were.
+
+**Kept vs. removed:** `Continue`/`Break`, `speedBonusWeight`, and
+`exprMutationRate` are generic, zero-cost-when-off infrastructure in the
+same spirit as `indexIncrementBias`/`bareSwapPenalty`/`scoreBandRate`
+before them, and stay for whatever the next capability gap turns out to
+need. `ALGOSEARCH_DISABLE_SKELETON` stays alongside `ALGOSEARCH_FORCE_
+SKELETON` as a research-only pair. `tspbbscaffold` (the diagnostic
+`guardAsHole` skeleton variant) was removed after this series concluded
+-- it has no value outside the experiment that used it, and left in the
+default pool it would only ever cost future TSP searches a wasted
+candidate slot.
+
+Regression discipline: `make test` 58/58 and a clean ASan/UBSan build
+after every change in this section.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
