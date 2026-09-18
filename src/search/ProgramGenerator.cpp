@@ -223,6 +223,24 @@ void appendCountingWhile(std::vector<StmtPtr>& out, int var, ExprPtr boundExpr, 
     out.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(var), std::move(boundExpr)), std::move(body)));
 }
 
+// Appends `while (r >= bound) { r = r - bound; <buildExtra's
+// statements>; }` to `out` -- the "divide via repeated subtraction"
+// primitive Mini-C needs wherever it has no native Div (GcdMod's inner
+// mod loop only needs the shrinking remainder; Average's divide phase
+// also tracks a quotient via `buildExtra`), confirmed identical in
+// shape between the two while cataloguing skeleton primitives
+// (FINDINGS.md section 24). `bound` is cloned once for the subtraction
+// and once for the loop condition, same two-separate-Var-nodes shape
+// both call sites already built by hand.
+void appendSubtractiveDivideWhile(std::vector<StmtPtr>& out, int r, ExprPtr bound, int& loopsUsed,
+                                   const std::function<void(std::vector<StmtPtr>&)>& buildExtra) {
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), bound->clone())));
+    buildExtra(body);
+    loopsUsed++;
+    out.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), std::move(bound)), std::move(body)));
+}
+
 // The canonical "counting loop" skeleton every array algorithm needs:
 // an index that starts at 0, is bounds-checked against n (var 0, by
 // interpreter convention initialized to the array length), and
@@ -521,13 +539,8 @@ StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loops
 
         std::vector<StmtPtr> outerBody;
         outerBody.push_back(makeAssign(r, makeVar(a)));  // r = a
-        {
-            std::vector<StmtPtr> innerBody;
-            innerBody.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), makeVar(b))));  // r = r - b
-            loopsUsed++;
-            // r ends up as a mod b: repeated subtraction until r < b.
-            outerBody.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), makeVar(b)), std::move(innerBody)));
-        }
+        // r ends up as a mod b: repeated subtraction until r < b.
+        appendSubtractiveDivideWhile(outerBody, r, makeVar(b), loopsUsed, [](std::vector<StmtPtr>&) {});
         outerBody.push_back(makeAssign(a, makeVar(b)));  // a = b
         outerBody.push_back(makeAssign(b, makeVar(r)));  // b = a mod b
 
@@ -707,16 +720,12 @@ StmtPtr genAverageSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUse
 
     root->body.push_back(makeAssign(remainder, makeVar(sum)));  // remainder = sum
     root->body.push_back(makeAssign(quotient, makeIntConst(0)));  // quotient = 0
-    {
-        std::vector<StmtPtr> body;
-        body.push_back(makeAssign(remainder, makeBinOp(ExprKind::Sub, makeVar(remainder), makeVar(0))));  // remainder -= n
+    // Native Ge (see ast/Expr.hpp) makes this a plain, direct
+    // division-by-repeated-subtraction loop -- no compound condition
+    // needed, unlike GcdEuclid's `!=` before Le/Ge/Ne existed.
+    appendSubtractiveDivideWhile(root->body, remainder, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& body) {
         body.push_back(makeAssign(quotient, makeBinOp(ExprKind::Add, makeVar(quotient), makeIntConst(1))));
-        loopsUsed++;
-        // Native Ge (see ast/Expr.hpp) makes this a plain, direct
-        // division-by-repeated-subtraction loop -- no compound condition
-        // needed, unlike GcdEuclid's `!=` before Le/Ge/Ne existed.
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(remainder), makeVar(0)), std::move(body)));
-    }
+    });
     root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(quotient)));  // arr[0] = quotient
 
     return root;
@@ -982,37 +991,23 @@ StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int
     root->body.push_back(makeAssign(base, makeBinOp(ExprKind::Add, makeVar(nv), makeIntConst(1))));  // base = nv + 1
     root->body.push_back(makeAssign(round, makeIntConst(0)));
 
-    std::vector<StmtPtr> roundBody;
-    roundBody.push_back(makeAssign(i, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> iBody;
-        {
+    appendCountingWhile(root->body, round, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& roundBody) {
+        roundBody.push_back(makeAssign(i, makeIntConst(0)));
+        appendCountingWhile(roundBody, i, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
             std::vector<StmtPtr> ifReachedI;
             ifReachedI.push_back(makeAssign(j, makeIntConst(0)));
-            {
-                std::vector<StmtPtr> jBody;
-                {
-                    auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
-                    std::vector<StmtPtr> markReached;
-                    markReached.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)), makeIntConst(1)));
-                    jBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(std::move(edgeIdx)), makeIntConst(1)),
-                                            std::move(markReached)));
-                }
-                jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
-                loopsUsed++;
-                ifReachedI.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(nv)), std::move(jBody)));
-            }
+            appendCountingWhile(ifReachedI, j, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& jBody) {
+                auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
+                std::vector<StmtPtr> markReached;
+                markReached.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)), makeIntConst(1)));
+                jBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(std::move(edgeIdx)), makeIntConst(1)),
+                                        std::move(markReached)));
+            });
             iBody.push_back(makeIf(
                 makeCompare(ExprKind::Eq, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeIntConst(1)),
                 std::move(ifReachedI)));
-        }
-        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-        loopsUsed++;
-        roundBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(iBody)));
-    }
-    roundBody.push_back(makeAssign(round, makeBinOp(ExprKind::Add, makeVar(round), makeIntConst(1))));
-    loopsUsed++;
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(round), makeVar(nv)), std::move(roundBody)));
+        });
+    });
 
     root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(makeVar(nv))));  // arr[0] = arr[nv] (reached[V-1])
 
@@ -1059,26 +1054,19 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
 
     // dist[i] = INF for all i
     root->body.push_back(makeAssign(i, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> initBody;
+    appendCountingWhile(root->body, i, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& initBody) {
         initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i)), makeIntConst(100000)));
-        initBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(initBody)));
-    }
+    });
     root->body.push_back(makeAssignArray(makeIntConst(1), makeIntConst(0)));  // dist[0] = 0
 
     root->body.push_back(makeAssign(round, makeIntConst(0)));
-    std::vector<StmtPtr> roundBody;
-    roundBody.push_back(makeAssign(i, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> iBody;
-        iBody.push_back(makeAssign(j, makeIntConst(0)));
-        {
-            std::vector<StmtPtr> jBody;
-            auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
-            jBody.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
-            {
+    appendCountingWhile(root->body, round, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& roundBody) {
+        roundBody.push_back(makeAssign(i, makeIntConst(0)));
+        appendCountingWhile(roundBody, i, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
+            iBody.push_back(makeAssign(j, makeIntConst(0)));
+            appendCountingWhile(iBody, j, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& jBody) {
+                auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
+                jBody.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
                 std::vector<StmtPtr> relax;
                 auto candDist = makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeVar(w));
                 std::vector<StmtPtr> update;
@@ -1090,18 +1078,9 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
                                 makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)))),
                     std::move(update)));
                 jBody.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(relax)));
-            }
-            jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
-            loopsUsed++;
-            iBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(nv)), std::move(jBody)));
-        }
-        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-        loopsUsed++;
-        roundBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(nv)), std::move(iBody)));
-    }
-    roundBody.push_back(makeAssign(round, makeBinOp(ExprKind::Add, makeVar(round), makeIntConst(1))));
-    loopsUsed++;
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(round), makeVar(nv)), std::move(roundBody)));
+            });
+        });
+    });
 
     root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(makeVar(nv))));  // arr[0] = arr[nv] (dist[V-1])
 
@@ -1159,8 +1138,7 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 
     // Boundary init: table[0][0]=0, table[i][0]=table[0][i]=INF for i>0.
     root->body.push_back(makeAssign(i, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> initBody;
+    appendCountingWhile(root->body, i, makeVar(tw), loopsUsed, [&](std::vector<StmtPtr>& initBody) {
         auto col0 = makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)));
         std::vector<StmtPtr> zeroBranch;
         zeroBranch.push_back(makeAssignArray(std::move(col0), makeIntConst(0)));
@@ -1171,17 +1149,12 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i)), makeIntConst(100000)));
         initBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(i), makeIntConst(0)), std::move(zeroBranch),
                                    std::move(infBranch)));
-        initBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(tw)), std::move(initBody)));
-    }
+    });
 
     root->body.push_back(makeAssign(i, makeIntConst(1)));
-    {
-        std::vector<StmtPtr> iBody;
+    appendCountingWhile(root->body, i, makeVar(tw), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
         iBody.push_back(makeAssign(j, makeIntConst(1)));
-        {
-            std::vector<StmtPtr> jBody;
+        appendCountingWhile(iBody, j, makeVar(tw), loopsUsed, [&](std::vector<StmtPtr>& jBody) {
             jBody.push_back(
                 makeAssign(ai, makeArrayAccess(makeBinOp(ExprKind::Sub, makeBinOp(ExprKind::Add, makeVar(base), makeVar(i)),
                                                           makeIntConst(1)))));
@@ -1219,14 +1192,8 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             }
             auto cellIdx = makeFlatIndex(makeIntConst(1), makeVar(i), makeVar(tw), makeVar(j));
             jBody.push_back(makeAssignArray(std::move(cellIdx), makeBinOp(ExprKind::Add, makeVar(cost), makeVar(best))));
-            jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
-            loopsUsed++;
-            iBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(tw)), std::move(jBody)));
-        }
-        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(tw)), std::move(iBody)));
-    }
+        });
+    });
 
     auto finalIdx = makeFlatIndex(makeIntConst(1), makeVar(n), makeVar(tw), makeVar(n));
     root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(std::move(finalIdx))));  // arr[0] = table[n][n]
@@ -1397,8 +1364,7 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
         stmts.push_back(makeAssign(cost, makeIntConst(0)));
         stmts.push_back(makeAssign(prevVertex, makeIntConst(0)));
         stmts.push_back(makeAssign(valid, makeIntConst(1)));
-        {
-            std::vector<StmtPtr> body;
+        appendCountingWhile(stmts, t, makeVar(size), loopsUsed, [&](std::vector<StmtPtr>& body) {
             auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(prevVertex), makeVar(nv),
                                           makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t))));
             body.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
@@ -1407,10 +1373,7 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
             body.push_back(makeIf(makeCompare(ExprKind::Le, makeVar(w), makeIntConst(0)), std::move(invalidate)));
             body.push_back(makeAssign(cost, makeBinOp(ExprKind::Add, makeVar(cost), makeVar(w))));
             body.push_back(makeAssign(prevVertex, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(t)))));
-            body.push_back(makeAssign(t, makeBinOp(ExprKind::Add, makeVar(t), makeIntConst(1))));
-            loopsUsed++;
-            stmts.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(t), makeVar(size)), std::move(body)));
-        }
+        });
         // Closing edge back to vertex 0.
         {
             auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(prevVertex), makeVar(nv), makeIntConst(0));
@@ -1448,16 +1411,12 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
     std::vector<StmtPtr> mainBranch;
     // perm[k] = k+1 (identity permutation of vertices 1..V-1); c[k] = 0.
     mainBranch.push_back(makeAssign(k, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> initBody;
+    appendCountingWhile(mainBranch, k, makeVar(size), loopsUsed, [&](std::vector<StmtPtr>& initBody) {
         initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(k)),
                                             makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
         initBody.push_back(makeAssignArray(
             makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(size)), makeVar(k)), makeIntConst(0)));
-        initBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
-        loopsUsed++;
-        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(k), makeVar(size)), std::move(initBody)));
-    }
+    });
 
     // Evaluate the identity permutation before entering Heap's algorithm.
     for (auto& s : buildCostAndUpdateBest()) mainBranch.push_back(std::move(s));
@@ -1592,13 +1551,9 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
     // safe since it's overwritten with its real meaning before the main
     // loop ever reads it.
     mainBranch.push_back(makeAssign(c, makeIntConst(0)));
-    {
-        std::vector<StmtPtr> initBody;
+    appendCountingWhile(mainBranch, c, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& initBody) {
         initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeVar(uBase), makeVar(c)), makeIntConst(0)));
-        initBody.push_back(makeAssign(c, makeBinOp(ExprKind::Add, makeVar(c), makeIntConst(1))));
-        loopsUsed++;
-        mainBranch.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(c), makeVar(nv)), std::move(initBody)));
-    }
+    });
     mainBranch.push_back(makeAssignArray(makeIntConst(1), makeIntConst(0)));                     // path[0] = 0
     mainBranch.push_back(makeAssignArray(makeVar(uBase), makeIntConst(1)));                       // used[0] = 1
     mainBranch.push_back(makeAssignArray(makeVar(pcBase), makeIntConst(0)));                      // partialCost[0] = 0
