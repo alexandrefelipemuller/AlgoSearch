@@ -14,6 +14,7 @@
 #include "problems/ContainsProblem.hpp"
 #include "problems/ThreeSumProblem.hpp"
 #include "problems/SingleNumberProblem.hpp"
+#include "problems/DtwProblem.hpp"
 #include "problems/GraphReachabilityProblem.hpp"
 #include "problems/ShortestPathProblem.hpp"
 #include "problems/TspProblem.hpp"
@@ -113,7 +114,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -144,6 +145,7 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "single_number") return std::make_unique<SingleNumberProblem>(4, 40, numVars, seed);
     if (name == "graph_reachability") return std::make_unique<GraphReachabilityProblem>(6, 40, numVars, seed);
     if (name == "shortest_path") return std::make_unique<ShortestPathProblem>(6, 40, numVars, seed);
+    if (name == "dtw") return std::make_unique<DtwProblem>(5, 40, numVars, seed);
     if (name == "tsp") return std::make_unique<TspProblem>(6, 40, numVars, seed);
     return nullptr;
 }

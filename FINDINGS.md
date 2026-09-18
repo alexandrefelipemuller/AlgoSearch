@@ -1105,6 +1105,59 @@ candidate slot.
 Regression discipline: `make test` 58/58 and a clean ASan/UBSan build
 after every change in this section.
 
+## 19. DTW / Frechet-distance-shaped problem: a SETH-conjectured-optimal O(n^2), not just "best known"
+
+Added `DtwProblem` (`dtw`): global-alignment Dynamic Time Warping between
+two equal-length integer sequences A, B (`table[i][j] = |A[i-1]-B[j-1]| +
+min(up, left, diag)`, boundary `table[0][0]=0`, else INF; answer
+`table[n][n]`). Same motivation as the user's original ask (Frechet
+distance / DTW, both O(n^2)): unlike every earlier "can we beat the
+naive complexity" thread here (section 13's gcd/is_prime, which *did*
+have a better algorithm to find), DTW/edit-distance/LCS/Frechet distance
+are all proven SETH-hard for any O(n^{2-eps}) -- Bringmann & Kunnemann
+2015 (Frechet), Backurs & Indyk 2015 (edit distance), Abboud/Backurs/
+Vassilevska-Williams 2015 (LCS, and by the same technique DTW). So O(n^2)
+here isn't a weak baseline waiting to be beaten, it's the conjectured
+final answer -- a genuinely different kind of "ceiling" than gcd's, where
+this project should NOT go looking for something asymptotically better.
+
+Mini-C has no 2D arrays, so the DP table is flattened row-major into a
+scratch region the program must initialize itself, same convention as
+`GraphReachabilityProblem`/`ShortestPathProblem` (`supportsMagnitudeShift()
+= false` for the same non-shiftable-metadata reason).
+
+**Followed the project's standard two-phase protocol:**
+1. **Free search first, no dedicated skeleton** (`ALGOSEARCH_DISABLE_
+   SKELETON` not even needed -- none existed yet): stuck at 11/15 on
+   N=1 within a 20000-step/4.4s budget, matching every other DP-shaped
+   problem's cold-start behavior (graph_reachability, shortest_path,
+   three_sum) before their skeletons existed.
+2. **Researched the standard textbook algorithm, then wrote
+   `genDtwSkeletonBlock`**: one boundary-init pass + one ordered double
+   loop (i then j, both increasing) filling `table[i][j]` from
+   already-computed up/left/diag neighbors -- no round/relaxation loop
+   needed here (unlike Bellman-Ford-style shortest_path), since the DP's
+   dependency order is already a straight line. 11 scratch scalars,
+   `numVars >= 12` gate, `canTripleLoop` budget (boundary + outer +
+   inner loop), same tier as ThreeSum/TSP.
+
+**Result, matched-seed A/B:** with the skeleton in the pool, free search
+(no env-var force) solves N=1..3 exhaustively in 0.04s total, and a
+5-seed `--benchmark` run at N=4 gets 5/5 genuinely-generalizing solutions
+(independently re-verified, not just SUCCESS-labeled), every one fit at
+empirical exponent 1.84-1.88 with r^2=0.99 -- i.e. the search doesn't
+just find *a* correct program, it converges on the true O(n^2) DP every
+time, which is the right outcome for a problem where O(n^2) is
+conjectured optimal rather than a target to beat. `ALGOSEARCH_FORCE_
+SKELETON=dtw` alone (isolating the skeleton from the rest of the
+generic grammar) reproduces the same 5/5 result, confirming the skeleton
+itself is sufficient, same falsification-style check section 15 used
+for ThreeSum.
+
+Not yet folded into a long multi-seed sorting-style sweep; N=4 is as far
+as tested so far. Held-out/adversarial instances (constant-shift,
+ascending-vs-descending, all-equal-A) all passed at every level tried.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,

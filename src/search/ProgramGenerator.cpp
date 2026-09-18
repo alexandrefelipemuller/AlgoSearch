@@ -1180,6 +1180,154 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
     return root;
 }
 
+// Dedicated skeleton for DtwProblem: the textbook O(n^2) global-alignment
+// DP (see DtwProblem.hpp) on the same flattened-table convention as
+// GraphReachability/ShortestPath, but unlike those two this needs no
+// round/relaxation loop -- table[i][j] depends only on cells already
+// computed (up, left, diag), so a single boundary-init pass plus one
+// ordered double loop (i, then j, both increasing) fills it exactly once.
+//
+//   n = arr[0]; tw = n + 1;
+//   base = 1 + tw*tw;      // start of sequence A
+//   baseB = base + n;      // start of sequence B
+//   i = 0;
+//   while (i < tw) {                       // boundary: table[0][*] and table[*][0]
+//     if (i == 0) { arr[1 + i*tw] = 0; }
+//     else { arr[1 + i*tw] = INF; arr[1 + i] = INF; }
+//     i = i + 1;
+//   }
+//   i = 1;
+//   while (i < tw) {
+//     j = 1;
+//     while (j < tw) {
+//       ai = arr[base - 1 + i]; bj = arr[baseB - 1 + j];
+//       diff = ai - bj;
+//       if (diff < 0) { cost = 0 - diff; } else { cost = diff; }
+//       best = arr[1 + (i-1)*tw + j];                              // up
+//       if (arr[1 + i*tw + (j-1)] < best) best = arr[1 + i*tw + (j-1)];      // left
+//       if (arr[1 + (i-1)*tw + (j-1)] < best) best = arr[1 + (i-1)*tw + (j-1)];  // diag
+//       arr[1 + i*tw + j] = cost + best;
+//       j = j + 1;
+//     }
+//     i = i + 1;
+//   }
+//   arr[0] = arr[1 + n*tw + n];   // answer = table[n][n]
+//
+// Needs 11 scratch scalars (n, tw, base, baseB, i, j, ai, bj, diff, cost,
+// best), so numVars >= 12, same tier as TSP. Three loops total (boundary +
+// outer + inner), same canTripleLoop budget gate as ThreeSum/
+// GraphReachability/ShortestPath.
+StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int vars[11];
+    int used = 0;
+    while (used < 11) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int n = vars[0], tw = vars[1], base = vars[2], baseB = vars[3], i = vars[4], j = vars[5], ai = vars[6],
+        bj = vars[7], diff = vars[8], cost = vars[9], best = vars[10];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(n, makeArrayAccess(makeIntConst(0))));  // n = arr[0]
+    root->body.push_back(makeAssign(tw, makeBinOp(ExprKind::Add, makeVar(n), makeIntConst(1))));  // tw = n + 1
+    root->body.push_back(
+        makeAssign(base, makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeVar(tw), makeVar(tw)))));
+    root->body.push_back(makeAssign(baseB, makeBinOp(ExprKind::Add, makeVar(base), makeVar(n))));
+
+    // Boundary init: table[0][0]=0, table[i][0]=table[0][i]=INF for i>0.
+    root->body.push_back(makeAssign(i, makeIntConst(0)));
+    {
+        std::vector<StmtPtr> initBody;
+        auto col0 = makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)));
+        std::vector<StmtPtr> zeroBranch;
+        zeroBranch.push_back(makeAssignArray(std::move(col0), makeIntConst(0)));
+        std::vector<StmtPtr> infBranch;
+        auto col0b = makeBinOp(ExprKind::Add, makeIntConst(1), makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)));
+        infBranch.push_back(makeAssignArray(std::move(col0b), makeIntConst(100000)));
+        infBranch.push_back(
+            makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i)), makeIntConst(100000)));
+        initBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(i), makeIntConst(0)), std::move(zeroBranch),
+                                   std::move(infBranch)));
+        initBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(tw)), std::move(initBody)));
+    }
+
+    root->body.push_back(makeAssign(i, makeIntConst(1)));
+    {
+        std::vector<StmtPtr> iBody;
+        iBody.push_back(makeAssign(j, makeIntConst(1)));
+        {
+            std::vector<StmtPtr> jBody;
+            jBody.push_back(
+                makeAssign(ai, makeArrayAccess(makeBinOp(ExprKind::Sub, makeBinOp(ExprKind::Add, makeVar(base), makeVar(i)),
+                                                          makeIntConst(1)))));
+            jBody.push_back(makeAssign(
+                bj, makeArrayAccess(
+                        makeBinOp(ExprKind::Sub, makeBinOp(ExprKind::Add, makeVar(baseB), makeVar(j)), makeIntConst(1)))));
+            jBody.push_back(makeAssign(diff, makeBinOp(ExprKind::Sub, makeVar(ai), makeVar(bj))));
+            {
+                std::vector<StmtPtr> negBranch;
+                negBranch.push_back(makeAssign(cost, makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(diff))));
+                std::vector<StmtPtr> posBranch;
+                posBranch.push_back(makeAssign(cost, makeVar(diff)));
+                jBody.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(diff), makeIntConst(0)), std::move(negBranch),
+                                        std::move(posBranch)));
+            }
+            auto iMinus1 = makeBinOp(ExprKind::Sub, makeVar(i), makeIntConst(1));
+            auto jMinus1 = makeBinOp(ExprKind::Sub, makeVar(j), makeIntConst(1));
+            auto upIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
+                                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), makeVar(j)));
+            jBody.push_back(makeAssign(best, makeArrayAccess(std::move(upIdx))));
+            auto leftIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
+                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), jMinus1->clone()));
+            {
+                std::vector<StmtPtr> updateLeft;
+                auto leftIdx2 = makeBinOp(
+                    ExprKind::Add, makeIntConst(1),
+                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), jMinus1->clone()));
+                updateLeft.push_back(makeAssign(best, makeArrayAccess(std::move(leftIdx2))));
+                jBody.push_back(
+                    makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(std::move(leftIdx)), makeVar(best)), std::move(updateLeft)));
+            }
+            auto diagIdx = makeBinOp(
+                ExprKind::Add, makeIntConst(1),
+                makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), jMinus1->clone()));
+            {
+                std::vector<StmtPtr> updateDiag;
+                auto diagIdx2 = makeBinOp(
+                    ExprKind::Add, makeIntConst(1),
+                    makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, iMinus1->clone(), makeVar(tw)), jMinus1->clone()));
+                updateDiag.push_back(makeAssign(best, makeArrayAccess(std::move(diagIdx2))));
+                jBody.push_back(
+                    makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(std::move(diagIdx)), makeVar(best)), std::move(updateDiag)));
+            }
+            auto cellIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
+                                      makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(i), makeVar(tw)), makeVar(j)));
+            jBody.push_back(makeAssignArray(std::move(cellIdx), makeBinOp(ExprKind::Add, makeVar(cost), makeVar(best))));
+            jBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+            loopsUsed++;
+            iBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(tw)), std::move(jBody)));
+        }
+        iBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        loopsUsed++;
+        root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(tw)), std::move(iBody)));
+    }
+
+    auto finalIdx = makeBinOp(ExprKind::Add, makeIntConst(1),
+                               makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Mul, makeVar(n), makeVar(tw)), makeVar(n)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(std::move(finalIdx))));  // arr[0] = table[n][n]
+
+    return root;
+}
+
 // Dedicated skeleton for TspProblem: exact brute-force TSP via Heap's
 // algorithm, run ITERATIVELY (no recursion -- Mini-C has none) over the
 // permutations of vertices 1..V-1 (vertex 0 is fixed as the tour's
@@ -1636,7 +1784,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1692,7 +1840,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[13];
+        WeightedOption options[14];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1725,6 +1873,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // (biggest ASTs here, would slow every other problem's search if
         // drawn at a normal skeleton's rate).
         if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
+        if (canTripleLoop && cfg.numVars >= 12 && allowed("dtw")) addOption(Skeleton::Dtw, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1762,6 +1911,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genTspBruteForceSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::TspBranchAndBound:
                     return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::Dtw:
+                    return genDtwSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
     }
