@@ -158,6 +158,37 @@ StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, int target
     }
 }
 
+// Picks `n` distinct scratch-variable indices from [1, cfg.numVars-1]
+// (var 0 is reserved -- the interpreter auto-seeds it with the array
+// length, see Interpreter::run). Every multi-variable dedicated skeleton
+// below used to inline this exact reroll-on-duplicate loop separately
+// (13 byte-identical copies before this extraction, confirmed while
+// cataloguing the skeleton library's primitives -- FINDINGS.md section
+// 24); factored out once nothing else changes: same rng.uniformInt call
+// sequence per call as every inlined copy had, so this is a pure
+// deduplication, not a behavior change -- existing seeded results are
+// unaffected. NOT used by genCountingLoopBlock's vi/acc pick or
+// genRecurrenceSkeletonBlock's a/b pick, which resolve a collision via a
+// modular remap instead of rerolling -- a genuinely different (cheaper,
+// fixed-call-count) algorithm, not accidental duplication, so left
+// untouched rather than folded in here.
+std::vector<int> pickDistinctVars(Random& rng, const GenConfig& cfg, int n) {
+    std::vector<int> vars;
+    vars.reserve(static_cast<size_t>(n));
+    while (static_cast<int>(vars.size()) < n) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int existing : vars) {
+            if (existing == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars.push_back(cand);
+    }
+    return vars;
+}
+
 // The canonical "counting loop" skeleton every array algorithm needs:
 // an index that starts at 0, is bounds-checked against n (var 0, by
 // interpreter convention initialized to the array length), and
@@ -281,19 +312,7 @@ StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) 
 // the naive O(n) version, hence numVars >= 5 (one tier up from the
 // original's numVars >= 3).
 StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[4];
-    int used = 0;
-    while (used < 4) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
     int x = vars[0], d = vars[1], r = vars[2], sq = vars[3];
 
     auto root = makeBlock();
@@ -350,19 +369,7 @@ StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsU
 // simulating). Kept as a separate skeleton alongside the original rather
 // than replacing it, same "measurable A/B" reasoning as GcdModNative.
 StmtPtr genNestedDivisorNativeLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[2];
-    int used = 0;
-    while (used < 2) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 2);
     int x = vars[0], d = vars[1];
 
     auto root = makeBlock();
@@ -576,19 +583,7 @@ StmtPtr genRepeatedMultiplySkeletonBlock(Random& rng, const GenConfig& cfg, int&
         (canConstantFactor && rng.chance(0.5)) ? RepeatedMultiplyKind::ConstantFactor : RepeatedMultiplyKind::IncreasingFactor;
 
     int slotsNeeded = (kind == RepeatedMultiplyKind::ConstantFactor) ? 5 : 4;
-    int vars[5];
-    int used = 0;
-    while (used < slotsNeeded) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, slotsNeeded);
 
     auto root = makeBlock();
 
@@ -666,19 +661,7 @@ StmtPtr genRepeatedMultiplySkeletonBlock(Random& rng, const GenConfig& cfg, int&
 // SelectionSort library-learning experiment below. Needs 4 scratch
 // scalars (vi, sum, remainder, quotient); gated on numVars >= 5.
 StmtPtr genAverageSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[4];
-    int used = 0;
-    while (used < 4) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
     int vi = vars[0], sum = vars[1], remainder = vars[2], quotient = vars[3];
 
     auto root = makeBlock();
@@ -734,19 +717,7 @@ StmtPtr genAverageSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUse
 // skeleton -- gated the same way (>= 4) even though it happens to also
 // need both loop slots like NestedDivisor/Factorial.
 StmtPtr genSelectionSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[3];
-    int used = 0;
-    while (used < 3) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 3);
     int i = vars[0], mi = vars[1], j = vars[2];
 
     auto root = makeBlock();
@@ -811,19 +782,7 @@ StmtPtr genSelectionSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
 // current node and the child it's comparing against), `done` (the
 // sift-down flag). Gated on numVars >= 5 and a full 4-loop budget.
 StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[4];
-    int used = 0;
-    while (used < 4) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
     int k = vars[0], root = vars[1], child = vars[2], done = vars[3];
 
     // Builds one sift-down: `root = <rootInit>; done = 0; while (done==0)
@@ -934,19 +893,7 @@ StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
 // can't double as a loop index the way SelectionSort's `mi` does double
 // duty. Gated on numVars >= 5, same tier as NestedDivisor/Average.
 StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[4];
-    int used = 0;
-    while (used < 4) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
     int i = vars[0], j = vars[1], k = vars[2], found = vars[3];
 
     auto root = makeBlock();
@@ -1019,19 +966,7 @@ StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
 // needs 5 scratch scalars (nv, base, round, i, j), so numVars >= 6, one
 // tier up from ThreeSum's 5.
 StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[5];
-    int used = 0;
-    while (used < 5) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 5);
     int nv = vars[0], base = vars[1], round = vars[2], i = vars[3], j = vars[4];
 
     auto root = makeBlock();
@@ -1109,19 +1044,7 @@ StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int
 // Needs 6 scratch scalars (nv, base, round, i, j, w), so numVars >= 7, one
 // tier up from GraphReachability's 6. Same triple-nested-loop budget gate.
 StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[6];
-    int used = 0;
-    while (used < 6) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 6);
     int nv = vars[0], base = vars[1], round = vars[2], i = vars[3], j = vars[4], w = vars[5];
 
     auto root = makeBlock();
@@ -1218,19 +1141,7 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
 // outer + inner), same canTripleLoop budget gate as ThreeSum/
 // GraphReachability/ShortestPath.
 StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[11];
-    int used = 0;
-    while (used < 11) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
     int n = vars[0], tw = vars[1], base = vars[2], baseB = vars[3], i = vars[4], j = vars[5], ai = vars[6],
         bj = vars[7], diff = vars[8], cost = vars[9], best = vars[10];
 
@@ -1371,19 +1282,7 @@ StmtPtr genBinarySearchSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
         if (stage > 4) stage = 4;
     }
 
-    int vars[8];
-    int used = 0;
-    while (used < 8) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k = 0; k < used; ++k) {
-            if (vars[k] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 8);
     int target = vars[0], lo = vars[1], hi = vars[2], mid = vars[3], v = vars[4], dir = vars[5], diff = vars[6],
         found = vars[7];
 
@@ -1489,19 +1388,7 @@ StmtPtr genBinarySearchSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
 // visits all (V-1)! permutations exactly once, using only scalar state
 // and array swaps -- no recursion, no dynamic-size structures.
 StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[11];
-    int used = 0;
-    while (used < 11) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k2 = 0; k2 < used; ++k2) {
-            if (vars[k2] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
     int nv = vars[0], size = vars[1], base = vars[2], k = vars[3], i = vars[4], t = vars[5], cost = vars[6],
         w = vars[7], prevVertex = vars[8], valid = vars[9], best = vars[10];
 
@@ -1689,19 +1576,7 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
 // tautology, never real pruning; removed after the experiment concluded,
 // see FINDINGS.md section 18.)
 StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    int vars[11];
-    int used = 0;
-    while (used < 11) {
-        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
-        bool dup = false;
-        for (int k2 = 0; k2 < used; ++k2) {
-            if (vars[k2] == cand) {
-                dup = true;
-                break;
-            }
-        }
-        if (!dup) vars[used++] = cand;
-    }
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
     int nv = vars[0], size = vars[1], uBase = vars[2], chBase = vars[3], pcBase = vars[4], mBase = vars[5],
         best = vars[6], level = vars[7], c = vars[8], w = vars[9], cost = vars[10];
 
