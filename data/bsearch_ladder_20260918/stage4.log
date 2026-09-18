@@ -1,0 +1,1400 @@
+[benchmark] seed 1/5 (100)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 3002 | best score = 8/8 | best size = 67 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 3000 candidates
+
+N=1
+  score 8/8
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 67  held-out 104/104
+  program_id 2bc29bbe5ce8a37a  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+
+
+Search finished in 0.121573s
+  profile: gen=0.0697359s score=0.0140406s sort=0.000269162s other=0.0375276s | generated 15106 (124254/s), scored 3003 (24701/s)
+[benchmark] seed 2/5 (101)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 3002 | best score = 8/8 | best size = 67 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 3000 candidates
+
+N=1
+  score 8/8
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 67  held-out 104/104
+  program_id 464ca975ab2d6be4  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v2 = 1;
+v8 = v0;
+v1 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v8)) {
+  v7 = (v2 + ((v8 - v2) / 2));
+  v4 = arr[v7];
+  if ((v4 == v3)) {
+    v1 = 1;
+    v8 = v2;
+  } else {
+    v6 = ((v4 - v3) * v5);
+    if ((v6 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v8 = v7;
+    }
+  }
+}
+arr[0] = v1;
+
+
+Search finished in 0.239582s
+  profile: gen=0.187349s score=0.0167648s sort=0.000320427s other=0.0351473s | generated 15112 (63076/s), scored 3003 (12534/s)
+[benchmark] seed 3/5 (102)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 3002 | best score = 8/8 | best size = 67 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 3000 candidates
+
+N=1
+  score 8/8
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 67  held-out 104/104
+  program_id 483b2a333fd7206e  first_level 1  confirmed_levels 8
+  programa:
+v7 = arr[0];
+v4 = 1;
+v1 = v0;
+v2 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v4 < v1)) {
+  v8 = (v4 + ((v1 - v4) / 2));
+  v3 = arr[v8];
+  if ((v3 == v7)) {
+    v2 = 1;
+    v1 = v4;
+  } else {
+    v6 = ((v3 - v7) * v5);
+    if ((v6 < 0)) {
+      v4 = (v8 + 1);
+    } else {
+      v1 = v8;
+    }
+  }
+}
+arr[0] = v2;
+
+
+Search finished in 0.0681864s
+  profile: gen=0.0452185s score=0.00404799s sort=0.000278465s other=0.0186415s | generated 15095 (221378/s), scored 3003 (44041/s)
+[benchmark] seed 4/5 (103)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 3002 | best score = 8/8 | best size = 67 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 3000 candidates
+
+N=1
+  score 8/8
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 67  held-out 104/104
+  program_id f6a83a3fa9116738  first_level 1  confirmed_levels 8
+  programa:
+v4 = arr[0];
+v2 = 1;
+v6 = v0;
+v8 = 0;
+v5 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v5 = (0 - 1);
+}
+while ((v2 < v6)) {
+  v7 = (v2 + ((v6 - v2) / 2));
+  v3 = arr[v7];
+  if ((v3 == v4)) {
+    v8 = 1;
+    v6 = v2;
+  } else {
+    v1 = ((v3 - v4) * v5);
+    if ((v1 < 0)) {
+      v2 = (v7 + 1);
+    } else {
+      v6 = v7;
+    }
+  }
+}
+arr[0] = v8;
+
+
+Search finished in 0.0605122s
+  profile: gen=0.0441208s score=0.00439416s sort=0.000262937s other=0.0117343s | generated 15122 (249899/s), scored 3003 (49626/s)
+[benchmark] seed 5/5 (104)...
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 1 | best score = 0/8 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+sorted haystack N = 1
+instances = 8
+beam = 3000
+  candidates = 3002 | best score = 8/8 | best size = 67 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 3000 candidates
+
+N=1
+  score 8/8
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 2
+
+N=2
+  score 80/80
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 112/112
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 256/256
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 1024/1024
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 5824/5824
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 384/384
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 384/384
+  size 67  held-out 104/104
+  program_id 9a8013c63dc33e2d  first_level 1  confirmed_levels 8
+  programa:
+v3 = arr[0];
+v7 = 1;
+v4 = v0;
+v5 = 0;
+v2 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v2 = (0 - 1);
+}
+while ((v7 < v4)) {
+  v6 = (v7 + ((v4 - v7) / 2));
+  v1 = arr[v6];
+  if ((v1 == v3)) {
+    v5 = 1;
+    v4 = v7;
+  } else {
+    v8 = ((v1 - v3) * v2);
+    if ((v8 < 0)) {
+      v7 = (v6 + 1);
+    } else {
+      v4 = v6;
+    }
+  }
+}
+arr[0] = v5;
+
+
+Search finished in 0.134525s
+  profile: gen=0.100655s score=0.0133005s sort=0.000307128s other=0.0202631s | generated 15106 (112291/s), scored 3003 (22322/s)
+
+[benchmark] 5 distinct SUCCESS-labeled program(s) found across 5 seed(s). Independently re-verifying generalization...
+
+[benchmark] 5 genuinely generalizing solution(s) kept, 0 rejected.
+
+#   size    time@maxN(us)   exponent  r2      complexity
+*   67      10.399          0.10      0.88    O(1) -- constant
+2   67      11.228          0.10      0.69    O(1) -- constant
+3   67      12.506          0.20      0.90    O(1) -- constant
+4   67      13.799          0.21      0.81    O(1) -- constant
+5   67      14.369          0.20      0.92    O(1) -- constant
+
+(* = fastest at the largest benchmarked size)
+
+=== fastest solution's program ===
+v7 = arr[0];
+v8 = 1;
+v6 = v0;
+v5 = 0;
+v4 = 1;
+if ((arr[1] > arr[(v0 - 1)])) {
+  v4 = (0 - 1);
+}
+while ((v8 < v6)) {
+  v3 = (v8 + ((v6 - v8) / 2));
+  v2 = arr[v3];
+  if ((v2 == v7)) {
+    v5 = 1;
+    v6 = v8;
+  } else {
+    v1 = ((v2 - v7) * v4);
+    if ((v1 < 0)) {
+      v8 = (v3 + 1);
+    } else {
+      v6 = v3;
+    }
+  }
+}
+arr[0] = v5;
+

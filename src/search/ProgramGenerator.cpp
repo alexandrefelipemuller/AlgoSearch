@@ -1328,6 +1328,141 @@ StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return root;
 }
 
+// EXPERIMENT-ONLY, staged skeleton for the "does a converging two-pointer
+// scan let free search complete binary search itself?" question (FINDINGS.md
+// section 20/21: contains_ordered stays a plain linear scan even with
+// budget/diversity/quotas maxed out). Direction-aware binary search over a
+// haystack that may be ascending OR descending (ContainsOrderedProblem's
+// data is never only one direction):
+//   target = arr[0]; lo = 1; hi = v0 (auto array length); found = 0;
+//   dir = 1; if (arr[1] > arr[v0-1]) dir = -1;      // always hand-written
+//   while (lo < hi) {
+//     mid = lo + (hi - lo) / 2; v = arr[mid];
+//     if (v == target) { found = 1; hi = lo; }       // forces loop exit
+//     else { diff = (v - target) * dir; if (diff < 0) lo = mid+1; else hi = mid; }
+//   }
+//   arr[0] = found;
+//
+// `ALGOSEARCH_BSEARCH_STAGE` (1-4, default 4) controls how much of the
+// LOOP BODY is hand-written vs. left as a free-generated "hole" (same
+// technique as TSP's `guardAsHole`, generalized into a ladder instead of
+// one on/off flag), so a sweep across stages finds the exact tipping
+// point where free search can complete the rest on its own:
+//   1: only the converging-loop FRAME (lo/hi init, while(lo<hi), the
+//      final arr[0]=found) is hand-written; the entire loop body,
+//      including computing a midpoint at all, is free-generated.
+//   2: frame + mid/v computation hand-written; the found-check and
+//      lo/hi-movement decision is free-generated.
+//   3: frame + mid/v + the found-check/branch STRUCTURE hand-written;
+//      only the final "which way to move" comparison (the direct analog
+//      of TSP's `cost < best` hole) is a free-generated condition.
+//   4: fully hand-written, no holes -- a sanity check that the complete
+//      algorithm itself converges/generalizes via real search, the same
+//      role ALGOSEARCH_FORCE_SKELETON played for genDtwSkeletonBlock.
+// Registered under the name "binarysearch" for
+// ALGOSEARCH_FORCE_SKELETON/ALGOSEARCH_DISABLE_SKELETON. Needs 8 scratch
+// scalars (target, lo, hi, mid, v, dir, diff, found), numVars >= 9; only
+// ONE loop (no relaxation rounds needed), so canLoop is enough.
+StmtPtr genBinarySearchSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    int stage = 4;
+    if (const char* s = std::getenv("ALGOSEARCH_BSEARCH_STAGE")) {
+        stage = std::atoi(s);
+        if (stage < 1) stage = 1;
+        if (stage > 4) stage = 4;
+    }
+
+    int vars[8];
+    int used = 0;
+    while (used < 8) {
+        int cand = 1 + rng.uniformInt(0, cfg.numVars - 2);
+        bool dup = false;
+        for (int k = 0; k < used; ++k) {
+            if (vars[k] == cand) {
+                dup = true;
+                break;
+            }
+        }
+        if (!dup) vars[used++] = cand;
+    }
+    int target = vars[0], lo = vars[1], hi = vars[2], mid = vars[3], v = vars[4], dir = vars[5], diff = vars[6],
+        found = vars[7];
+
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(target, makeArrayAccess(makeIntConst(0))));
+    root->body.push_back(makeAssign(lo, makeIntConst(1)));
+    root->body.push_back(makeAssign(hi, makeVar(0)));  // v0 = auto array length
+    root->body.push_back(makeAssign(found, makeIntConst(0)));
+
+    // Direction detection: always hand-written at every stage -- not the
+    // object of study here, and without it there is no single correct
+    // comparison direction for the free-generated parts to land on even
+    // in principle.
+    root->body.push_back(makeAssign(dir, makeIntConst(1)));
+    {
+        std::vector<StmtPtr> flip;
+        flip.push_back(makeAssign(dir, makeBinOp(ExprKind::Sub, makeIntConst(0), makeIntConst(1))));
+        auto firstVsLast = makeCompare(ExprKind::Gt, makeArrayAccess(makeIntConst(1)),
+                                        makeArrayAccess(makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1))));
+        root->body.push_back(makeIf(std::move(firstVsLast), std::move(flip)));
+    }
+
+    // Holes are filled via genBlockStmts using a LOCAL, already-maxed-out
+    // loop counter (never the real `loopsUsed`) so canLoop is false inside
+    // them: without this, the loopAccumulatorBias trigger inside a hole
+    // can re-select this very skeleton (ALGOSEARCH_FORCE_SKELETON pins the
+    // choice) and recurse without bound -- confirmed as a real stack
+    // overflow (genStmt -> genBlockStmts -> this function -> genStmt ->
+    // ...) before this guard was added. Holes may still contain If/Assign/
+    // Swap (canNest only needs depthBudget>0), just no new While loops --
+    // appropriate anyway, since a hole here stands in for DECISION logic
+    // inside the loop this skeleton already built, not a second loop.
+    int holeLoopsUsed = cfg.maxLoops;
+    std::vector<StmtPtr> loopBody;
+    if (stage == 1) {
+        loopBody =
+            genBlockStmts(rng, 2, cfg, holeLoopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/false, /*insideWhile=*/true);
+    } else {
+        loopBody.push_back(makeAssign(
+            mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                            makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+        loopBody.push_back(makeAssign(v, makeArrayAccess(makeVar(mid))));
+        if (stage == 2) {
+            auto rest = genBlockStmts(rng, 2, cfg, holeLoopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/false, /*insideWhile=*/true);
+            for (auto& s : rest) loopBody.push_back(std::move(s));
+        } else {
+            std::vector<StmtPtr> foundBranch;
+            foundBranch.push_back(makeAssign(found, makeIntConst(1)));
+            foundBranch.push_back(makeAssign(hi, makeVar(lo)));  // force loop exit next check
+
+            std::vector<StmtPtr> elseBranch;
+            if (stage == 3) {
+                // The decision itself (which analog of TSP's `cost < best`
+                // hole) is the hole: a free-generated condition gates
+                // free-generated lo/hi updates.
+                auto thenBody = genBlockStmts(rng, 2, cfg, holeLoopsUsed, 2, /*insideIf=*/true, /*insideWhile=*/true);
+                auto elseBody2 = genBlockStmts(rng, 2, cfg, holeLoopsUsed, 2, /*insideIf=*/true, /*insideWhile=*/true);
+                elseBranch.push_back(makeIf(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(thenBody), std::move(elseBody2)));
+            } else {  // stage 4: fully hand-written
+                elseBranch.push_back(
+                    makeAssign(diff, makeBinOp(ExprKind::Mul, makeBinOp(ExprKind::Sub, makeVar(v), makeVar(target)), makeVar(dir))));
+                std::vector<StmtPtr> moveRight;
+                moveRight.push_back(makeAssign(lo, makeBinOp(ExprKind::Add, makeVar(mid), makeIntConst(1))));
+                std::vector<StmtPtr> moveLeft;
+                moveLeft.push_back(makeAssign(hi, makeVar(mid)));
+                elseBranch.push_back(
+                    makeIf(makeCompare(ExprKind::Lt, makeVar(diff), makeIntConst(0)), std::move(moveRight), std::move(moveLeft)));
+            }
+            loopBody.push_back(
+                makeIf(makeCompare(ExprKind::Eq, makeVar(v), makeVar(target)), std::move(foundBranch), std::move(elseBranch)));
+        }
+    }
+    loopsUsed++;
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(lo), makeVar(hi)), std::move(loopBody)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(found)));
+
+    return root;
+}
+
 // Dedicated skeleton for TspProblem: exact brute-force TSP via Heap's
 // algorithm, run ITERATIVELY (no recursion -- Mini-C has none) over the
 // permutations of vertices 1..V-1 (vertex 0 is fixed as the tour's
@@ -1784,7 +1919,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1840,7 +1975,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[14];
+        WeightedOption options[15];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1874,6 +2009,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // drawn at a normal skeleton's rate).
         if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
         if (canTripleLoop && cfg.numVars >= 12 && allowed("dtw")) addOption(Skeleton::Dtw, 3);
+        if (canLoop && cfg.numVars >= 9 && allowed("binarysearch")) addOption(Skeleton::BinarySearch, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1913,6 +2049,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genTspBranchAndBoundSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::Dtw:
                     return genDtwSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::BinarySearch:
+                    return genBinarySearchSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
     }

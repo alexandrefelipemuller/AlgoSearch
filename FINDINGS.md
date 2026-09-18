@@ -1280,6 +1280,94 @@ not further tuning of `diversityRate`/`shapeNicheRate`/`scoreBandRate`/
 
 Data: `data/contains_quotas_20260918/` (flags, both run logs, solution JSONs).
 
+## 22. Binary-search "ladder": does the tipping point arrive gradually, or all at once?
+
+Direct follow-up to sections 20-21's open question: rather than jumping
+straight to a full hand-written skeleton, built `genBinarySearchSkeletonBlock`
+as a 4-rung ladder (`ALGOSEARCH_BSEARCH_STAGE=1..4`, registered as
+`binarysearch` for `ALGOSEARCH_FORCE_SKELETON`) with strictly MORE hand-
+written each rung, to find exactly where (if anywhere) free generation
+can pick up and finish the rest on its own -- the direction-aware
+two-pointer scan from section 20's comment (`lo=1; hi=v0; dir` via
+first-vs-last comparison; loop until `lo<hi`; `arr[0]=found` at the end
+is hand-written at every stage, since it's boilerplate, not the
+algorithmic content under study):
+
+1. Only the converging LOOP FRAME hand-written; the entire body
+   (including whether to compute a midpoint at all) is free-generated.
+2. Frame + midpoint (`mid = lo + (hi-lo)/2`, `v = arr[mid]`) also hand-
+   written; the found-check and lo/hi-movement decision is free.
+3. Frame + midpoint + the found-check/branch STRUCTURE hand-written;
+   only the final "which way to move" comparison is a hole (the direct
+   analog of TSP's `cost < best` hole from section 18).
+4. Fully hand-written, no holes.
+
+**Bug found and fixed before any real data**: stage 1 segfaulted
+immediately -- `ALGOSEARCH_FORCE_SKELETON=binarysearch` pins EVERY
+loop-bias skeleton draw to this skeleton, and a hole filled via
+`genBlockStmts` can itself trigger a fresh loop-bias draw, which (being
+forced) re-selects this same skeleton, which fills its own hole the same
+way... unbounded recursion (confirmed via gdb: ~15,000 stacked
+`genStmt`/`genBlockStmts`/`genBinarySearchSkeletonBlock` frames) until
+the stack overflows. Fixed by generating every hole's content against a
+LOCAL loop counter pre-set to `cfg.maxLoops` (never the real
+`loopsUsed`), so `canLoop` reads false inside a hole and it can add
+`If`/`Assign`/`Swap` freely but never a new `While` -- correct anyway,
+since a hole here stands in for decision logic inside the loop this
+skeleton already built, not a second loop. `make test` 58/58 after the
+fix; re-ran the full ladder clean.
+
+**Result, matched 5-seed `--benchmark` per rung, same budget throughout
+(`--max-n 8 --beam-width 3000 --candidates 3000 --step-limit 20000
+--num-vars 9 --loop-bias 1.0`, `ALGOSEARCH_FORCE_SKELETON=binarysearch`
+so ordinary linear-scan noise can't contaminate what's being measured):
+
+| stage | hand-written | result |
+|---|---|---|
+| 1 | frame only | 0/5 -- every seed stuck at N=2, 60/80, ~700s each |
+| 2 | + midpoint | 0/5 -- identical plateau (60/80 at N=2), midpoint alone bought nothing |
+| 3 | + branch structure, comparison is a hole | 1/5 solves, but degenerates to **O(n)**, not O(log n) |
+| 4 | fully hand-written | 5/5, genuinely generalizing, exact algorithm |
+
+Stage 3's one surviving solution is the same failure mode section 18
+already found for TSP's `guardAsHole`: the hole converges to a
+tautology (`v0 < 1`, always false for any real haystack) that makes an
+entire branch permanently dead code, while the branch that's ALWAYS
+taken degenerates the search into `hi = hi - 1` every iteration (plus an
+unrelated `swap`) -- i.e. it satisfies correctness by shrinking the
+range by a constant 1 each time instead of halving it, which is exactly
+why it benchmarks as linear rather than logarithmic. **This is not a
+smaller/weaker version of binary search -- it's a different, slower
+algorithm that happens to still be correct**, discovered specifically
+because it was easier to construct than genuine bisection.
+
+**Conclusion: there is no gradual tipping point.** Free generation
+can't take advantage of the frame alone (1), the frame+midpoint (2), or
+even a fully-structured branch skeleton missing only one comparison (3)
+-- at every rung short of writing the whole thing, it either stalls
+completely or finds a degenerate correct-but-not-faster escape hatch.
+Only handing over the ENTIRE algorithm (4) produces the real answer.
+This sharpens sections 18/20/21's standing conclusion rather than
+contradicting it: it's not just that new algorithmic shapes need a
+skeleton -- it's that even generously scaffolded PARTIAL skeletons don't
+reliably get finished correctly by free search either, because "still
+correct, but via a cheaper degenerate shortcut" is always closer at hand
+than the genuinely intended structure once only one piece is missing.
+
+**Next question this opens, not yet run:** stage 4 is a real, complete,
+validated skeleton -- the natural next step (same as every other
+`gen*SkeletonBlock` in this file) is adding it to the default pool
+un-forced and checking whether it ever gets SELECTED over the
+already-known linear scan once both are available, given
+`BeamSearch.cpp`'s score-then-size tie-break (section 20's mechanistic
+finding: a same-scoring but structurally BIGGER program always loses
+that tie-break) -- i.e. does `speedBonusWeight` need to be on for the
+size-67 O(log n) skeleton to ever outrank the size-27 O(n) scan once
+both are constructible, or does it win anyway once it reaches 100% first
+in some run order. Not yet tested.
+
+Data: `data/bsearch_ladder_20260918/` (per-stage logs + solution JSONs).
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
