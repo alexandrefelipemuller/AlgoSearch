@@ -1,0 +1,97 @@
+=== sorting ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   37      47452.377       1.96      1.00    O(n^2) -- quadratic
+2   37      47683.700       1.93      1.00    O(n^2) -- quadratic
+3   37      53105.372       1.95      1.00    O(n^2) -- quadratic
+=== min ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   26      70.269          0.96      1.00    O(n) -- linear
+2   26      71.744          0.96      1.00    O(n) -- linear
+3   26      74.242          0.96      1.00    O(n) -- linear
+=== max ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   26      71.487          0.95      1.00    O(n) -- linear
+2   26      77.802          0.96      1.00    O(n) -- linear
+3   26      78.277          0.96      1.00    O(n) -- linear
+=== sum ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   22      67.036          0.97      1.00    O(n) -- linear
+2   22      67.942          0.98      1.00    O(n) -- linear
+3   22      71.767          0.86      0.99    O(n) -- linear
+=== contains ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   27      68.760          0.97      1.00    O(n) -- linear
+2   27      69.384          0.95      0.98    O(n) -- linear
+3   27      86.588          1.07      0.99    O(n) -- linear
+=== contains_ordered ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   27      67.348          0.96      1.00    O(n) -- linear
+2   27      67.515          0.97      1.00    O(n) -- linear
+3   27      69.245          0.71      0.95    O(sqrt n) -- square root
+=== is_prime ===
+[benchmark] 2 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   36      2.785           0.58      0.91    O(sqrt n) -- square root
+2   36      3.083           0.50      0.85    O(sqrt n) -- square root
+=== gcd ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   23      0.119           0.00      0.00    O(1) -- constant
+2   23      0.119           -0.12     0.43    O(1) -- constant
+3   23      0.148           -0.03     0.02    O(1) -- constant
+=== mod ===
+=== factorial ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   38      43048.848       1.93      1.00    O(n^2) -- quadratic
+2   38      43789.314       1.93      1.00    O(n^2) -- quadratic
+3   38      79508.720       1.95      1.00    O(n^2) -- quadratic
+=== fibonacci ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   28      113.672         0.95      1.00    O(n) -- linear
+2   28      183.848         0.95      1.00    O(n) -- linear
+3   28      233.851         1.02      0.98    O(n) -- linear
+=== count ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   29      206.290         0.99      0.98    O(n) -- linear
+2   29      278.382         0.95      1.00    O(n) -- linear
+3   29      420.519         0.95      1.00    O(n) -- linear
+=== average ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   38      516.270         1.14      0.99    O(n) -- linear
+2   38      570.195         1.00      1.00    O(n) -- linear
+3   38      606.899         1.04      0.97    O(n) -- linear
+=== reverse ===
+=== power ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   39      236.499         1.00      1.00    O(n) -- linear
+2   39      246.451         0.98      1.00    O(n) -- linear
+3   39      250.185         0.99      1.00    O(n) -- linear
+=== three_sum ===
+=== single_number ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   22      144.754         0.97      1.00    O(n) -- linear
+2   22      147.326         0.97      1.00    O(n) -- linear
+3   22      149.520         0.99      1.00    O(n) -- linear
+=== graph_reachability ===
+=== shortest_path ===
+[benchmark] 0 genuinely generalizing solution(s) kept, 0 rejected.
+=== tsp ===
+[benchmark] 0 genuinely generalizing solution(s) kept, 3 rejected.
+=== dtw ===
+[benchmark] 3 genuinely generalizing solution(s) kept, 0 rejected.
+#   size    time@maxN(us)   exponent  r2      complexity
+*   184     208006.169      1.83      0.99    O(n^2) -- quadratic
+2   184     232579.184      1.86      0.99    O(n^2) -- quadratic
+3   184     236211.123      1.85      0.99    O(n^2) -- quadratic
