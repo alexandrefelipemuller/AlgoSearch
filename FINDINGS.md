@@ -1158,6 +1158,54 @@ Not yet folded into a long multi-seed sorting-style sweep; N=4 is as far
 as tested so far. Held-out/adversarial instances (constant-shift,
 ascending-vs-descending, all-equal-A) all passed at every level tried.
 
+## 20. contains_ordered at a large budget + high diversity: still no binary search, matched A/B
+
+Ran `contains` vs `contains_ordered` head-to-head with matched config
+(`--max-n 10 --beam-width 4000 --candidates 4000 --max-program-size 80
+--step-limit 30000 --num-vars 8 --diversity-rate 0.4`, `--benchmark
+--benchmark-seeds 5`, same seed base) to test the hypothesis in
+`ContainsOrderedProblem.hpp`'s own comment: would raising budget and
+diversity let the same generic search spontaneously discover a
+sub-linear (doubling/bisection) shape once the data (a sorted haystack)
+actually rewards it, given `Div` is reachable (8% substitution chance in
+`genValueExpr`, see section 17) so `mid = (lo+hi)/2`-style bisection is
+at least expressible.
+
+**Result: negative, clean 5/5 vs 4/4 match.** Both problems converged to
+the exact same program shape in every seed -- a plain linear scan, and
+`contains_ordered`'s version doesn't even add an early-exit once the
+target is found/passed:
+```
+v1 = arr[0]; v3 = 0; v6 = 1;
+while (v6 < v0) { if (arr[v6] == v1) { v3 = 1; } v6 = v6 + 1; }
+arr[0] = v3;
+```
+Both benchmark at O(n), exponent ~0.96-1.07, r^2>=0.97-1.00 -- no
+measurable exploitation of sortedness at all, let alone sub-linear
+comparisons. Timing is near-identical between the two problems (contains
+56-114us vs contains_ordered 56-62us at max N), consistent with the same
+algorithm running on both.
+
+This lines up with section 18's TSP conclusion (free search cannot
+compose an unfamiliar *shape* -- there, "prune using a partial-solution
+bound"; here, "stop early / bisect using a monotonicity precondition" --
+from generic mutation/diversity alone) rather than contradicting it:
+diversity and budget widen exploration of the SAME representational
+neighborhood, they don't create a path to a qualitatively different
+control-flow idiom (`while (lo<hi) { probe mid; halve the range }`) that
+the grammar can express but essentially never stumbles into by chance
+given how deep in expression-space `Div` sits at an 8%-per-node
+substitution rate. No dedicated `containsordered`/binary-search skeleton
+exists yet in `ProgramGenerator.cpp` -- adding one (mirroring
+`genDtwSkeletonBlock`'s approach: hand-write the doubling/bisection
+shape, verify it against the O(n) linear baseline via
+`ALGOSEARCH_FORCE_SKELETON`) is the natural next step if sub-linear
+`contains_ordered` is worth pursuing, same protocol as every other
+missing-shape problem in this log.
+
+Data: `data/contains_binarysearch_20260918/` (both run logs + solution
+JSONs).
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
