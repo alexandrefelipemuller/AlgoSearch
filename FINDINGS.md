@@ -1423,6 +1423,98 @@ this investigation -- or (b) starting the search past the trivial-scan-
 discovery regime some other way. Not pursued further here; flagged as
 an open thread below rather than assumed away.
 
+## 24. Cataloguing the skeleton library: which primitives actually recur, and which are irreducible
+
+Prompted by the binary-search ladder (sections 22-23): if the search is
+this dependent on hand-written skeletons -- nothing without one, full
+convergence with one -- the "intelligence" claimed for this project is
+concentrated in the ~15 `gen*SkeletonBlock`/`gen*LoopBlock` functions in
+`ProgramGenerator.cpp`, not in the search mechanism around them. Read
+every one of them start to finish and sorted their contents into
+primitives, to see how much is genuinely reused vs. how much is
+irreducibly one-off per skeleton.
+
+**Primitives that recur across MANY skeletons (the load-bearing, already-
+shared vocabulary):**
+- **Counting loop** (`vi=0; while(vi<v0){body; vi=vi+1;}`): the single
+  most reused shape -- `genCountingLoopBlock`'s five `AccumKind`s,
+  `genAverageSkeletonBlock`'s sum phase, `SelectionSort`'s inner/outer
+  loops, `ThreeSum`'s three nested loops, `GraphReachability`/
+  `ShortestPath`'s i/j loops, TSP's per-permutation cost-eval loop.
+- **Captured scalar from `arr[0]` before the loop starts** ("query/
+  target capture"): `Membership`/`CountIf`'s target, `NestedDivisor`'s
+  `x`, `GcdEuclid`'s a/b seeds, `DtwProblem`'s `n`, TSP's `nv`,
+  `BinarySearch`'s `target`.
+- **Compare-and-replace running best** (`if (cand < best) best = cand`):
+  `Min`/`Max` `AccumKind`, `SelectionSort`'s `mi`, `HeapSort`'s sift
+  comparisons, TSP's `best`.
+- **Flattened-2D-into-1D indexing** (`base + i*width + j`):
+  `GraphReachability`, `ShortestPath`, `DtwProblem`, TSP's edge matrix --
+  4 independent skeletons, all hand-deriving the same trick because
+  Mini-C has no native 2D array.
+- **Division/mod via repeated subtraction** (`while (r>=n){r=r-n;
+  q=q+1;}`): `Average`'s divide phase, `GcdEuclid`/`GcdMod`'s inner mod
+  loop -- later given a native-primitive sibling (`GcdModNative`,
+  `NestedDivisorNative`, section 17) once `Mod`/`Div`/`Mul` existed.
+- **Sentinel/done flag scalar**: `ThreeSum`'s `found`, `HeapSort`'s
+  `done`, TSP's `valid`, `BinarySearch`'s `found`.
+
+**Primitives that appear in exactly ONE skeleton (irreducible so far --
+and notably, every one of these corresponds to a genuinely different
+ALGORITHM CLASS, not a different PROBLEM):**
+- **Converging two-pointer loop** (`while(lo<hi){...halve the range...}`)
+  -- only `genBinarySearchSkeletonBlock`. Confirmed in sections 20-23 to
+  never emerge from the shared vocabulary above, at any scaffolding
+  level short of writing it whole.
+- **Fixed-round relaxation** (`round=0; while(round<n){ nested i,j
+  passes }; round=round+1;`) -- `GraphReachability`/`ShortestPath` share
+  this one (2 skeletons, not 1), needed specifically because Bellman-
+  Ford-style relaxation has no already-correct visitation order.
+- **Ordered single-pass DP fill** (i then j strictly increasing, no
+  rounds, because every cell depends only on already-computed
+  neighbors) -- only `DtwProblem`. Looks superficially like the
+  relaxation shape above (both fill a flattened 2D table) but is
+  actually a different, cheaper primitive that only works when the
+  DP's dependency order is already linear -- confusing the two would
+  have been a real bug.
+- **Countdown loop + flag-loop-instead-of-break** (`k=n-1; while(k>=0)
+  {...}`, and `done=0; while(done==0){...; if (cond) done=1;}`) --
+  both only in `HeapSort`'s sift-down, working around Mini-C having
+  neither `break` nor a natural way to loop from the top down without
+  hand-picking `>=0` as the bound.
+- **AND-via-nested-if** (no `&&` in Mini-C) -- only `HeapSort`'s
+  two-condition child-index checks; every other skeleton either needs
+  no compound condition or expresses it additively (section 9).
+- **Iterative permutation enumeration** (Heap's algorithm via an
+  explicit counter array, no recursion) -- only TSP brute force.
+- **Explicit choice-stack DFS with backtracking** (`path[]`/`used[]`/
+  `level` standing in for a call stack) -- only TSP branch-and-bound.
+- **Cost-based pruning guard** (`if (cost < best) ...`) -- only TSP
+  branch-and-bound, and per section 18's four independent rescue
+  attempts, the ONE piece in this entire catalogue that free search
+  could never reconstruct even when everything else was handed to it.
+
+**What this says about where the earlier strategic question (expand
+categories vs. generalize now) should land:** the skeletons that
+LOOK numerous (15) mostly recombine a small, already-reused core of
+~6 primitives above -- most of the effort in this project's problem
+count came from recombining those, not from inventing new control-flow
+each time. The real "new intelligence" moments were rare and cluster
+exactly where a problem needed a genuinely different algorithm CLASS
+(search/pruning, permutation enumeration, heap operations, two-pointer
+convergence, round-based relaxation vs. ordered-pass DP) -- five
+distinct one-off primitives across 15 skeletons and ~20 problems. This
+directly informs the held-out test discussed above: a new problem whose
+natural algorithm reuses the shared core (counting loop + running-best +
+flattened indexing, recombined differently) is a real test of whether
+decomposing that core into standalone primitives helps composition; a
+problem needing a SIXTH one-off primitive (most likely candidate:
+classic 1D DP like LIS/coin-change, which needs "read several already-
+computed table entries and take a max/min over them," structurally
+unlike anything in this catalogue) will almost certainly need a human-
+written skeleton regardless, matching TSP/BinarySearch's precedent
+exactly.
+
 ## Open threads, roughly in the order they were flagged as next steps
 
 1. Sorting stress test at a properly matched budget (loop-bias=0.4-ish,
