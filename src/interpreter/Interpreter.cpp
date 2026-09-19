@@ -1,5 +1,6 @@
 #include "interpreter/Interpreter.hpp"
 
+#include <algorithm>
 #include <limits>
 
 #include "ast/Expr.hpp"
@@ -19,9 +20,23 @@ enum class Flow : unsigned char { Ok, Return, Continue, Break, Timeout, Error };
 struct Environment {
     std::vector<int> vars;
     std::vector<int> arr;
+    // Second working array (see ExprKind::AuxAccess/StmtKind::AssignAux),
+    // always allocated (zero-initialized, same length as arr) so no extra
+    // per-run branch is needed -- a program that never emits an aux
+    // read/write simply never looks at it, byte-identical to before this
+    // field existed.
+    std::vector<int> aux;
     long steps = 0;
     long stepLimit = 0;
     Flow flow = Flow::Ok;
+    // Recursion extension (see StmtKind::Call). `root` points at the whole
+    // program being run so a Call can re-enter it; only ever read, never
+    // owned. recursionDepth/maxRecursionDepth guard against a self-call
+    // that never shrinks its (lo,hi) range from overflowing the real C++
+    // call stack.
+    const Stmt* root = nullptr;
+    long recursionDepth = 0;
+    long maxRecursionDepth = 0;
 };
 
 // True once execution must stop unwinding towards run(); every recursive
@@ -53,6 +68,15 @@ int evalExpr(const Expr& e, Environment& env) {
                 return 0;
             }
             return env.arr[idx];
+        }
+        case ExprKind::AuxAccess: {
+            int idx = evalExpr(*e.lhs, env);
+            if (aborted(env)) return 0;
+            if (idx < 0 || static_cast<size_t>(idx) >= env.aux.size()) {
+                env.flow = Flow::Error;
+                return 0;
+            }
+            return env.aux[idx];
         }
         case ExprKind::Add:
         case ExprKind::Sub:
@@ -164,6 +188,47 @@ void execStmt(const Stmt& s, Environment& env) {
             env.arr[idx] = value;
             break;
         }
+        case StmtKind::AssignAux: {
+            int idx = evalExpr(*s.indexExpr, env);
+            if (aborted(env)) return;
+            int value = evalExpr(*s.valueExpr, env);
+            if (aborted(env)) return;
+            if (idx < 0 || static_cast<size_t>(idx) >= env.aux.size()) {
+                env.flow = Flow::Error;
+                return;
+            }
+            env.aux[idx] = value;
+            break;
+        }
+        case StmtKind::Call: {
+            int lo = evalExpr(*s.indexExpr, env);
+            if (aborted(env)) return;
+            int hi = evalExpr(*s.indexExpr2, env);
+            if (aborted(env)) return;
+            if (env.recursionDepth >= env.maxRecursionDepth) {
+                env.flow = Flow::Error;
+                return;
+            }
+            // Fresh callee frame: same convention as the initial top-level
+            // call (v0 = n), plus v1/v2 seeded from this call's arguments
+            // ("lo"/"hi") -- the two extra reserved scalars a recursive
+            // divide-and-conquer program uses to know its own sub-range.
+            // Ordinary call-by-value: saved and restored around the call so
+            // the caller's own locals are untouched by whatever the callee
+            // does to its copies.
+            std::vector<int> savedVars = env.vars;
+            std::fill(env.vars.begin(), env.vars.end(), 0);
+            if (!env.vars.empty()) env.vars[0] = static_cast<int>(env.arr.size());
+            if (env.vars.size() > 1) env.vars[1] = lo;
+            if (env.vars.size() > 2) env.vars[2] = hi;
+            env.recursionDepth++;
+            execStmt(*env.root, env);
+            env.recursionDepth--;
+            if (env.flow == Flow::Return) env.flow = Flow::Ok;  // ends the callee's frame only, not the caller's
+            if (aborted(env)) return;  // Timeout/Error propagates all the way up
+            env.vars = std::move(savedVars);
+            break;
+        }
         case StmtKind::If: {
             int cond = evalExpr(*s.cond, env);
             if (aborted(env)) return;
@@ -239,9 +304,17 @@ RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, i
     env.vars.assign(static_cast<size_t>(numVars), 0);
     if (numVars > 0) env.vars[0] = static_cast<int>(input.size());
     env.arr.assign(input.begin(), input.end());
+    env.aux.assign(input.size(), 0);
     env.steps = 0;
     env.stepLimit = stepLimit_;
     env.flow = Flow::Ok;
+    env.root = &program;
+    env.recursionDepth = 0;
+    env.maxRecursionDepth = maxRecursionDepth_;
+    if (seedRecursionBounds_ && numVars > 2) {
+        env.vars[1] = 0;
+        env.vars[2] = static_cast<int>(input.size());
+    }
 
     execStmt(program, env);
 

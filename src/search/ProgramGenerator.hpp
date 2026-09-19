@@ -160,6 +160,32 @@ struct GenConfig {
     //    beam-width/candidates never found it by chance (stuck flat at
     //    72/100 the whole time; see data/new_problems/).
     //
+    // Language extension, added to test whether the "architecture ceiling"
+    // discussed in FINDINGS.md (no recursion, no second array -> quicksort/
+    // merge sort/timsort/etc. are inexpressible no matter how much search
+    // budget or diversity is thrown at it) is really the bottleneck, or
+    // whether the search just never needed to explore that far. Both knobs
+    // default to 0.0 (fully opt-in, reproduces prior behavior exactly for
+    // every problem that doesn't explicitly raise them) and, like
+    // loopAccumulatorBias/the arithmetic extension, are deliberately raw
+    // grammar primitives (a probability of substituting AuxAccess for
+    // ArrayAccess, a probability of emitting a bare Call statement) rather
+    // than a hand-authored quicksort/mergesort skeleton -- the point of the
+    // experiment is to see what the free search does with the primitive
+    // available, not to hand it the answer.
+    //
+    // Probability, wherever the generic statement generator would emit an
+    // AssignArray (arr[i]=...), of emitting AssignAux (aux[i]=...) instead;
+    // same substitution for ArrayAccess vs AuxAccess inside genValueExpr.
+    // See ExprKind::AuxAccess / StmtKind::AssignAux.
+    double secondArrayBias = 0.0;
+    // Probability, at any generic-statement generation point, of emitting a
+    // self-recursive Call(loExpr, hiExpr) instead. See StmtKind::Call and
+    // Interpreter.cpp's reserved v1(lo)/v2(hi) convention. Requires
+    // numVars >= 3 to be meaningful (silently has no effect below that,
+    // same "never breaks, just inert" pattern as the other opt-in biases).
+    double recursionCallBias = 0.0;
+
     // These are NOT separate opt-in flags one problem-by-problem run has
     // to be told to turn on (an earlier version of this file did exactly
     // that -- nestedDivisorLoopBias/gcdEuclidSkeletonBias CLI flags,

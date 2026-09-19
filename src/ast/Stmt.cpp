@@ -54,6 +54,22 @@ StmtPtr makeAssignArray(ExprPtr index, ExprPtr value) {
     return n;
 }
 
+StmtPtr makeAssignAux(ExprPtr index, ExprPtr value) {
+    auto n = std::make_unique<Stmt>();
+    n->kind = StmtKind::AssignAux;
+    n->indexExpr = std::move(index);
+    n->valueExpr = std::move(value);
+    return n;
+}
+
+StmtPtr makeCall(ExprPtr loExpr, ExprPtr hiExpr) {
+    auto n = std::make_unique<Stmt>();
+    n->kind = StmtKind::Call;
+    n->indexExpr = std::move(loExpr);
+    n->indexExpr2 = std::move(hiExpr);
+    return n;
+}
+
 StmtPtr makeIf(ExprPtr cond, std::vector<StmtPtr> body, std::vector<StmtPtr> elseBody) {
     auto n = std::make_unique<Stmt>();
     n->kind = StmtKind::If;

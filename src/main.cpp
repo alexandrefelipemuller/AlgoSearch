@@ -60,6 +60,8 @@ struct CliArgs {
     double controlFlowBias = 0.0;
     double exprMutationRate = 0.0;
     double adaptiveSkeletonBiasRate = 0.0;
+    double secondArrayBias = 0.0;
+    double recursionCallBias = 0.0;
     std::string adaptiveBiasLog;
     std::string output = "solutions.json";
     bool benchmark = false;
@@ -100,6 +102,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--control-flow-bias") args.controlFlowBias = std::stod(next("--control-flow-bias"));
         else if (arg == "--expr-mutation-rate") args.exprMutationRate = std::stod(next("--expr-mutation-rate"));
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
+        else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
+        else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--benchmark") args.benchmark = true;
@@ -121,6 +125,7 @@ void printUsage() {
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--expr-mutation-rate 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
+                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] "
                  "[--benchmark] [--benchmark-seeds 5]\n";
 }
@@ -197,6 +202,8 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
         config.genConfig.controlFlowBias = args.controlFlowBias;
         config.genConfig.exprMutationRate = args.exprMutationRate;
+        config.genConfig.secondArrayBias = args.secondArrayBias;
+        config.genConfig.recursionCallBias = args.recursionCallBias;
 
         std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
         BeamSearch search(*problem, config);
@@ -235,14 +242,15 @@ void runBenchmarkMode(const CliArgs& args) {
         res.programText = c.programText;
         res.programSize = c.programSize;
         std::string reason;
-        res.generalizes = verifyGeneralization(*problemForEval, *c.program, kBenchmarkStepLimit, reason);
+        res.generalizes =
+            verifyGeneralization(*problemForEval, *c.program, kBenchmarkStepLimit, reason, args.recursionCallBias > 0.0);
         if (!res.generalizes) {
             res.failureReason = reason;
             rejected++;
             std::cout << "  REJECTED (does not generalize): " << reason << "\n";
             continue;
         }
-        res.timings = timeProgram(*problemForEval, *c.program, kBenchmarkStepLimit, sizes);
+        res.timings = timeProgram(*problemForEval, *c.program, kBenchmarkStepLimit, sizes, args.recursionCallBias > 0.0);
         auto [exponent, r2] = fitPowerLaw(res.timings);
         res.exponent = exponent;
         res.r2 = r2;
@@ -323,6 +331,8 @@ int main(int argc, char** argv) {
     config.genConfig.controlFlowBias = args.controlFlowBias;
     config.genConfig.exprMutationRate = args.exprMutationRate;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
+    config.genConfig.secondArrayBias = args.secondArrayBias;
+    config.genConfig.recursionCallBias = args.recursionCallBias;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
 
     BeamSearch search(*problem, config);

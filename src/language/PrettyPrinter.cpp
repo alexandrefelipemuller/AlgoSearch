@@ -53,6 +53,8 @@ std::string printExpr(const Expr& e) {
             return varName(e.varIndex);
         case ExprKind::ArrayAccess:
             return "arr[" + printExpr(*e.lhs) + "]";
+        case ExprKind::AuxAccess:
+            return "aux[" + printExpr(*e.lhs) + "]";
         case ExprKind::Add:
         case ExprKind::Sub:
         case ExprKind::Lt:
@@ -105,6 +107,14 @@ std::string printStmt(const Stmt& s, int indent) {
             printStmtList(out, s.body, indent + 1);
             indentLine(out, indent);
             out << "}\n";
+            break;
+        case StmtKind::AssignAux:
+            indentLine(out, indent);
+            out << "aux[" << printExpr(*s.indexExpr) << "] = " << printExpr(*s.valueExpr) << ";\n";
+            break;
+        case StmtKind::Call:
+            indentLine(out, indent);
+            out << "call(" << printExpr(*s.indexExpr) << ", " << printExpr(*s.indexExpr2) << ");\n";
             break;
         case StmtKind::Swap:
             indentLine(out, indent);

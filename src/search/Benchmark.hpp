@@ -45,12 +45,18 @@ struct BenchmarkResult {
 // it was searched against (a "gambiarra") will fail here even if the
 // search itself labeled it SUCCESS/UNCONFIRMED. Returns the failure
 // description in `outReason` when it returns false.
-bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason);
+// seedRecursionBounds: pass through whatever the search itself used (see
+// Interpreter's constructor) so a program that relies on the recursion
+// extension's v1(lo)/v2(hi) convention is re-verified under the exact same
+// semantics it was found under, not silently different ones.
+bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason,
+                          bool seedRecursionBounds = false);
 
 // Times `program` at each size in `sizes`, running enough repetitions per
 // size to get a stable average (see Benchmark.cpp for the calibration
 // rule). Assumes the program has already passed verifyGeneralization.
-std::vector<TimingPoint> timeProgram(const Problem& problem, const Stmt& program, long stepLimit, const std::vector<int>& sizes);
+std::vector<TimingPoint> timeProgram(const Problem& problem, const Stmt& program, long stepLimit, const std::vector<int>& sizes,
+                                      bool seedRecursionBounds = false);
 
 // Fits time ~ c * n^exponent via least squares on log-log data and
 // classifies the exponent into a human-readable complexity label.

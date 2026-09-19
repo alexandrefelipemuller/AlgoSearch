@@ -16,7 +16,21 @@ namespace algosearch {
 // relying on wall-clock time.
 class Interpreter {
 public:
-    explicit Interpreter(long stepLimit) : stepLimit_(stepLimit) {}
+    // maxRecursionDepth guards the recursion extension's Call statement
+    // (see StmtKind::Call): a hard cap on self-call nesting, independent of
+    // stepLimit, because unbounded recursion overflows the real C++ call
+    // stack long before a generous stepLimit would flag it as a timeout.
+    // Irrelevant (never checked) for any program that never emits Call.
+    // seedRecursionBounds: when true, the initial (non-recursive) call also
+    // seeds v1=0/v2=n -- the same "lo"/"hi" reserved-variable convention a
+    // recursive Call uses (see StmtKind::Call) -- so a divide-and-conquer
+    // skeleton's top-level entry is self-similar with every recursive
+    // frame instead of needing special-cased code for "am I the outermost
+    // call". False (default) reproduces prior behavior exactly: v1/v2 stay
+    // ordinary zero-initialized scratch scalars, unchanged for every
+    // problem/run that doesn't opt into the recursion extension.
+    explicit Interpreter(long stepLimit, long maxRecursionDepth = 200, bool seedRecursionBounds = false)
+        : stepLimit_(stepLimit), maxRecursionDepth_(maxRecursionDepth), seedRecursionBounds_(seedRecursionBounds) {}
 
     // Runs `program` (a Block) with `input` loaded into the array and
     // `numVars` scalar variables (all initialized to 0, except var 0 which
@@ -31,6 +45,8 @@ public:
 
 private:
     long stepLimit_;
+    long maxRecursionDepth_;
+    bool seedRecursionBounds_;
 };
 
 }  // namespace algosearch

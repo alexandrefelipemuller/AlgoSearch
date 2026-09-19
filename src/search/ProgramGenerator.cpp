@@ -51,6 +51,9 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     int choice = rng.uniformInt(0, 3);
     switch (choice) {
         case 0:
+            if (cfg.secondArrayBias > 0.0 && rng.chance(cfg.secondArrayBias)) {
+                return makeAuxAccess(genValueExpr(rng, depthBudget - 1, cfg));
+            }
             return makeArrayAccess(genValueExpr(rng, depthBudget - 1, cfg));
         case 1:
             return makeBinOp(ExprKind::Add, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
@@ -1684,6 +1687,141 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
 // A self-increment `v = v + 1` for a random variable -- the specific
 // idiom the forensic analysis found in 94.5% of generalizing programs
 // (100% for min/max/sum) vs. 37.7% of non-generalizers.
+// Divide-and-conquer extension (opt-in: requires GenConfig::recursionCallBias
+// > 0.0, see StmtKind::Call/ExprKind::AuxAccess in ast/Stmt.hpp and
+// ast/Expr.hpp). Hands the generator the one atomic shape a merge-sort/
+// quicksort-like algorithm needs -- split [lo,hi) at its midpoint and
+// recurse on each half -- same "give the coordinated unit, leave the
+// content free" principle as genCountingLoopBlock (finding #7 of
+// FINDINGS.md established that a marginal per-statement nudge toward a
+// single ingredient, without the atomic pairing that makes it cohere,
+// doesn't compose into anything on its own; an earlier raw-primitive-only
+// test of recursionCallBias with no skeleton at all, run before this
+// function existed, found no coherent recursive sort in the free search
+// either). The combine step -- what would make this an actual merge or
+// partition, rather than just a shape that recurses and does nothing --
+// is left to the ordinary free grammar to fill in.
+//
+// v1/v2 are the reserved "lo"/"hi" scalars every Call frame receives (see
+// Interpreter.cpp's seedRecursionBounds); meaningless without it, which is
+// exactly why this skeleton requires recursionCallBias > 0.0 itself.
+StmtPtr genDivideConquerSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    const int lo = 1;
+    const int hi = 2;
+    int mid = 3 + rng.uniformInt(0, cfg.numVars - 4);
+
+    std::vector<StmtPtr> thenBody;
+    thenBody.push_back(makeAssign(
+        mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                        makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+    thenBody.push_back(makeCall(makeVar(lo), makeVar(mid)));
+    thenBody.push_back(makeCall(makeVar(mid), makeVar(hi)));
+
+    // Same guard as the TSP/BinarySearch skeletons' holes: the combine
+    // step is generated with loopAccumulatorBias forced off locally so
+    // this skeleton (or any other) can't be re-selected inside its own
+    // hole -- that would recurse the GENERATOR without bound while
+    // building the AST (a stack overflow at generation time, unrelated to
+    // the interpreter's own maxRecursionDepth guard on the generated
+    // program's runtime recursion).
+    GenConfig innerCfg = cfg;
+    innerCfg.loopAccumulatorBias = 0.0;
+    auto combine =
+        genBlockStmts(rng, 2, innerCfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true, /*insideWhile=*/false);
+    for (auto& s : combine) thenBody.push_back(std::move(s));
+
+    return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
+                  std::move(thenBody));
+}
+
+// Fully hand-written merge sort, the same status as genSelectionSortSkeletonBlock/
+// genHeapSortSkeletonBlock: a control to answer "can the language and the
+// search USE a correct recursive template at all", separate from
+// genDivideConquerSkeletonBlock's open question of whether the search can
+// DISCOVER the combine step itself (which the forced-skeleton experiment
+// found it can't, in the budget tested -- 0/5 completed runs generalized;
+// see data/divideconquer_forced_20260918). No RNG needed, same as
+// genRecurrenceSkeletonBlock's GcdMod variant: this is one exact,
+// deterministic shape, not a family of random variations.
+//
+// Reserved vars, matching Interpreter.cpp's Call convention: v0=n, v1=lo,
+// v2=hi. Fixed locals: v3=mid, v4=i (left pointer, reused as the copy-back
+// pointer), v5=j (right pointer), v6=k (aux write pointer). Requires
+// numVars >= 7 and, like DivideConquer, only fires when
+// GenConfig::recursionCallBias > 0.0 (v1/v2 are otherwise never seeded).
+//
+// The merge loop's exhausted-side checks (`j >= hi` / `i >= mid`) are
+// tested BEFORE ever reading arr[i]/arr[j] on that side -- Mini-C has no
+// short-circuit && / ||, so a naive single boolean expression combining
+// "i<mid AND (j>=hi OR arr[i]<=arr[j])" would still evaluate arr[j] even
+// when j==hi (an out-of-bounds read, since valid indices are [0,n)).
+// Structuring it as nested if/else-if instead means each branch only ever
+// reads an array slot already known in-range.
+StmtPtr genMergeSortSkeletonBlock(Random&, const GenConfig&, int& loopsUsed) {
+    const int lo = 1, hi = 2, mid = 3, i = 4, j = 5, k = 6;
+
+    auto takeLeft = [&]() {
+        std::vector<StmtPtr> v;
+        v.push_back(makeAssignAux(makeVar(k), makeArrayAccess(makeVar(i))));
+        v.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+        return v;
+    };
+    auto takeRight = [&]() {
+        std::vector<StmtPtr> v;
+        v.push_back(makeAssignAux(makeVar(k), makeArrayAccess(makeVar(j))));
+        v.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
+        return v;
+    };
+
+    // if (arr[i] <= arr[j]) takeLeft else takeRight -- only reached once
+    // both i<mid and j<hi are already known true, so both array reads here
+    // are safe.
+    auto cmpIf =
+        makeIf(makeCompare(ExprKind::Le, makeArrayAccess(makeVar(i)), makeArrayAccess(makeVar(j))), takeLeft(), takeRight());
+    // if (i >= mid) takeRight else <cmpIf> -- left side exhausted check,
+    // before the comparison branch would read arr[i].
+    std::vector<StmtPtr> midElse;
+    midElse.push_back(std::move(cmpIf));
+    auto midIf = makeIf(makeCompare(ExprKind::Ge, makeVar(i), makeVar(mid)), takeRight(), std::move(midElse));
+    // if (j >= hi) takeLeft else <midIf> -- right side exhausted check,
+    // before anything below would read arr[j].
+    std::vector<StmtPtr> outerElse;
+    outerElse.push_back(std::move(midIf));
+    auto mergeStep = makeIf(makeCompare(ExprKind::Ge, makeVar(j), makeVar(hi)), takeLeft(), std::move(outerElse));
+
+    std::vector<StmtPtr> mergeLoopBody;
+    mergeLoopBody.push_back(std::move(mergeStep));
+    mergeLoopBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(k), makeIntConst(1))));
+    loopsUsed++;
+    // while (i<mid OR j<hi) -- both operands are plain scalar comparisons
+    // (never an array read), so no short-circuit is needed for safety here.
+    auto mergeCond =
+        makeBinOp(ExprKind::Add, makeCompare(ExprKind::Lt, makeVar(i), makeVar(mid)), makeCompare(ExprKind::Lt, makeVar(j), makeVar(hi)));
+    auto mergeWhile = makeWhile(std::move(mergeCond), std::move(mergeLoopBody));
+
+    std::vector<StmtPtr> copyBody;
+    copyBody.push_back(makeAssignArray(makeVar(i), makeAuxAccess(makeVar(i))));
+    copyBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
+    loopsUsed++;
+    auto copyWhile = makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeVar(hi)), std::move(copyBody));
+
+    std::vector<StmtPtr> thenBody;
+    thenBody.push_back(makeAssign(
+        mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                        makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+    thenBody.push_back(makeCall(makeVar(lo), makeVar(mid)));
+    thenBody.push_back(makeCall(makeVar(mid), makeVar(hi)));
+    thenBody.push_back(makeAssign(i, makeVar(lo)));
+    thenBody.push_back(makeAssign(j, makeVar(mid)));
+    thenBody.push_back(makeAssign(k, makeVar(lo)));
+    thenBody.push_back(std::move(mergeWhile));
+    thenBody.push_back(makeAssign(i, makeVar(lo)));  // reuse i as the copy-back pointer
+    thenBody.push_back(std::move(copyWhile));
+
+    return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
+                  std::move(thenBody));
+}
+
 StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
     int v = rng.uniformInt(0, cfg.numVars - 1);
     return makeAssign(v, makeBinOp(ExprKind::Add, makeVar(v), makeIntConst(1)));
@@ -1734,7 +1872,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
     if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch };
+        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, DivideConquer, MergeSort };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -1790,7 +1928,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[15];
+        WeightedOption options[17];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -1825,6 +1963,18 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         if (canNestedLoop && cfg.numVars >= 12 && allowed("tspbranchandbound")) addOption(Skeleton::TspBranchAndBound, 1);
         if (canTripleLoop && cfg.numVars >= 12 && allowed("dtw")) addOption(Skeleton::Dtw, 3);
         if (canLoop && cfg.numVars >= 9 && allowed("binarysearch")) addOption(Skeleton::BinarySearch, 3);
+        // Requires recursionCallBias > 0.0 itself (not just numVars/loop
+        // budget): v1/v2 are only seeded with lo/hi at the interpreter
+        // level when that's on (see Interpreter's seedRecursionBounds), so
+        // offering this skeleton without it would just be dead weight that
+        // always resets to whatever v1/v2 happen to hold (0/0 unless the
+        // program itself sets them).
+        if (cfg.numVars >= 4 && cfg.recursionCallBias > 0.0 && allowed("divideconquer"))
+            addOption(Skeleton::DivideConquer, 3);
+        // Fully hand-written control (see genMergeSortSkeletonBlock's
+        // comment): same recursionCallBias gate as DivideConquer, plus the
+        // 4 extra fixed locals (mid/i/j/k) its merge step needs.
+        if (cfg.numVars >= 7 && cfg.recursionCallBias > 0.0 && allowed("mergesort")) addOption(Skeleton::MergeSort, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -1866,8 +2016,22 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genDtwSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::BinarySearch:
                     return genBinarySearchSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::DivideConquer:
+                    return genDivideConquerSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::MergeSort:
+                    return genMergeSortSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
+    }
+
+    // Recursion extension (see GenConfig::recursionCallBias): checked before
+    // the ordinary statement-kind choice below so a Call can appear
+    // anywhere a generic statement can (top level or nested in if/while),
+    // same pattern as indexIncrementBias/controlFlowBias overriding the
+    // plain-assignment cases. Off by default (0.0), so this never fires
+    // for any existing problem.
+    if (cfg.recursionCallBias > 0.0 && cfg.numVars >= 3 && rng.chance(cfg.recursionCallBias)) {
+        return makeCall(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
     }
 
     int maxChoice = canNest ? (canLoop ? 4 : 3) : 1;
@@ -1882,6 +2046,9 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         case 1: {
             double swapChance = insideIf ? 0.5 : std::max(0.05, 0.5 - cfg.bareSwapPenalty);
             if (!rng.chance(swapChance)) {
+                if (cfg.secondArrayBias > 0.0 && rng.chance(cfg.secondArrayBias)) {
+                    return makeAssignAux(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+                }
                 return makeAssignArray(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
             }
             return makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));

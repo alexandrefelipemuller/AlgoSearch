@@ -65,8 +65,9 @@ bool checkOneInstance(const Problem& problem, const Stmt& program, const Interpr
 }
 }  // namespace
 
-bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason) {
-    Interpreter interp(stepLimit);
+bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason,
+                           bool seedRecursionBounds) {
+    Interpreter interp(stepLimit, /*maxRecursionDepth=*/200, seedRecursionBounds);
     for (int n : kVerificationSizes) {
         for (int t = 0; t < kTrialsPerSize; ++t) {
             uint64_t seed = static_cast<uint64_t>(n) * 7919ULL + static_cast<uint64_t>(t) * 104729ULL + 17;
@@ -106,8 +107,9 @@ bool verifyGeneralization(const Problem& problem, const Stmt& program, long step
     return true;
 }
 
-std::vector<TimingPoint> timeProgram(const Problem& problem, const Stmt& program, long stepLimit, const std::vector<int>& sizes) {
-    Interpreter interp(stepLimit);
+std::vector<TimingPoint> timeProgram(const Problem& problem, const Stmt& program, long stepLimit, const std::vector<int>& sizes,
+                                      bool seedRecursionBounds) {
+    Interpreter interp(stepLimit, /*maxRecursionDepth=*/200, seedRecursionBounds);
     std::vector<TimingPoint> out;
     for (int n : sizes) {
         Instance inst = problem.generateBenchmarkInstance(n, /*seed=*/12345);

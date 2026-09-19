@@ -68,6 +68,13 @@ ExprPtr makeArrayAccess(ExprPtr index) {
     return n;
 }
 
+ExprPtr makeAuxAccess(ExprPtr index) {
+    auto n = std::make_unique<Expr>();
+    n->kind = ExprKind::AuxAccess;
+    n->lhs = std::move(index);
+    return n;
+}
+
 ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs) {
     auto n = std::make_unique<Expr>();
     n->kind = kind;

@@ -17,6 +17,24 @@ enum class StmtKind {
     Swap,         // swap(arr[indexExpr], arr[indexExpr2])
     Return,       // return (ends execution; final array state is the output)
     Block,        // sequence of statements (body)
+    // Second-array extension counterpart to AssignArray (see
+    // ExprKind::AuxAccess in ast/Expr.hpp) -- opt-in via
+    // GenConfig::secondArrayBias, zero probability reproduces prior
+    // behavior exactly.
+    AssignAux,    // aux[indexExpr] = valueExpr
+    // Recursion extension, opt-in via GenConfig::recursionCallBias (0.0 =
+    // never generated, no behavior change for any existing problem). A
+    // self-call: re-invokes the whole program from its own start, on a
+    // FRESH set of scalar variables (v0 reset to n as always, v1 seeded
+    // from indexExpr's value, v2 seeded from indexExpr2's value -- the
+    // reserved "lo"/"hi" convention documented in Interpreter.cpp), sharing
+    // arr/aux with the caller. The caller's own variables are restored
+    // unchanged once the call returns -- ordinary call-by-value semantics,
+    // not a shared/global frame. Depth is capped (Interpreter's
+    // maxRecursionDepth) independently of stepLimit: unbounded self-
+    // recursion would blow the C++ call stack long before a large
+    // stepLimit is reached, unlike an unbounded while loop.
+    Call,         // call(indexExpr /*lo*/, indexExpr2 /*hi*/)
     // Control-flow extension (see GenConfig::enableControlFlowExt): the
     // missing primitive an exact/pruning algorithm (branch-and-bound-style
     // early exit) needs and Mini-C didn't have -- every other statement
@@ -59,6 +77,8 @@ using Program = StmtPtr;  // root is always a Block
 StmtPtr makeBlock();
 StmtPtr makeAssign(int varIndex, ExprPtr value);
 StmtPtr makeAssignArray(ExprPtr index, ExprPtr value);
+StmtPtr makeAssignAux(ExprPtr index, ExprPtr value);
+StmtPtr makeCall(ExprPtr loExpr, ExprPtr hiExpr);
 StmtPtr makeIf(ExprPtr cond, std::vector<StmtPtr> body, std::vector<StmtPtr> elseBody = {});
 StmtPtr makeWhile(ExprPtr cond, std::vector<StmtPtr> body);
 StmtPtr makeSwap(ExprPtr index1, ExprPtr index2);

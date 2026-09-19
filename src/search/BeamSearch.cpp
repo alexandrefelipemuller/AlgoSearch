@@ -246,7 +246,7 @@ BeamSearch::BeamSearch(const Problem& problem, SearchConfig config) : problem_(p
 
 std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     Random rng(config_.seed);
-    Interpreter interp(config_.stepLimit);
+    Interpreter interp(config_.stepLimit, /*maxRecursionDepth=*/200, config_.genConfig.recursionCallBias > 0.0);
     Dedup dedup;
 
     std::vector<CandidateRecord> beam;

@@ -10,6 +10,14 @@ enum class ExprKind {
     IntConst,     // literal integer
     Var,          // scalar variable read
     ArrayAccess,  // arr[index]
+    // Second working array, opt-in (GenConfig::secondArrayBias == 0.0
+    // reproduces prior behavior exactly): a scratch buffer the same length
+    // as arr, zero-initialized, that a program can read/write independently
+    // of arr. The missing primitive merge sort's merge step needs (a
+    // destination distinct from either input half) -- see FINDINGS.md's
+    // "architecture ceiling" discussion. AuxAccess mirrors ArrayAccess
+    // exactly except it reads `aux` instead of `arr`.
+    AuxAccess,    // aux[index]
     Add,          // lhs + rhs
     Sub,          // lhs - rhs
     Lt,           // lhs < rhs
@@ -56,6 +64,7 @@ using ExprPtr = std::unique_ptr<Expr>;
 ExprPtr makeIntConst(int value);
 ExprPtr makeVar(int varIndex);
 ExprPtr makeArrayAccess(ExprPtr index);
+ExprPtr makeAuxAccess(ExprPtr index);
 ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Add/Sub
 ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Lt/Gt/Eq/Le/Ge/Ne
 
