@@ -38,4 +38,4 @@ $(BUILD_DIR)/tests/%.o: $(TEST_DIR)/%.cpp
 clean:
 	rm -rf $(BUILD_DIR) algosearch algosearch_tests
 
--include $(LIB_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d)
+-include $(LIB_OBJECTS:.o=.d) $(TEST_OBJECTS:.o=.d) $(MAIN_OBJECT:.o=.d)
