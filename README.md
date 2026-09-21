@@ -172,3 +172,27 @@ change, the cross-skeleton study, the complexity-ceiling investigation and
 how it was later broken, heapsort, 3SUM, and the honest negative results
 along the way) and `scripts/run_full_battery_modest.sh` to reproduce this
 sweep.
+
+## Held-out discovery benchmark (in progress)
+
+Three problems deliberately **not** in the skeleton library now exist as the
+ruler for open-ended discovery work: `lis`, `substring`, and `cycle`
+(`src/problems/LisProblem.{hpp,cpp}`, `SubstringProblem.{hpp,cpp}`,
+`CycleDetectionProblem.{hpp,cpp}`). The baseline
+(`scripts/run_heldout_baseline.sh`, `data/heldout_baseline_20260920/`) froze
+the starting line: 0/30 genuinely generalizing solutions across both arms
+(default `loop-bias=0.4` and the `loop-bias=0.0` isolation setting) at a
+matched modest budget. Etapa 2 added the opt-in divergence engine
+(`--post-solve-sizes`, default 0) and ran it against the same ruler
+(`scripts/run_heldout_divergence_ab.sh`): still 0/30 generalizing solutions
+-- the window archives ~20-29 alternative gambiarras per run but creates no
+new shape, confirming that the bottleneck is construction, not survival.
+Etapa 3 added the opt-in composite-primitives operator (`--composite-bias`,
+default 0.0): a two-loop family assembled from section 24's catalogued
+primitives under one shared binding context. On the same ruler it COMPOSES
+the target `substring` shape (champions contain the correct `n-m+1` bound
+and alignment indices) but never converges to the clean version -- 0/15
+generalizing in Test A, with `lis` (Test B) and `cycle` (reserve) out of
+reach by construction, as designed.
+See `FINDINGS.md` sections 25-27 for the protocol, the five-column taxonomy,
+and the next steps.

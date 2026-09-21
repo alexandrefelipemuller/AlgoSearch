@@ -124,3 +124,46 @@ TEST(grow_program_increases_size) {
     Program grown = growProgram(*seed, originalSize + 10, rng, cfg);
     CHECK(grown->size() >= originalSize);
 }
+
+TEST(composite_bias_emits_bound_nested_loops) {
+    // With compositeBias=1.0 and 2 free loop slots, every generic statement
+    // draw becomes the two-loop composite block -- so a generated program
+    // must contain at least one nested while pair built from the shared
+    // binding context, and compositeBias=0.0 must not (default grammar only
+    // builds loops through the ordinary statement-kind choice).
+    std::function<void(const Stmt&, int&)> countWhile = [&](const Stmt& s, int& loops) {
+        if (s.kind == StmtKind::While) loops++;
+        for (const auto& c : s.body) countWhile(*c, loops);
+        for (const auto& c : s.elseBody) countWhile(*c, loops);
+    };
+
+    GenConfig on;
+    on.numVars = 6;
+    on.maxLoops = 4;
+    on.maxBlockDepth = 3;
+    on.maxStatementsPerBlock = 3;
+    on.loopAccumulatorBias = 0.0;
+    on.compositeBias = 1.0;
+    Random rngOn(7);
+    int loopsOn = 0;
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        Program p = generateRandomProgram(rngOn, 25, on);
+        countWhile(*p, loopsOn);
+    }
+    CHECK(loopsOn >= 2);
+
+    GenConfig off;
+    off.numVars = 6;
+    off.maxLoops = 4;
+    off.maxBlockDepth = 3;
+    off.maxStatementsPerBlock = 3;
+    off.loopAccumulatorBias = 0.0;
+    off.compositeBias = 0.0;
+    Random rngOff(7);
+    int loopsOff = 0;
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        Program p = generateRandomProgram(rngOff, 25, off);
+        countWhile(*p, loopsOff);
+    }
+    CHECK(loopsOn > loopsOff);
+}

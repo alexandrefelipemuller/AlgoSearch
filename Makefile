@@ -1,5 +1,5 @@
 CXX ?= g++
-CXXFLAGS ?= -std=c++20 -Wall -Wextra -O2 -Isrc -pthread -MMD -MP
+CXXFLAGS ?= -std=c++20 -Wall -Wextra -O3 -funroll-loops -Isrc -pthread -MMD -MP
 LDFLAGS ?= -pthread
 
 SRC_DIR := src
@@ -19,7 +19,7 @@ MAIN_OBJECT := $(BUILD_DIR)/lib/main.o
 all: algosearch
 
 algosearch: $(LIB_OBJECTS) $(MAIN_OBJECT)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -s
 
 algosearch_tests: $(LIB_OBJECTS) $(TEST_OBJECTS)
 	$(CXX) $(CXXFLAGS) -I$(TEST_DIR) -o $@ $^ $(LDFLAGS)

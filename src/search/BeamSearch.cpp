@@ -235,6 +235,7 @@ std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfi
         {"max_level", std::to_string(cfg.maxLevel)},
         {"seed", std::to_string(cfg.seed)},
         {"candidates_per_size", std::to_string(cfg.candidatesPerSize)},
+        {"post_solve_sizes", std::to_string(cfg.postSolveSizes)},
         {"loop_bias", std::to_string(cfg.genConfig.loopAccumulatorBias)},
         {"adaptive_skeleton_bias_rate", std::to_string(cfg.genConfig.adaptiveSkeletonBiasRate)},
     };
@@ -289,7 +290,18 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         adaptiveLog << "round,level,bias_before,skeleton_rate,bias_after,best_score\n";
     }
 
+    // Moção 1 (Etapa 2): divergence-window state. See SearchConfig::postSolveSizes.
+    bool postSolveWindowOpen = false;
+    bool postSolveWindowOpenedThisSize = false;
+    int postSolveRemaining = 0;
+    int postSolvePendingAdvance = 0;
+    int postSolveBestCascadeLevel = 0;
+    int postSolveBestSize = 0;
+    std::unordered_set<std::string> frozenChampions;
+    std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
+
     for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
+        postSolveWindowOpenedThisSize = false;
         std::vector<Instance> instances = problem_.generateInstances(currentLevel);
         log::levelHeader(currentLevel, problem_.describeLevel(currentLevel), instances.size(), config_.beamWidth);
 
@@ -603,6 +615,20 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             if (!beam.empty()) bestScore = beam.front().score;
         }
 
+        // Moção 1 (Etapa 2): while the divergence window is open, frozen
+        // champions are excluded from the beam so the elite slots grow
+        // alternatives instead of re-selecting the same champion every size.
+        // (No-op in the default postSolveSizes=0 mode: frozenChampions stays
+        // empty and beam.front() remains exactly what the original code used.)
+        if (postSolveWindowOpen && !frozenChampions.empty()) {
+            beam.erase(std::remove_if(beam.begin(), beam.end(),
+                                      [&](const CandidateRecord& c) {
+                                          return c.program && frozenChampions.count(c.program->toString()) > 0;
+                                      }),
+                       beam.end());
+            bestScore = beam.empty() ? 0 : beam.front().score;
+        }
+
         if (bestScore > 0 && bestScore == static_cast<int>(instances.size())) {
             // Full solve of the current level. First, a dry run: how far
             // does the SAME unmutated program cascade forward without ever
@@ -676,6 +702,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                           " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
             }
             for (const auto& lr : cascade) {
+                // Dedup guard: with a divergence window the same program can be
+                // re-found as champion at a level it already recorded during an
+                // earlier cascade; keep only the first record per program@level.
+                if (!recordedKeys.insert(programId + "@" + std::to_string(lr.level)).second) continue;
                 int advPassed = -1, advTotal = -1;
                 std::vector<Instance> adversarial = problem_.generateAdversarialInstances(lr.level);
                 if (!adversarial.empty()) {
@@ -709,7 +739,55 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 solutions.push_back(std::move(rec));
                 if (outPrograms) outPrograms->push_back(provenProgram->clone());
             }
-            currentLevel = problem_.nextLevel(level);
+
+            if (config_.postSolveSizes > 0) {
+                if (!postSolveWindowOpen) {
+                    // First full solve of this level: freeze the champion and
+                    // open the divergence window instead of promoting now.
+                    postSolveWindowOpen = true;
+                    postSolveWindowOpenedThisSize = true;
+                    postSolveRemaining = config_.postSolveSizes;
+                    postSolveBestCascadeLevel = level;
+                    postSolveBestSize = programSize;
+                    postSolvePendingAdvance = problem_.nextLevel(level);
+                    frozenChampions.insert(programText);
+                    log::info("  divergence window open: staying at N=" + std::to_string(currentLevel) + " for " +
+                              std::to_string(config_.postSolveSizes) + " more size step(s) after this first full solve");
+                } else if (frozenChampions.insert(programText).second) {
+                    // A genuinely new champion during the window: archive it
+                    // (already recorded above) and let it win the promotion if
+                    // its cascade reaches farther, or ties at a smaller size.
+                    if (level > postSolveBestCascadeLevel ||
+                        (level == postSolveBestCascadeLevel && programSize < postSolveBestSize)) {
+                        postSolveBestCascadeLevel = level;
+                        postSolveBestSize = programSize;
+                        postSolvePendingAdvance = problem_.nextLevel(level);
+                    }
+                    log::info("  divergence window: archived an alternative champion at N=" +
+                              std::to_string(currentLevel));
+                }
+            } else {
+                currentLevel = problem_.nextLevel(level);
+                if (!config_.checkpointPath.empty()) saveSolutions(config_.checkpointPath, solutions);
+            }
+        }
+
+        // Moção 1 (Etapa 2): close the divergence window once the extra size
+        // budget elapses, then promote to the level the best archived
+        // champion's cascade reached.
+        if (postSolveWindowOpen && !postSolveWindowOpenedThisSize) {
+            postSolveRemaining--;
+            if (postSolveRemaining <= 0) {
+                currentLevel = postSolvePendingAdvance;
+                postSolveWindowOpen = false;
+                postSolveRemaining = 0;
+                postSolvePendingAdvance = 0;
+                postSolveBestCascadeLevel = 0;
+                postSolveBestSize = 0;
+                frozenChampions.clear();
+                log::info("  divergence window closed: promoting to N=" + std::to_string(currentLevel));
+                if (!config_.checkpointPath.empty()) saveSolutions(config_.checkpointPath, solutions);
+            }
         }
     }
 

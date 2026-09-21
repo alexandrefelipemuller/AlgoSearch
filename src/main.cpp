@@ -14,7 +14,10 @@
 #include "problems/ContainsProblem.hpp"
 #include "problems/ThreeSumProblem.hpp"
 #include "problems/SingleNumberProblem.hpp"
+#include "problems/CycleDetectionProblem.hpp"
 #include "problems/DtwProblem.hpp"
+#include "problems/LisProblem.hpp"
+#include "problems/SubstringProblem.hpp"
 #include "problems/GraphReachabilityProblem.hpp"
 #include "problems/ShortestPathProblem.hpp"
 #include "problems/TspProblem.hpp"
@@ -54,16 +57,19 @@ struct CliArgs {
     double behaviorNicheRate = 0.0;
     double scoreBandRate = 0.0;
     double speedBonusWeight = 0.0;
+    int postSolveSizes = 0;
     double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
     double controlFlowBias = 0.0;
+    double compositeBias = 0.0;
     double exprMutationRate = 0.0;
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
     double recursionCallBias = 0.0;
     std::string adaptiveBiasLog;
     std::string output = "solutions.json";
+    std::string checkpointPath;
     bool benchmark = false;
     int benchmarkSeeds = 5;
 };
@@ -96,16 +102,19 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--behavior-niche-rate") args.behaviorNicheRate = std::stod(next("--behavior-niche-rate"));
         else if (arg == "--score-band-rate") args.scoreBandRate = std::stod(next("--score-band-rate"));
         else if (arg == "--speed-bonus-weight") args.speedBonusWeight = std::stod(next("--speed-bonus-weight"));
+        else if (arg == "--post-solve-sizes") args.postSolveSizes = std::stoi(next("--post-solve-sizes"));
         else if (arg == "--loop-bias") args.loopBias = std::stod(next("--loop-bias"));
         else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
         else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
         else if (arg == "--control-flow-bias") args.controlFlowBias = std::stod(next("--control-flow-bias"));
+        else if (arg == "--composite-bias") args.compositeBias = std::stod(next("--composite-bias"));
         else if (arg == "--expr-mutation-rate") args.exprMutationRate = std::stod(next("--expr-mutation-rate"));
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
         else if (arg == "--output") args.output = next("--output");
+        else if (arg == "--checkpoint-path") args.checkpointPath = next("--checkpoint-path");
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
@@ -118,15 +127,15 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
-                 "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--expr-mutation-rate 0.0] "
+                 "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--loop-bias 0.4] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
-                 "[--output solutions.json] "
+                 "[--output solutions.json] [--checkpoint-path path.json] "
                  "[--benchmark] [--benchmark-seeds 5]\n";
 }
 
@@ -152,6 +161,9 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "shortest_path") return std::make_unique<ShortestPathProblem>(6, 40, numVars, seed);
     if (name == "dtw") return std::make_unique<DtwProblem>(5, 40, numVars, seed);
     if (name == "tsp") return std::make_unique<TspProblem>(6, 40, numVars, seed);
+    if (name == "lis") return std::make_unique<LisProblem>(4, 30, numVars, seed);
+    if (name == "substring") return std::make_unique<SubstringProblem>(5, 30, numVars, seed);
+    if (name == "cycle") return std::make_unique<CycleDetectionProblem>(6, 30, numVars, seed);
     return nullptr;
 }
 
@@ -197,10 +209,12 @@ void runBenchmarkMode(const CliArgs& args) {
         config.behaviorNicheRate = args.behaviorNicheRate;
         config.scoreBandRate = args.scoreBandRate;
         config.speedBonusWeight = args.speedBonusWeight;
+        config.postSolveSizes = args.postSolveSizes;
         config.genConfig.loopAccumulatorBias = args.loopBias;
         config.genConfig.indexIncrementBias = args.indexIncrementBias;
         config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
         config.genConfig.controlFlowBias = args.controlFlowBias;
+        config.genConfig.compositeBias = args.compositeBias;
         config.genConfig.exprMutationRate = args.exprMutationRate;
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
@@ -297,8 +311,9 @@ int main(int argc, char** argv) {
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {
         std::cerr << "Unknown problem: " << args.problem
-                   << " (available: sorting, min, max, sum, contains, contains_ordered, is_prime, gcd, factorial, fibonacci, "
-                      "count, average, reverse, power)\n";
+                   << " (available: sorting, min, max, sum, contains, contains_ordered, is_prime, gcd, mod, factorial, fibonacci, "
+                      "count, average, reverse, power, three_sum, single_number, graph_reachability, shortest_path, tsp, dtw, "
+                      "lis, substring, cycle)\n";
         return 1;
     }
 
@@ -325,15 +340,18 @@ int main(int argc, char** argv) {
     config.behaviorNicheRate = args.behaviorNicheRate;
     config.scoreBandRate = args.scoreBandRate;
     config.speedBonusWeight = args.speedBonusWeight;
+    config.postSolveSizes = args.postSolveSizes;
     config.genConfig.loopAccumulatorBias = args.loopBias;
     config.genConfig.indexIncrementBias = args.indexIncrementBias;
     config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
     config.genConfig.controlFlowBias = args.controlFlowBias;
+    config.genConfig.compositeBias = args.compositeBias;
     config.genConfig.exprMutationRate = args.exprMutationRate;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
+    config.checkpointPath = args.checkpointPath;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();

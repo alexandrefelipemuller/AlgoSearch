@@ -1,3 +1,6 @@
+#include <cstdio>
+#include <fstream>
+
 #include "problems/SortingProblem.hpp"
 #include "search/BeamSearch.hpp"
 #include "test_framework.hpp"
@@ -207,4 +210,149 @@ TEST(beam_search_config_is_recorded_in_solution) {
     CHECK(!solutions.empty());
     CHECK_EQ(solutions.back().seed, static_cast<uint64_t>(5));
     CHECK(!solutions.back().config.empty());
+}
+
+TEST(post_solve_sizes_zero_reproduces_single_cascade_records) {
+    // Default mode: the very first full solve promotes immediately, so the
+    // AlwaysZeroProblem (no-op solves every level) yields exactly one record
+    // per level, all from the same champion.
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 5;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+    cfg.postSolveSizes = 0;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK_EQ(solutions.size(), static_cast<size_t>(5));
+    const std::string& id = solutions.front().programId;
+    for (const auto& rec : solutions) CHECK_EQ(rec.programId, id);
+}
+
+TEST(post_solve_sizes_keeps_level_open_and_records_alternative_champions) {
+    // With a divergence window, the level stays open after the first full
+    // solve, so further full-solve programs found at later sizes are also
+    // recorded. Every record must still be a SUCCESS (the no-op and its
+    // alternatives all generalize on AlwaysZeroProblem) and at least one
+    // record per level must exist.
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 3;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+    cfg.postSolveSizes = 2;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK(!solutions.empty());
+    for (const auto& rec : solutions) CHECK_EQ(rec.finalStatus, std::string("SUCCESS"));
+    // The no-op champion's cascade covers levels 1..3 even with the window on.
+    bool saw1 = false, saw2 = false, saw3 = false;
+    for (const auto& rec : solutions) {
+        if (rec.levelReached == 1) saw1 = true;
+        if (rec.levelReached == 2) saw2 = true;
+        if (rec.levelReached == 3) saw3 = true;
+    }
+    CHECK(saw1 && saw2 && saw3);
+}
+
+TEST(post_solve_sizes_window_still_promotes_after_the_budget_elapses) {
+    // The window must not deadlock the search: after postSolveSizes extra
+    // sizes, promotion happens and the run ends with the gambiarra still
+    // labeled UNCONFIRMED (it never generalizes), exactly as in the
+    // postSolveSizes=0 case.
+    GambiarraTrapProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 20;
+    cfg.maxProgramSize = 10;
+    cfg.stepLimit = 500;
+    cfg.maxLevel = 2;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 50;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 1;
+    cfg.postSolveSizes = 3;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.front().levelReached, 1);
+    CHECK_EQ(solutions.front().finalStatus, std::string("UNCONFIRMED"));
+}
+
+TEST(checkpoint_path_writes_progress_before_the_run_completes) {
+    // Long unattended runs have no internal wall-clock cutoff (FINDINGS.md
+    // section 8) and previously only wrote solutions.json on natural
+    // completion -- an external `timeout`/`kill` lost everything. With
+    // checkpointPath set, every level promotion overwrites that path with
+    // the full solutions vector accumulated so far, so a run killed mid-way
+    // still has something on disk.
+    std::string path = "/tmp/algosearch_checkpoint_test.json";
+    std::remove(path.c_str());
+
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 4;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+    cfg.checkpointPath = path;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    std::ifstream in(path);
+    CHECK(in.good());
+    std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    CHECK(!content.empty());
+    // The checkpoint is written at every promotion BEFORE the final level,
+    // so it reflects at least the first level's record, though it can lag
+    // one level behind the final in-memory result (no promotion follows the
+    // very last level).
+    CHECK(content.find("program_id") != std::string::npos);
+
+    std::remove(path.c_str());
+}
+
+TEST(empty_checkpoint_path_writes_no_file) {
+    // Default (empty checkpointPath) must reproduce today's behavior
+    // exactly: no extra file, no extra I/O.
+    std::string path = "/tmp/algosearch_checkpoint_test_unused.json";
+    std::remove(path.c_str());
+
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 4;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+    // cfg.checkpointPath left empty (default)
+
+    BeamSearch search(problem, cfg);
+    search.run();
+
+    std::ifstream in(path);
+    CHECK(!in.good());
 }

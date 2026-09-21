@@ -1827,6 +1827,120 @@ StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
     return makeAssign(v, makeBinOp(ExprKind::Add, makeVar(v), makeIntConst(1)));
 }
 
+// Moção 2 (Etapa 3) v1: a two-loop block assembled from section 24's
+// catalogued primitives under ONE shared binding context (see
+// GenConfig::compositeBias). Unlike every named skeleton above -- each a
+// hand-written whole algorithm -- this draws each slot independently from a
+// small catalog and binds every piece to the SAME context variables, which
+// is the binding discipline sections 7/10 showed the free grammar lacks.
+// The coherent combination that solves SubstringProblem (pair capture
+// arr[0]/arr[arr[0]+1], outer bound n-m, inner bound m, align-match at
+// arr[1+i+j] vs arr[n+2+j]) is ONE draw among the family, not the only thing
+// this operator can emit.
+StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    // Binding context: five distinct scratch variables; every piece below
+    // references exactly these, never a fresh independent draw.
+    std::vector<int> v = pickDistinctVars(rng, cfg, 5);
+    int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4];
+
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(capA, makeArrayAccess(makeIntConst(0))));  // capA = arr[0]
+
+    // Generalized capture: with probability 0.5 also capB = arr[capA + k]
+    // (the "captured scalar at a computed position" primitive -- section 24's
+    // captured-scalar only ever read arr[0]/arr[const] before this).
+    bool pairCapture = rng.chance(0.5);
+    // Coherence prior: the offset that lines the second sequence up right
+    // after its length slot (k=1) is the coherent choice; the others exist
+    // so the operator is a family, not a single template.
+    int k = rng.uniformInt(0, 4);
+    if (k > 2) k = 1;
+    if (pairCapture) {
+        root.push_back(makeAssign(capB, makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(capA), makeIntConst(k)))));
+    }
+
+    // Outer bound: derived from the captures (aligned n-m+1, plain n, or v0).
+    // The aligned choice is the number of valid start positions for a
+    // two-sequence scan (i from 0 while i <= n-m, i.e. i < n-m+1) -- the
+    // off-by-one n-m version misses the last start and fails at N=1; the n
+    // version over-counts and creates false positives. Weighted up when a
+    // second sequence was captured; the others keep the operator a family
+    // rather than a template.
+    ExprPtr outerBound;
+    if (pairCapture) {
+        int b = rng.uniformInt(0, 3);
+        if (b <= 1) {
+            outerBound = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Sub, makeVar(capA), makeVar(capB)), makeIntConst(1));
+        } else if (b == 2) {
+            outerBound = makeVar(capA);
+        } else {
+            outerBound = makeVar(0);
+        }
+    } else {
+        outerBound = rng.chance(0.5) ? makeVar(capA) : makeVar(0);
+    }
+
+    // Inner bound: aligned m, plain n, or a small constant.
+    ExprPtr innerBound;
+    if (pairCapture) {
+        int b = rng.uniformInt(0, 3);
+        if (b <= 1) innerBound = makeVar(capB);
+        else if (b == 2) innerBound = makeVar(capA);
+        else innerBound = makeIntConst(2);
+    } else {
+        innerBound = rng.chance(0.5) ? makeVar(capA) : makeVar(0);
+    }
+
+    // Affine two-sequence index bases. base2 = k + 1 is the offset that lines
+    // the second sequence up with the generalized capture (capB = arr[capA+k]
+    // means the sequence after it starts at capA + k + 1).
+    int base1 = rng.chance(0.75) ? 1 : 2;
+    int base2 = k + 1;
+    ExprPtr textIdx =
+        makeBinOp(ExprKind::Add, makeIntConst(base1), makeBinOp(ExprKind::Add, makeVar(vi), makeVar(vj)));
+    ExprPtr patIdx =
+        makeBinOp(ExprKind::Add, makeVar(capA), makeBinOp(ExprKind::Add, makeIntConst(base2), makeVar(vj)));
+
+    // Relation piece catalog -- every entry uses vi/vj/acc/capA/capB from the
+    // context, never fresh variables. Align-match is the coherent relation
+    // for a two-sequence composite, so it is weighted up when pairCapture.
+    std::vector<StmtPtr> body;
+    int relation = rng.uniformInt(0, 3);
+    if (relation > 2) relation = 0;
+    if (pairCapture && relation == 0) {
+        // Sentinel flag: if (arr[textIdx] == arr[patIdx]) acc = 1
+        std::vector<StmtPtr> then;
+        then.push_back(makeAssign(acc, makeIntConst(1)));
+        body.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(textIdx->clone()), makeArrayAccess(patIdx->clone())),
+                              std::move(then)));
+    } else if (relation == 1) {
+        // Count-if: if (arr[textIdx] > capB) acc = acc + 1
+        std::vector<StmtPtr> then;
+        then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+        body.push_back(makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(textIdx->clone()), makeVar(capB)), std::move(then)));
+    } else {
+        // XOR-reduce: acc = acc ^ arr[textIdx]
+        body.push_back(makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), makeArrayAccess(textIdx->clone()))));
+    }
+
+    // Assemble: acc init, outer counting loop (with inner counting loop as
+    // its body), then write-back arr[0] = acc.
+    root.push_back(makeAssign(acc, makeIntConst(0)));
+    std::vector<StmtPtr> outerBody;
+    outerBody.push_back(makeAssign(vj, makeIntConst(0)));
+    appendCountingWhile(outerBody, vj, std::move(innerBound), loopsUsed, [&](std::vector<StmtPtr>& innerBody) {
+        for (auto& stmt : body) innerBody.push_back(std::move(stmt));
+    });
+    appendCountingWhile(root, vi, std::move(outerBound), loopsUsed, [&](std::vector<StmtPtr>& bodyOut) {
+        for (auto& stmt : outerBody) bodyOut.push_back(std::move(stmt));
+    });
+    root.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, bool insideIf = false,
                 bool insideWhile = false) {
     // Control-flow extension (see GenConfig::controlFlowBias): only valid,
@@ -2022,6 +2136,14 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genMergeSortSkeletonBlock(rng, cfg, loopsUsed);
             }
         }
+    }
+
+    // Composite primitives (Moção 2, Etapa 3): independent of the skeleton
+    // draw above, so it can fire even at loopAccumulatorBias=0.0. Opt-in via
+    // GenConfig::compositeBias. Needs 2 free loop slots (canNestedLoop) and 5
+    // scratch vars for the shared binding context.
+    if (canNestedLoop && cfg.numVars >= 5 && cfg.compositeBias > 0.0 && rng.chance(cfg.compositeBias)) {
+        return genCompositeBlock(rng, cfg, loopsUsed);
     }
 
     // Recursion extension (see GenConfig::recursionCallBias): checked before

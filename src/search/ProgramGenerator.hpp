@@ -102,6 +102,22 @@ struct GenConfig {
     // needs; break is included for completeness/symmetry at a lower rate.
     double controlFlowBias = 0.0;
 
+    // Moção 2 (Etapa 3): composite-primitives operator, opt-in (0.0 = off,
+    // reproduces today's behavior exactly). Probability, at a generic
+    // statement slot with 2 free loop slots, of emitting a two-loop block
+    // assembled from section 24's CATALOGUED primitives (captured scalar from
+    // arr[0], capture at a computed position, two counting loops with derived
+    // bounds, an affine two-sequence index, and a relation piece -- sentinel
+    // flag / count-if / xor / running best) under ONE shared binding context:
+    // every piece uses the context's variables, never fresh independent
+    // draws. This is the binding discipline sections 7/10 showed the free
+    // grammar lacks, and it is deliberately a FAMILY of composites (the
+    // SubstringProblem solution is one draw among ~50, not the only thing the
+    // operator can emit) rather than a new named skeleton. Test A of the
+    // Etapa 3 protocol (FINDINGS.md) measures whether this reaches
+    // `substring`; Test B (`lis`) must stay out of reach by construction.
+    double compositeBias = 0.0;
+
     // Opt-in (0.0 = off, reproduces today's behavior exactly): probability
     // that growProgram, on top of its existing whole-STATEMENT point
     // mutation (which replaces an entire if/while -- condition, body, AND

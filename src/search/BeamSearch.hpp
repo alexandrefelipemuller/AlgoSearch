@@ -182,12 +182,41 @@ struct SearchConfig {
     // reproduces prior behavior exactly.
     double speedBonusWeight = 0.0;
 
+    // Moção 1 (Etapa 2 of the approved 3->1->2 plan): divergence window after
+    // the first full solve of a level. 0 (default) reproduces the original
+    // behavior exactly: the instant any candidate fully solves the current
+    // level, its cascade is recorded and the search promotes. N > 0: after
+    // that first full solve the level stays open for N more program-size
+    // steps; the champion is frozen (excluded from the beam so the elite
+    // slots grow alternatives instead of re-selecting it), every NEW full-
+    // solve candidate found during the window is recorded with its own
+    // cascade, and promotion happens only when the window closes -- to the
+    // level reached by the archived champion whose cascade went farthest
+    // (ties broken by smaller program, then by fitness so an enabled
+    // speedBonusWeight can prefer the faster equal-score champion). This is
+    // the engine prerequisite for the held-out discovery benchmark
+    // (FINDINGS.md section 25): it turns "found one correct program" into
+    // "keep looking for smaller/faster/different correct programs".
+    int postSolveSizes = 0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure
     // diagnostics for the adaptive-bias experiment, never read back by the
     // search itself.
     std::string adaptiveBiasLogPath;
+
+    // Opt-in (empty = off, reproduces today's behavior exactly): path to
+    // overwrite with the FULL solutions vector so far every time the
+    // search promotes to a new level. Exists for long unattended runs
+    // (the engine has no internal wall-clock cutoff -- FINDINGS.md section
+    // 8 -- and normally only writes solutions.json on natural completion,
+    // via main.cpp's saveSolutions call after run() returns; a run killed
+    // by an external wall timeout before that point loses everything). A
+    // periodic checkpoint here means `kill`/`timeout` at any moment still
+    // leaves the last-promoted level's solutions on disk. Cheap: writes at
+    // most once per level, not per candidate or per size step.
+    std::string checkpointPath;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
