@@ -48,6 +48,7 @@ struct CliArgs {
     int startLevel = 1;
     int candidatesPerSize = 800;
     int numVars = 4;
+    bool numVarsExplicit = false;  // true once --num-vars is parsed; see resolveNumVars
     unsigned threads = 0;  // 0 = auto-detect
     int invarianceLookahead = 3;
     double diversityRate = 0.0;
@@ -92,7 +93,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--seed") args.seed = static_cast<uint64_t>(std::stoull(next("--seed")));
         else if (arg == "--start-level") args.startLevel = std::stoi(next("--start-level"));
         else if (arg == "--candidates") args.candidatesPerSize = std::stoi(next("--candidates"));
-        else if (arg == "--num-vars") args.numVars = std::stoi(next("--num-vars"));
+        else if (arg == "--num-vars") { args.numVars = std::stoi(next("--num-vars")); args.numVarsExplicit = true; }
         else if (arg == "--threads") args.threads = static_cast<unsigned>(std::stoul(next("--threads")));
         else if (arg == "--invariance-lookahead") args.invarianceLookahead = std::stoi(next("--invariance-lookahead"));
         else if (arg == "--diversity-rate") args.diversityRate = std::stod(next("--diversity-rate"));
@@ -129,7 +130,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 void printUsage() {
     std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
-                 "[--start-level 1] [--candidates 800] [--num-vars 4] [--threads 0] "
+                 "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] "
@@ -137,6 +138,46 @@ void printUsage() {
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
                  "[--benchmark] [--benchmark-seeds 5]\n";
+}
+
+// The dedicated skeletons in ProgramGenerator.cpp gate themselves on
+// GenConfig::numVars thresholds (e.g. "cfg.numVars >= 12" for tsp/dtw) that
+// have nothing to do with problem difficulty and everything to do with how
+// many scratch scalars that skeleton's hand-written shape needs -- pass too
+// few and the skeleton is silently never offered, so the search falls back
+// to free/generic search and burns its whole budget never finding it (see
+// FINDINGS.md sections 18-19 for what that failure mode looks like). This
+// table mirrors those gates so a caller who doesn't pass --num-vars gets a
+// value that actually lets the relevant skeleton fire, instead of the
+// generic default of 4.
+int recommendedNumVars(const std::string& problem) {
+    if (problem == "tsp" || problem == "dtw") return 12;           // TspBruteForce/TspBranchAndBound/Dtw skeletons
+    if (problem == "shortest_path") return 7;                       // ShortestPath skeleton
+    if (problem == "graph_reachability") return 6;                  // GraphReachability skeleton
+    if (problem == "three_sum") return 5;                           // ThreeSum skeleton
+    if (problem == "average") return 5;                             // Average skeleton
+    return 4;
+}
+
+// Resolves the numVars to actually search with: always the larger of what
+// was passed (or the CliArgs default, if --num-vars was never passed) and
+// the problem's own skeleton requirement, so a value that's too low to
+// reach the tuned skeleton can never silently waste the whole search
+// budget on free/generic search (see FINDINGS.md sections 18-19 for what
+// that failure mode looks like). There is no free-search-only mode via
+// --num-vars any more -- use ALGOSEARCH_DISABLE_SKELETON for that
+// (see FINDINGS.md section 18).
+void resolveNumVars(CliArgs& args) {
+    int recommended = recommendedNumVars(args.problem);
+    if (args.numVars < recommended) {
+        if (args.numVarsExplicit) {
+            std::cerr << "note: raising --num-vars from " << args.numVars << " to " << recommended
+                       << " -- problem '" << args.problem << "' needs at least that many for its dedicated "
+                          "skeleton to fire (see FINDINGS.md sections 18-19). Use "
+                          "ALGOSEARCH_DISABLE_SKELETON to force free search instead.\n";
+        }
+        args.numVars = recommended;
+    }
 }
 
 std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint64_t seed) {
@@ -307,6 +348,7 @@ int main(int argc, char** argv) {
         printUsage();
         return 1;
     }
+    resolveNumVars(args);
 
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {

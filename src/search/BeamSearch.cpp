@@ -33,6 +33,10 @@ std::string programIdOf(const std::string& programText) {
     return oss.str();
 }
 
+// Variable-renaming-insensitive dedup: see ast/Stmt.hpp's canonicalText()
+// doc comment and FINDINGS.md section 29 for why programIdOf/the divergence
+// window's "genuinely new champion" check use this instead of raw text.
+
 // A coarse "shape" signature: counts of each statement kind plus the
 // deepest while-nesting, ignoring literal constants and variable/array
 // indices entirely. Two programs that differ only in which constant or
@@ -297,6 +301,17 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     int postSolvePendingAdvance = 0;
     int postSolveBestCascadeLevel = 0;
     int postSolveBestSize = 0;
+    // Only meaningful when config_.speedBonusWeight > 0.0 (see the divergence
+    // window's promotion tie-break below) -- the archived champion's fitness
+    // AT THE MOMENT its cascade was measured, i.e. score + speed bonus, so a
+    // same-reach alternative that runs faster (fewer interpreter steps) can
+    // win promotion even though it's a bigger program. Without this, the
+    // window's only tie-break was program size, which always favors the
+    // smaller-but-slower candidate no matter how much speedBonusWeight
+    // rewards speed between coexisting candidates (see FINDINGS.md section
+    // 23: a dedicated skeleton correct-but-bigger than a trivial scan never
+    // had a mechanism to win even once both existed in the same window).
+    double postSolveBestFitness = 0.0;
     std::unordered_set<std::string> frozenChampions;
     std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
 
@@ -623,7 +638,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (postSolveWindowOpen && !frozenChampions.empty()) {
             beam.erase(std::remove_if(beam.begin(), beam.end(),
                                       [&](const CandidateRecord& c) {
-                                          return c.program && frozenChampions.count(c.program->toString()) > 0;
+                                          return c.program && frozenChampions.count(canonicalText(*c.program)) > 0;
                                       }),
                        beam.end());
             bestScore = beam.empty() ? 0 : beam.front().score;
@@ -641,7 +656,8 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             const Program& provenProgram = beam.front().program;
             std::string programText = provenProgram->toString();
             int programSize = beam.front().size;
-            std::string programId = programIdOf(programText);
+            std::string canonicalProgText = canonicalText(*provenProgram);
+            std::string programId = programIdOf(canonicalProgText);
 
             // Diversity snapshot, purely observational: how many distinct
             // coarse "shapes" survive in the beam right now, at the exact
@@ -749,18 +765,33 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                     postSolveRemaining = config_.postSolveSizes;
                     postSolveBestCascadeLevel = level;
                     postSolveBestSize = programSize;
+                    postSolveBestFitness = beam.front().fitness;
                     postSolvePendingAdvance = problem_.nextLevel(level);
-                    frozenChampions.insert(programText);
+                    frozenChampions.insert(canonicalProgText);
                     log::info("  divergence window open: staying at N=" + std::to_string(currentLevel) + " for " +
                               std::to_string(config_.postSolveSizes) + " more size step(s) after this first full solve");
-                } else if (frozenChampions.insert(programText).second) {
+                } else if (frozenChampions.insert(canonicalProgText).second) {
                     // A genuinely new champion during the window: archive it
                     // (already recorded above) and let it win the promotion if
-                    // its cascade reaches farther, or ties at a smaller size.
-                    if (level > postSolveBestCascadeLevel ||
-                        (level == postSolveBestCascadeLevel && programSize < postSolveBestSize)) {
+                    // its cascade reaches farther; on a cascade tie, prefer
+                    // higher speed-bonus-weighted fitness when speedBonusWeight
+                    // is on (a faster program should be able to beat a smaller-
+                    // but-slower one), falling back to the original
+                    // smaller-size tie-break when speedBonusWeight is off
+                    // (config_.speedBonusWeight == 0.0 reproduces prior
+                    // behavior exactly).
+                    bool better;
+                    if (level != postSolveBestCascadeLevel) {
+                        better = level > postSolveBestCascadeLevel;
+                    } else if (config_.speedBonusWeight > 0.0) {
+                        better = beam.front().fitness > postSolveBestFitness;
+                    } else {
+                        better = programSize < postSolveBestSize;
+                    }
+                    if (better) {
                         postSolveBestCascadeLevel = level;
                         postSolveBestSize = programSize;
+                        postSolveBestFitness = beam.front().fitness;
                         postSolvePendingAdvance = problem_.nextLevel(level);
                     }
                     log::info("  divergence window: archived an alternative champion at N=" +

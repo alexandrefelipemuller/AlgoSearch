@@ -1,13 +1,33 @@
 #include "search/ProgramGenerator.hpp"
 
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <iostream>
 #include <vector>
 
 namespace algosearch {
 
 namespace {
+
+// Temporary, research-only instrumentation: counts how often the skeleton
+// draw (loopAccumulatorBias's rng.chance trigger) fires at all, and how
+// often it specifically lands on BinarySearch, printed at process exit when
+// ALGOSEARCH_DEBUG_SKELETON_COUNTS is set. Same non-production status as
+// ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS elsewhere in this
+// file. Generation runs across worker threads, hence atomics.
+std::atomic<long> gSkeletonDrawAttempts{0};
+std::atomic<long> gSkeletonBinarySearchPicks{0};
+struct SkeletonDebugPrinter {
+    ~SkeletonDebugPrinter() {
+        if (std::getenv("ALGOSEARCH_DEBUG_SKELETON_COUNTS") != nullptr) {
+            std::cerr << "[skeleton-debug] draw attempts=" << gSkeletonDrawAttempts.load()
+                      << " binarysearch picks=" << gSkeletonBinarySearchPicks.load() << "\n";
+        }
+    }
+};
+SkeletonDebugPrinter gSkeletonDebugPrinter;
 
 ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     if (depthBudget <= 0 || rng.chance(0.35)) {
@@ -1985,7 +2005,23 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // anything else here closely enough that merging wouldn't just be an
     // artificial wrapper around unrelated bodies (arithmetic recurrence
     // vs. array-element comparison-and-swap vs. two sequential loops).
-    if (canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 && rng.chance(cfg.loopAccumulatorBias)) {
+    // !insideIf/!insideWhile: every skeleton here is a complete, self-
+    // contained algorithm that writes its own final answer unconditionally,
+    // exactly once -- it was never designed to run only when some unrelated
+    // randomly-generated condition happens to be true (insideIf), nor to
+    // run however many times (0, 1, or many) an unrelated enclosing loop's
+    // own randomly-generated condition/counter happens to iterate
+    // (insideWhile). Either context makes the skeleton's correctness
+    // depend on an unrelated, uncontrolled random accident instead of
+    // running deterministically once, so it could never reach a full score
+    // and never survive regardless of the block-termination fix just
+    // above. Same evidence trail as that fix: with block-termination and
+    // the insideIf guard both in place, draw counts stayed high
+    // (11012/109476 in one instrumented contains_ordered run) but
+    // survivors stayed at zero.
+    if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
+        rng.chance(cfg.loopAccumulatorBias)) {
+        gSkeletonDrawAttempts++;
         enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, DivideConquer, MergeSort };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
@@ -2099,6 +2135,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                 }
                 roll -= options[i].weight;
             }
+            if (chosen == Skeleton::BinarySearch) gSkeletonBinarySearchPicks++;
             switch (chosen) {
                 case Skeleton::Counting:
                     return genCountingLoopBlock(rng, cfg, loopsUsed);
@@ -2213,6 +2250,33 @@ std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig
     int n = rng.uniformInt(1, std::max(1, maxStmts));
     for (int i = 0; i < n; ++i) {
         stmts.push_back(genStmt(rng, depthBudget, cfg, loopsUsed, insideIf, insideWhile));
+        // Every dedicated skeleton (loopAccumulatorBias's gen*SkeletonBlock
+        // draws, plus genCompositeBlock) is the ONLY statement kind genStmt
+        // ever returns as StmtKind::Block -- every ordinary path returns
+        // Assign/Swap/AssignArray/If/While/Call/Continue/Break instead (see
+        // genStmt's case 0-4/default above). A skeleton is a complete,
+        // self-contained algorithm that already writes its own final answer
+        // (arr[0] = ..., or equivalent) -- it was never meant to be one
+        // ingredient among several siblings in the same statement list.
+        // Before this check, a random sibling generated after it (most
+        // commonly another `arr[0] = ...` assignment, the single most
+        // ordinary "write the output" idiom in this grammar) would silently
+        // clobber the skeleton's correct result, and there was nothing
+        // distinguishing "wrong because genuinely wrong" from "wrong
+        // because a correct algorithm got overwritten by its own sibling"
+        // in scoring. Confirmed as the actual reason
+        // genBinarySearchSkeletonBlock never got picked up unforced despite
+        // firing ~11% of the time it was eligible (16116/145681 draws in one
+        // instrumented run, ALGOSEARCH_DEBUG_SKELETON_COUNTS) -- raising
+        // numVars well past what the skeleton needs (24 vs. its 8) changed
+        // nothing, which rules out variable-name collision as the cause and
+        // points squarely at arr[0] being clobbered by a later sibling.
+        // Stopping the block here is strictly corrective, not a new bias:
+        // it only removes statements that were overwhelmingly likely to
+        // just destroy a correct skeleton's output, never statements a
+        // skeleton actually depended on (skeletons never read state a
+        // still-to-be-generated sibling would have produced).
+        if (stmts.back()->kind == StmtKind::Block) break;
     }
     return stmts;
 }
