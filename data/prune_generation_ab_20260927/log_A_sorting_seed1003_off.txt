@@ -1,0 +1,110 @@
+
+LEVEL 1
+N = 1
+instances = 1
+beam = 500
+  candidates = 1 | best score = 1/1 | best size = 1 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 1 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 1/1
+  size 1  held-out 13/13
+  program_id 553e93901e462a6e  first_level 1  confirmed_levels 1
+  programa:
+
+
+LEVEL 2
+N = 2
+instances = 10
+beam = 500
+  candidates = 1502 | best score = 10/10 | best size = 37 | timeouts = 389 | errors = 7449
+  beam diversity at full solve: 154 distinct shapes / 500 candidates
+
+N=2
+  score 10/10
+  size 37  held-out 13/13
+  program_id f53ddb97fe30d335  first_level 2  confirmed_levels 4
+  programa:
+v1 = 0;
+while ((v1 < v0)) {
+  v3 = v1;
+  v2 = (v1 + 1);
+  while ((v2 < v0)) {
+    if ((arr[v2] < arr[v3])) {
+      v3 = v2;
+    }
+    v2 = (v2 + 1);
+  }
+  swap(arr[v1], arr[v3]);
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 3
+
+N=3
+  score 14/14
+  size 37  held-out 13/13
+  program_id f53ddb97fe30d335  first_level 2  confirmed_levels 4
+  programa:
+v1 = 0;
+while ((v1 < v0)) {
+  v3 = v1;
+  v2 = (v1 + 1);
+  while ((v2 < v0)) {
+    if ((arr[v2] < arr[v3])) {
+      v3 = v2;
+    }
+    v2 = (v2 + 1);
+  }
+  swap(arr[v1], arr[v3]);
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 32/32
+  size 37  held-out 13/13
+  program_id f53ddb97fe30d335  first_level 2  confirmed_levels 4
+  programa:
+v1 = 0;
+while ((v1 < v0)) {
+  v3 = v1;
+  v2 = (v1 + 1);
+  while ((v2 < v0)) {
+    if ((arr[v2] < arr[v3])) {
+      v3 = v2;
+    }
+    v2 = (v2 + 1);
+  }
+  swap(arr[v1], arr[v3]);
+  v1 = (v1 + 1);
+}
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 128/128
+  size 37  held-out 13/13
+  program_id f53ddb97fe30d335  first_level 2  confirmed_levels 4
+  programa:
+v1 = 0;
+while ((v1 < v0)) {
+  v3 = v1;
+  v2 = (v1 + 1);
+  while ((v2 < v0)) {
+    if ((arr[v2] < arr[v3])) {
+      v3 = v2;
+    }
+    v2 = (v2 + 1);
+  }
+  swap(arr[v1], arr[v3]);
+  v1 = (v1 + 1);
+}
+
+
+Search finished in 0.0328509s
+  profile: gen=0.0228452s score=0.00554467s sort=0.000181896s other=0.00427915s | generated 8989 (273630/s), scored 1503 (45752/s)
+
+Saved 5 solution record(s) to data/prune_generation_ab_20260927/solutions_A_sorting_seed1003_off.json

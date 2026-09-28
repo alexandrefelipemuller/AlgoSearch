@@ -167,3 +167,68 @@ TEST(composite_bias_emits_bound_nested_loops) {
     }
     CHECK(loopsOn > loopsOff);
 }
+
+namespace {
+
+// Counts every site GenConfig::pruneGeneration is meant to remove: v = v,
+// arr[e] = arr[e], swap(e, e), a constant if/while condition, and a Div/Mod
+// by literal 0.
+int countTrivialSites(const Stmt& s) {
+    int n = 0;
+    std::function<void(const Expr&)> walkExpr = [&](const Expr& e) {
+        if ((e.kind == ExprKind::Div || e.kind == ExprKind::Mod) && e.rhs->kind == ExprKind::IntConst &&
+            e.rhs->intValue == 0)
+            n++;
+        if (e.lhs) walkExpr(*e.lhs);
+        if (e.rhs) walkExpr(*e.rhs);
+    };
+    std::function<void(const Stmt&)> walk = [&](const Stmt& st) {
+        if (st.kind == StmtKind::Assign && st.valueExpr->kind == ExprKind::Var && st.valueExpr->varIndex == st.varIndex)
+            n++;
+        if (st.kind == StmtKind::AssignArray && st.valueExpr->kind == ExprKind::ArrayAccess &&
+            exprEqual(st.valueExpr->lhs.get(), st.indexExpr.get()))
+            n++;
+        if (st.kind == StmtKind::Swap && exprEqual(st.indexExpr.get(), st.indexExpr2.get())) n++;
+        if ((st.kind == StmtKind::If || st.kind == StmtKind::While) && constantConditionValue(*st.cond)) n++;
+        for (const Expr* e : {st.valueExpr.get(), st.indexExpr.get(), st.indexExpr2.get(), st.cond.get()})
+            if (e) walkExpr(*e);
+        for (const auto& c : st.body) walk(*c);
+        for (const auto& c : st.elseBody) walk(*c);
+    };
+    walk(s);
+    return n;
+}
+
+// numVars=2 makes self-references common enough to measure with a small
+// sample; loopAccumulatorBias=0.0 keeps every statement on the generic path.
+GenConfig trivialProneConfig(bool prune) {
+    GenConfig cfg;
+    cfg.numVars = 2;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.pruneGeneration = prune;
+    return cfg;
+}
+
+int trivialSitesAcrossSample(const GenConfig& cfg, uint64_t seed) {
+    Random rng(seed);
+    int total = 0;
+    for (int i = 0; i < 300; ++i) {
+        Program p = generateRandomProgram(rng, 20, cfg);
+        total += countTrivialSites(*p);
+        Program grown = growProgram(*p, p->size() + 10, rng, cfg);
+        total += countTrivialSites(*grown);
+    }
+    return total;
+}
+
+}  // namespace
+
+TEST(prune_generation_off_still_emits_trivial_sites) {
+    // The detectors must be measuring something real: with pruning off, the
+    // unpruned grammar does produce these shapes.
+    CHECK(trivialSitesAcrossSample(trivialProneConfig(false), 21) > 0);
+}
+
+TEST(prune_generation_removes_trivial_sites_from_generate_and_grow) {
+    CHECK_EQ(trivialSitesAcrossSample(trivialProneConfig(true), 21), 0);
+}

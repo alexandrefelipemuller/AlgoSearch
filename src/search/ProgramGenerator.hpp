@@ -136,6 +136,18 @@ struct GenConfig {
     // away everything nested under it.
     double exprMutationRate = 0.0;
 
+    // Opt-in (false = off, reproduces today's behavior exactly -- the
+    // detectors below never touch the RNG): generation-time pruning of
+    // statements/expressions that are trivial by their text alone -- `x = x`,
+    // `arr[e] = arr[e]`, `swap(e, e)`, an if/while condition whose truth value
+    // is constant (`v3 < v3`, `0 >= 2`; a constant-true while is a guaranteed
+    // TIMEOUT), and a Div/Mod/Shl/Shr whose right operand is a literal that
+    // always errors (`/ 0`). When one is drawn, only the offending part is
+    // redrawn (bounded), so the rest of the grammar's distribution is
+    // untouched. Detection runs regardless of this flag and is reported at
+    // exit when ALGOSEARCH_DEBUG_PRUNE_COUNTS is set (FINDINGS.md section 33).
+    bool pruneGeneration = false;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current

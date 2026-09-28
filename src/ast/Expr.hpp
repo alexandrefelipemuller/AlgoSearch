@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace algosearch {
@@ -69,5 +70,15 @@ ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Add/Sub
 ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs);  // Lt/Gt/Eq/Le/Ge/Ne
 
 bool isBinaryKind(ExprKind kind);
+
+// Structural equality (same kinds, literals and variable indices all the way
+// down) -- not semantic equivalence.
+bool exprEqual(const Expr* a, const Expr* b);
+
+// The truth value of a comparison that holds for EVERY execution, decided from
+// its text alone: two integer literals, or both sides the exact same
+// expression (`x < x` is always false, `x <= x` always true). nullopt for
+// anything whose value depends on runtime state, or for non-comparisons.
+std::optional<bool> constantConditionValue(const Expr& cond);
 
 }  // namespace algosearch

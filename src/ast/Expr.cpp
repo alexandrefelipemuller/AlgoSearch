@@ -85,5 +85,38 @@ ExprPtr makeBinOp(ExprKind kind, ExprPtr lhs, ExprPtr rhs) {
 
 ExprPtr makeCompare(ExprKind kind, ExprPtr lhs, ExprPtr rhs) { return makeBinOp(kind, std::move(lhs), std::move(rhs)); }
 
+bool exprEqual(const Expr* a, const Expr* b) {
+    if (!a || !b) return a == b;
+    if (a->kind != b->kind) return false;
+    if (a->kind == ExprKind::IntConst) return a->intValue == b->intValue;
+    if (a->kind == ExprKind::Var) return a->varIndex == b->varIndex;
+    return exprEqual(a->lhs.get(), b->lhs.get()) && exprEqual(a->rhs.get(), b->rhs.get());
+}
+
+std::optional<bool> constantConditionValue(const Expr& cond) {
+    bool isComparison = cond.kind == ExprKind::Lt || cond.kind == ExprKind::Gt || cond.kind == ExprKind::Eq ||
+                        cond.kind == ExprKind::Le || cond.kind == ExprKind::Ge || cond.kind == ExprKind::Ne;
+    if (!isComparison || !cond.lhs || !cond.rhs) return std::nullopt;
+
+    auto evalWith = [&](int a, int b) -> bool {
+        switch (cond.kind) {
+            case ExprKind::Lt: return a < b;
+            case ExprKind::Gt: return a > b;
+            case ExprKind::Eq: return a == b;
+            case ExprKind::Le: return a <= b;
+            case ExprKind::Ge: return a >= b;
+            case ExprKind::Ne: return a != b;
+            default: return false;  // unreachable given isComparison above
+        }
+    };
+
+    if (cond.lhs->kind == ExprKind::IntConst && cond.rhs->kind == ExprKind::IntConst) {
+        return evalWith(cond.lhs->intValue, cond.rhs->intValue);
+    }
+    if (exprEqual(cond.lhs.get(), cond.rhs.get())) {
+        return evalWith(0, 0);  // any x compared with itself behaves like x==x
+    }
+    return std::nullopt;
+}
 
 }  // namespace algosearch

@@ -29,6 +29,116 @@ struct SkeletonDebugPrinter {
 };
 SkeletonDebugPrinter gSkeletonDebugPrinter;
 
+// -- Generation-time pruning (GenConfig::pruneGeneration) and its counters --
+//
+// Phase 0 of FINDINGS.md section 33: every detector below runs whether or
+// not pruning is on (none of them touch the RNG, so pruneGeneration=false
+// stays byte-identical to before), and the counts are printed at exit when
+// ALGOSEARCH_DEBUG_PRUNE_COUNTS is set -- to measure how much of the
+// generation budget goes to text-level trivia before deciding whether any
+// given rule is worth an A/B at all.
+//
+// Two groups. PRUNED rules are redrawn when pruneGeneration is on. INFO-only
+// patterns are algebraic-identity shapes (`x - x`, `x + 0`, `2 + 1`) that a
+// later expression-folding pass could normalize but that are NOT redrawn
+// here: unlike the pruned rules they are not dead weight (`x - x` is a
+// legitimate way to spell 0), just non-canonical.
+enum PruneRule {
+    SelfAssign,             // v = v
+    ArraySelfAssign,        // arr[e] = arr[e] / aux[e] = aux[e]
+    SelfSwap,               // swap(e, e)
+    ConstantCondition,      // if/while on a condition constant by its text
+    AlwaysErrorOperand,     // Div/Mod by literal 0, Shl/Shr by a literal outside [0, 31]
+    InfoConstantOperands,   // binop over two literals
+    InfoSelfCancel,         // x - x, x ^ x
+    InfoIdentityOperand,    // x + 0, 0 + x, x - 0, x * 1, 1 * x, x / 1, x | 0, x ^ 0, x << 0, x >> 0
+    InfoAbsorbingOperand,   // x * 0, 0 * x, x & 0, 0 & x
+    PruneRuleCount
+};
+const char* const pruneRuleNames[PruneRuleCount] = {
+    "self_assign",       "array_self_assign", "self_swap",       "constant_condition", "always_error_operand",
+    "info_const_operands", "info_self_cancel", "info_identity_operand", "info_absorbing_operand"};
+
+std::atomic<long> gPruneHits[PruneRuleCount];
+std::atomic<long> gPruneRedrawsExhausted{0};
+std::atomic<long> gGenAssigns{0};       // denominators for the rates printed below
+std::atomic<long> gGenArrayAssigns{0};
+std::atomic<long> gGenSwaps{0};
+std::atomic<long> gGenConds{0};
+std::atomic<long> gGenBinops{0};
+
+struct PruneDebugPrinter {
+    ~PruneDebugPrinter() {
+        if (std::getenv("ALGOSEARCH_DEBUG_PRUNE_COUNTS") == nullptr) return;
+        const std::atomic<long>* denominators[PruneRuleCount] = {&gGenAssigns, &gGenArrayAssigns, &gGenSwaps,
+                                                                 &gGenConds,   &gGenBinops,       &gGenBinops,
+                                                                 &gGenBinops,  &gGenBinops,       &gGenBinops};
+        for (int r = 0; r < PruneRuleCount; ++r) {
+            long hits = gPruneHits[r].load();
+            long total = denominators[r]->load();
+            std::cerr << "[prune-debug] " << pruneRuleNames[r] << " hits=" << hits << " of=" << total << " rate="
+                      << (total > 0 ? static_cast<double>(hits) / static_cast<double>(total) : 0.0) << "\n";
+        }
+        std::cerr << "[prune-debug] redraws_exhausted=" << gPruneRedrawsExhausted.load() << "\n";
+    }
+};
+PruneDebugPrinter gPruneDebugPrinter;
+
+// Upper bound on redraws per pruned site: a trivial draw is rare enough that
+// this is effectively never exhausted, but it can never loop forever (e.g.
+// numVars == 1 makes every Var-vs-Var draw a self-reference).
+constexpr int maxPruneRedraws = 8;
+
+// Checks an already-built site: if `isTrivial()` holds, counts it under
+// `rule` and -- only when pruning is on -- redraws just `part` with `gen`
+// (bounded) until it no longer does. Post-construction on purpose: the site
+// is built exactly as before (including C++'s unspecified argument
+// evaluation order in calls like makeBinOp(k, gen(), gen())), so with
+// pruning off no extra RNG is consumed and the draw is untouched.
+template <typename Gen, typename IsTrivial>
+void prunePart(const GenConfig& cfg, PruneRule rule, ExprPtr& part, Gen gen, IsTrivial isTrivial) {
+    if (!isTrivial()) return;
+    gPruneHits[rule]++;
+    if (!cfg.pruneGeneration) return;
+    for (int attempt = 0; attempt < maxPruneRedraws && isTrivial(); ++attempt) part = gen();
+    if (isTrivial()) gPruneRedrawsExhausted++;
+}
+
+bool isLiteral(const Expr& e, int value) { return e.kind == ExprKind::IntConst && e.intValue == value; }
+
+bool isAlwaysErrorOperand(ExprKind k, const Expr& rhs) {
+    if (rhs.kind != ExprKind::IntConst) return false;
+    if (k == ExprKind::Div || k == ExprKind::Mod) return rhs.intValue == 0;
+    if (k == ExprKind::Shl || k == ExprKind::Shr) return rhs.intValue < 0 || rhs.intValue >= 32;
+    return false;
+}
+
+// INFO-only tally for a freshly built arithmetic/bitwise binop (never
+// redrawn, see PruneRule above).
+void tallyInfoPatterns(const Expr& e) {
+    gGenBinops++;
+    const Expr& l = *e.lhs;
+    const Expr& r = *e.rhs;
+    if (l.kind == ExprKind::IntConst && r.kind == ExprKind::IntConst) gPruneHits[InfoConstantOperands]++;
+    if ((e.kind == ExprKind::Sub || e.kind == ExprKind::BitXor) && exprEqual(&l, &r)) gPruneHits[InfoSelfCancel]++;
+    bool identity = false;
+    switch (e.kind) {
+        case ExprKind::Add:
+        case ExprKind::BitOr: identity = isLiteral(l, 0) || isLiteral(r, 0); break;
+        case ExprKind::BitXor:
+        case ExprKind::Sub:
+        case ExprKind::Shl:
+        case ExprKind::Shr: identity = isLiteral(r, 0); break;
+        case ExprKind::Mul: identity = isLiteral(l, 1) || isLiteral(r, 1); break;
+        case ExprKind::Div: identity = isLiteral(r, 1); break;
+        default: break;
+    }
+    if (identity) gPruneHits[InfoIdentityOperand]++;
+    if ((e.kind == ExprKind::Mul || e.kind == ExprKind::BitAnd) && (isLiteral(l, 0) || isLiteral(r, 0))) {
+        gPruneHits[InfoAbsorbingOperand]++;
+    }
+}
+
 ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     if (depthBudget <= 0 || rng.chance(0.35)) {
         // leaf
@@ -65,7 +175,11 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
         static const ExprKind extKinds[] = {ExprKind::Mul,    ExprKind::Div,    ExprKind::Mod,   ExprKind::BitAnd,
                                              ExprKind::BitOr, ExprKind::BitXor, ExprKind::Shl,   ExprKind::Shr};
         ExprKind k = extKinds[rng.uniformInt(0, 7)];
-        return makeBinOp(k, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+        ExprPtr e = makeBinOp(k, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+        prunePart(cfg, AlwaysErrorOperand, e->rhs, [&] { return genValueExpr(rng, depthBudget - 1, cfg); },
+                  [&] { return isAlwaysErrorOperand(k, *e->rhs); });
+        tallyInfoPatterns(*e);
+        return e;
     }
 
     int choice = rng.uniformInt(0, 3);
@@ -75,10 +189,16 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
                 return makeAuxAccess(genValueExpr(rng, depthBudget - 1, cfg));
             }
             return makeArrayAccess(genValueExpr(rng, depthBudget - 1, cfg));
-        case 1:
-            return makeBinOp(ExprKind::Add, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
-        case 2:
-            return makeBinOp(ExprKind::Sub, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+        case 1: {
+            ExprPtr e = makeBinOp(ExprKind::Add, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+            tallyInfoPatterns(*e);
+            return e;
+        }
+        case 2: {
+            ExprPtr e = makeBinOp(ExprKind::Sub, genValueExpr(rng, depthBudget - 1, cfg), genValueExpr(rng, depthBudget - 1, cfg));
+            tallyInfoPatterns(*e);
+            return e;
+        }
         default:
             return makeVar(rng.uniformInt(0, cfg.numVars - 1));
     }
@@ -89,10 +209,22 @@ ExprPtr genValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
 // step away from any other, instead of forcing >=/<= through a fragile
 // off-by-one rewrite (e.g. Gt(a, Sub(b,1))) or != through a compound
 // (Lt(x,y)+Gt(x,y)).
-ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
+ExprPtr genRawCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
     ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Le, ExprKind::Ge, ExprKind::Ne};
     ExprKind k = kinds[rng.uniformInt(0, 5)];
     return makeCompare(k, genValueExpr(rng, depthBudget, cfg), genValueExpr(rng, depthBudget, cfg));
+}
+
+// A constant condition (see constantConditionValue) is redrawn whole, kind
+// included: a constant-false if/while body never runs, a constant-true if is
+// just its body with extra nodes, and a constant-true while is a guaranteed
+// TIMEOUT unless something inside happens to break out.
+ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
+    gGenConds++;
+    ExprPtr c = genRawCondExpr(rng, depthBudget, cfg);
+    prunePart(cfg, ConstantCondition, c, [&] { return genRawCondExpr(rng, depthBudget, cfg); },
+              [&] { return constantConditionValue(*c).has_value(); });
+    return c;
 }
 
 std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts,
@@ -2017,6 +2149,39 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Generic (non-skeleton) statement builders for genStmt's ordinary paths,
+// each wired to its GenConfig::pruneGeneration rule. Every one builds the
+// statement exactly as genStmt used to inline, then checks it post hoc (see
+// prunePart).
+StmtPtr genPlainAssign(Random& rng, const GenConfig& cfg) {
+    gGenAssigns++;
+    StmtPtr s = makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
+    prunePart(cfg, SelfAssign, s->valueExpr, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); },
+              [&] { return s->valueExpr->kind == ExprKind::Var && s->valueExpr->varIndex == s->varIndex; });
+    return s;
+}
+
+// arr[e] = arr[e] (or aux[e] = aux[e]): the value read is the same cell of
+// the same array being written.
+StmtPtr genPlainArrayAssign(Random& rng, const GenConfig& cfg, bool aux) {
+    gGenArrayAssigns++;
+    StmtPtr s = aux ? makeAssignAux(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg))
+                    : makeAssignArray(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+    ExprKind readKind = aux ? ExprKind::AuxAccess : ExprKind::ArrayAccess;
+    prunePart(cfg, ArraySelfAssign, s->valueExpr, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); }, [&] {
+        return s->valueExpr->kind == readKind && exprEqual(s->valueExpr->lhs.get(), s->indexExpr.get());
+    });
+    return s;
+}
+
+StmtPtr genPlainSwap(Random& rng, const GenConfig& cfg) {
+    gGenSwaps++;
+    StmtPtr s = makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+    prunePart(cfg, SelfSwap, s->indexExpr2, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); },
+              [&] { return exprEqual(s->indexExpr.get(), s->indexExpr2.get()); });
+    return s;
+}
+
 StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, bool insideIf = false,
                 bool insideWhile = false) {
     // Control-flow extension (see GenConfig::controlFlowBias): only valid,
@@ -2264,16 +2429,16 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
                 return genIndexIncrementStmt(rng, cfg);
             }
-            return makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
+            return genPlainAssign(rng, cfg);
         case 1: {
             double swapChance = insideIf ? 0.5 : std::max(0.05, 0.5 - cfg.bareSwapPenalty);
             if (!rng.chance(swapChance)) {
                 if (cfg.secondArrayBias > 0.0 && rng.chance(cfg.secondArrayBias)) {
-                    return makeAssignAux(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+                    return genPlainArrayAssign(rng, cfg, /*aux=*/true);
                 }
-                return makeAssignArray(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+                return genPlainArrayAssign(rng, cfg, /*aux=*/false);
             }
-            return makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
+            return genPlainSwap(rng, cfg);
         }
         case 2: {
             // insideWhile is threaded through (not hard-reset to false) so
@@ -2295,7 +2460,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
                 return genIndexIncrementStmt(rng, cfg);
             }
-            return makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
+            return genPlainAssign(rng, cfg);
         case 4: {
             loopsUsed++;
             auto body = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/false,
@@ -2303,7 +2468,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             return makeWhile(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(body));
         }
         default:
-            return makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
+            return genPlainAssign(rng, cfg);
     }
 }
 

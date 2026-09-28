@@ -1,0 +1,199 @@
+
+LEVEL 1
+array N = 1
+instances = 1
+beam = 500
+  candidates = 1 | best score = 1/1 | best size = 1 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 1 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 1/1
+  size 1
+  program_id 553e93901e462a6e  first_level 1  confirmed_levels 1
+  programa:
+
+
+LEVEL 2
+array N = 2
+instances = 2
+beam = 500
+  candidates = 1502 | best score = 2/2 | best size = 4 | timeouts = 87 | errors = 991
+  beam diversity at full solve: 19 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 2/2
+  size 4
+  program_id 37d197b845e91862  first_level 2  confirmed_levels 1
+  programa:
+arr[v5] = v2;
+
+
+LEVEL 3
+array N = 3
+instances = 56
+beam = 500
+  candidates = 2500 | best score = 56/56 | best size = 52 | timeouts = 3328 | errors = 40018
+  beam diversity at full solve: 59 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=3 but breaks before N=6 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=3
+  score 56/56
+  size 52  held-out 52/52
+  program_id 47553a77e9c2c69  first_level 3  confirmed_levels 1
+  programa:
+v4 = 0;
+v5 = 0;
+while ((v4 < v0)) {
+  v2 = (v4 + 1);
+  while ((v2 < v0)) {
+    v1 = (v2 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v4] + arr[v2]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v2 = (v2 + 1);
+  }
+  v4 = v1;
+}
+arr[0] = v5;
+
+
+LEVEL 4
+array N = 4
+instances = 128
+beam = 500
+  candidates = 2500 | best score = 128/128 | best size = 54 | timeouts = 12127 | errors = 74456
+  beam diversity at full solve: 41 distinct shapes / 500 candidates
+
+N=4
+  score 128/128
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 4  confirmed_levels 5
+  programa:
+v3 = 0;
+v5 = 0;
+while ((v3 < v0)) {
+  v4 = (v3 + 1);
+  while ((v4 < v0)) {
+    v1 = (v4 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v3] + arr[v4]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v4 = (v4 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 512/512
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 4  confirmed_levels 5
+  programa:
+v3 = 0;
+v5 = 0;
+while ((v3 < v0)) {
+  v4 = (v3 + 1);
+  while ((v4 < v0)) {
+    v1 = (v4 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v3] + arr[v4]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v4 = (v4 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 2912/2912
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 4  confirmed_levels 5
+  programa:
+v3 = 0;
+v5 = 0;
+while ((v3 < v0)) {
+  v4 = (v3 + 1);
+  while ((v4 < v0)) {
+    v1 = (v4 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v3] + arr[v4]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v4 = (v4 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 192/192
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 4  confirmed_levels 5
+  programa:
+v3 = 0;
+v5 = 0;
+while ((v3 < v0)) {
+  v4 = (v3 + 1);
+  while ((v4 < v0)) {
+    v1 = (v4 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v3] + arr[v4]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v4 = (v4 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v5;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 192/192
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 4  confirmed_levels 5
+  programa:
+v3 = 0;
+v5 = 0;
+while ((v3 < v0)) {
+  v4 = (v3 + 1);
+  while ((v4 < v0)) {
+    v1 = (v4 + 1);
+    while ((v1 < v0)) {
+      if ((((arr[v3] + arr[v4]) + arr[v1]) == 0)) {
+        v5 = 1;
+      }
+      v1 = (v1 + 1);
+    }
+    v4 = (v4 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v5;
+
+
+Search finished in 0.344173s
+  profile: gen=0.0884023s score=0.208344s sort=0.000816981s other=0.0466106s | generated 12932 (37574/s), scored 6503 (18894/s)
+
+Saved 8 solution record(s) to data/prune_generation_ab_20260927/solutions_A_three_sum_seed1004_off.json

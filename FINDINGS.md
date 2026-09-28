@@ -2277,3 +2277,93 @@ conjunction relation, 6-var binding context, `numVars >= 8` gate),
 `src/problems/DominatedWindowProblem.{hpp,cpp}`, `tests/
 held_out_problems_tests.cpp` (`dominated_window_problem_*`),
 `tests/generator_tests.cpp` (`numVars` fix). `make test` 92/92.
+
+## 33. Generation-time pruning of text-level trivia (phases 0+1): real junk, removing it is neutral
+
+**Motivation.** `canonicalText()` (`src/ast/Stmt.cpp`) already folds
+constant conditions, strips dead stores via real backward liveness and
+renames variables canonically -- but only to compute the dedup hash/program
+id. The program that stays in the beam is never simplified, and the
+generator itself had no check against emitting trivially useless shapes.
+This section is phases 0 and 1 of a five-phase pruning plan (0: measure;
+1: redraw trivia at generation time; 2: algebraic expression folding;
+3: materialize the simplification on beam programs; 4: behavioral dedup
+with a per-class cap; 5: stall-triggered simplification, section 29's
+suggestion).
+
+**Implementation.** `GenConfig::pruneGeneration` / `--prune-generation`
+(opt-in, default off). Pruned rules, each checked after the site is built
+and redrawing only the offending part (at most 8 times):
+`v = v`; `arr[e] = arr[e]` / `aux[e] = aux[e]`; `swap(e, e)`; an if/while
+condition constant by its text (same `constantConditionValue` the
+canonicalizer uses, now public in `ast/Expr.hpp` alongside `exprEqual`);
+Div/Mod by literal 0 and Shl/Shr by a literal outside [0, 31]. The check is
+post-construction on purpose: `makeBinOp(k, gen(), gen())` has unspecified
+argument evaluation order, so restructuring the draw would have silently
+changed the RNG sequence. **With the flag off the output is byte-identical
+to the previous HEAD** -- verified on 5 configurations (default skeleton
+path on sum/gcd, composite on substring, second-array + crossover +
+expr-mutation on sorting, loop-bias 0.0 on single_number): identical
+solutions JSON and identical logs modulo timing lines. Phase 0 counters
+(`ALGOSEARCH_DEBUG_PRUNE_COUNTS`) run in both modes and also tally
+phase-2 candidates (const-op-const, `x - x`, `x + 0`/`x * 1`, `x * 0`)
+without touching them. 2 new tests, `make test` 94/94.
+
+**Phase 0 -- how much junk the unpruned grammar draws** (pooled off-arm
+counts, suite B shown; suite A within ~1 point on every rule):
+
+| shape | rate | of |
+|---|---|---|
+| `v = v` | 8.1% | scalar assignments |
+| constant if/while condition | 5.8% | conditions |
+| `swap(e, e)` | 3.5% | swaps |
+| `arr[e] = arr[e]` | 0.5% | array assignments |
+| always-erroring literal operand | 0.25% | arithmetic binops |
+| *(info)* both operands literal | 9.2% | binops |
+| *(info)* identity operand (`x + 0`, `x * 1`, ...) | 9.2% | binops |
+| *(info)* self-cancel (`x - x`, `x ^ x`) | 2.7% | binops |
+| *(info)* absorbing operand (`x * 0`, `x & 0`) | 0.5% | binops |
+
+The 8-redraw bound was never exhausted (`redraws_exhausted = 0` in every
+on-arm run).
+
+**Phase 1 -- matched-seed A/B** (`scripts/run_prune_generation_ab.sh`,
+summary via `scripts/summarize_prune_ab.py`; off/on arms of each seed run
+concurrently with `--threads 4` each so machine load hits both equally).
+Prediction registered in the script header before running: neutral on
+success, equal or lower wall time.
+
+- Suite A (default loop-bias 0.4, the modest battery's 17 problems and
+  budgets, seeds 1000-1004): identical success on 16/17. The one
+  difference, `reverse` 3/5 vs 4/5, was re-run on 25 fresh seeds
+  (1005-1029): **25/25 vs 25/25** -- the original gap was noise (seeds
+  1000-1004 are just harder ones). Pooled `reverse`: 28/30 vs 29/30.
+- Suite B (isolation, loop-bias 0.0: sum/min/max/count/contains/sorting/
+  gcd/single_number, plus section 32's substring/dominated_window with
+  composite 1.0): identical success everywhere (0/5 on the first seven,
+  1/5 vs 1/5 single_number, 5/5 vs 5/5 on the composite pair), mean
+  n_reached within 0.2.
+- Wall time: no effect. Per-problem means within noise; the on-arm was
+  faster in ~60% of pairs overall and 13/25 on the `reverse` confirmation
+  (8.9s vs 10.2s mean).
+
+**Conclusion: the trivia are real (roughly 1 in 12 assignments, 1 in 17
+conditions) but they are not what limits the search.** Redrawing them is
+safe and neutral, exactly as predicted, so `pruneGeneration` stays opt-in
+rather than becoming a default nobody can distinguish from the old
+behavior. One honest limit of this A/B: neither suite has much of a
+"boundary zone" at this budget -- suite A saturates in milliseconds via
+skeletons, suite B floors at 0/5 because every isolation run exhausts
+`--max-program-size 150` in ~20s (no run hit the wall-clock timeout) --
+so a small effect on marginal problems cannot be ruled out, only a large
+one. The documented bloat problem (section 29's 1600-node champions) is
+junk *accumulated inside surviving programs* via growth, which this phase
+does not touch by construction; that is phase 3's target, and section 29's
+sorting stall is its natural test.
+
+Data: `data/prune_generation_ab_20260927/`,
+`data/prune_generation_ab_reverse_20260927/` (per-run logs, solutions JSON,
+`err_*.txt` prune counters, `times.tsv`). Code: `src/search/
+ProgramGenerator.{hpp,cpp}` (`prunePart`, `genPlain*`, `genCondExpr`,
+counters), `src/ast/Expr.{hpp,cpp}`, `src/main.cpp`, `tests/
+generator_tests.cpp` (`prune_generation_*`).

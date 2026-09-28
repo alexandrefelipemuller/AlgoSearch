@@ -196,3 +196,12 @@ generalizing in Test A, with `lis` (Test B) and `cycle` (reserve) out of
 reach by construction, as designed.
 See `FINDINGS.md` sections 25-27 for the protocol, the five-column taxonomy,
 and the next steps.
+
+Generation-time pruning (`--prune-generation`, opt-in, off by default and
+byte-identical to the unpruned grammar when off) redraws text-level trivia at
+the moment it is generated: `v = v`, `arr[e] = arr[e]`, `swap(e, e)`, an
+if/while condition that is constant by its own text, and a literal operand
+that always errors (`/ 0`). Set `ALGOSEARCH_DEBUG_PRUNE_COUNTS=1` to print how
+often each shape is drawn. A matched-seed A/B found it neutral: it removes
+5-8% junk per site without changing success rate or wall time -- see
+`FINDINGS.md` section 33.
