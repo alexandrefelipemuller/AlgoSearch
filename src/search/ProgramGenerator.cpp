@@ -1858,10 +1858,13 @@ StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
 // arr[1+i+j] vs arr[n+2+j]) is ONE draw among the family, not the only thing
 // this operator can emit.
 StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    // Binding context: five distinct scratch variables; every piece below
-    // references exactly these, never a fresh independent draw.
-    std::vector<int> v = pickDistinctVars(rng, cfg, 5);
-    int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4];
+    // Binding context: six distinct scratch variables; every piece below
+    // references exactly these, never a fresh independent draw. The sixth
+    // (`found`) is only used by the scoped-conjunction relation below, but
+    // is drawn unconditionally so every composite in the family shares the
+    // same binding-context size.
+    std::vector<int> v = pickDistinctVars(rng, cfg, 6);
+    int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
 
     std::vector<StmtPtr> root;
     root.push_back(makeAssign(capA, makeArrayAccess(makeIntConst(0))));  // capA = arr[0]
@@ -1921,40 +1924,93 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     ExprPtr patIdx =
         makeBinOp(ExprKind::Add, makeVar(capA), makeBinOp(ExprKind::Add, makeIntConst(base2), makeVar(vj)));
 
-    // Relation piece catalog -- every entry uses vi/vj/acc/capA/capB from the
-    // context, never fresh variables. Align-match is the coherent relation
-    // for a two-sequence composite, so it is weighted up when pairCapture.
-    std::vector<StmtPtr> body;
+    // Relation piece catalog -- every entry uses vi/vj/acc/capA/capB/found
+    // from the context, never fresh variables. Align-match and
+    // scoped-conjunction are the two-sequence-coherent relations, so both
+    // are only ever drawn when pairCapture.
     int relation = rng.uniformInt(0, 3);
-    if (relation > 2) relation = 0;
-    if (pairCapture && relation == 0) {
-        // Sentinel flag: if (arr[textIdx] == arr[patIdx]) acc = 1
-        std::vector<StmtPtr> then;
-        then.push_back(makeAssign(acc, makeIntConst(1)));
-        body.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(textIdx->clone()), makeArrayAccess(patIdx->clone())),
-                              std::move(then)));
-    } else if (relation == 1) {
-        // Count-if: if (arr[textIdx] > capB) acc = acc + 1
-        std::vector<StmtPtr> then;
-        then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
-        body.push_back(makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(textIdx->clone()), makeVar(capB)), std::move(then)));
-    } else {
-        // XOR-reduce: acc = acc ^ arr[textIdx]
-        body.push_back(makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), makeArrayAccess(textIdx->clone()))));
-    }
+    bool useScopedConjunction = pairCapture && relation == 3;
+    bool useSentinelFlag = pairCapture && relation == 0;
 
-    // Assemble: acc init, outer counting loop (with inner counting loop as
-    // its body), then write-back arr[0] = acc.
-    root.push_back(makeAssign(acc, makeIntConst(0)));
-    std::vector<StmtPtr> outerBody;
-    outerBody.push_back(makeAssign(vj, makeIntConst(0)));
-    appendCountingWhile(outerBody, vj, std::move(innerBound), loopsUsed, [&](std::vector<StmtPtr>& innerBody) {
-        for (auto& stmt : body) innerBody.push_back(std::move(stmt));
-    });
-    appendCountingWhile(root, vi, std::move(outerBound), loopsUsed, [&](std::vector<StmtPtr>& bodyOut) {
-        for (auto& stmt : outerBody) bodyOut.push_back(std::move(stmt));
-    });
-    root.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+    if (useScopedConjunction) {
+        // Scoped conjunction ("outer-loop state RESET + inner-loop AND-
+        // reduction + post-inner-loop CONSUME"): a per-outer-iteration flag
+        // (`acc`) starts true before the inner loop and clears on any
+        // mismatch found inside it; only AFTER the inner loop closes is it
+        // OR'd into the persistent `found` register. This is a different
+        // SCOPE discipline from the other three relations below, which all
+        // fire unconditionally once per (i,j) pair inside the inner loop --
+        // section 27's isolation test (FINDINGS.md) found the prior catalog
+        // (sentinel-flag/count-if/xor) has no piece with this reset-before/
+        // consume-after shape, which is exactly what any `exists i, forall
+        // j: condition(i,j)` problem needs (substring match, prefix/window
+        // equality, row/column validation, ...) -- generic to that whole
+        // family, not substring-specific.
+        root.push_back(makeAssign(found, makeIntConst(0)));  // found = 0, before the outer loop
+
+        std::vector<StmtPtr> outerBody;
+        outerBody.push_back(makeAssign(vj, makeIntConst(0)));
+        outerBody.push_back(makeAssign(acc, makeIntConst(1)));  // RESET: acc = 1 per outer iteration
+        // Mismatch predicate: which per-(i,j) test clears `acc`. Ne (exact
+        // equality required, substring's own condition) vs Le (strict
+        // dominance required -- text[i+j] must exceed pattern[j], mismatch
+        // when it doesn't) are two different `forall j: cond(i,j)` problems
+        // sharing the same reset/AND/consume scope -- kept as a draw, not
+        // fixed to Ne, so this relation is a family member like the other
+        // three, not a substring-only special case.
+        ExprKind mismatchKind = rng.chance(0.5) ? ExprKind::Ne : ExprKind::Le;
+        std::vector<StmtPtr> mismatchBody;
+        mismatchBody.push_back(makeAssign(acc, makeIntConst(0)));
+        std::vector<StmtPtr> innerBody;
+        ExprPtr mismatchCond = mismatchKind == ExprKind::Ne
+            ? makeCompare(ExprKind::Ne, makeArrayAccess(textIdx->clone()), makeArrayAccess(patIdx->clone()))
+            : makeCompare(ExprKind::Le, makeArrayAccess(textIdx->clone()), makeArrayAccess(patIdx->clone()));
+        innerBody.push_back(makeIf(std::move(mismatchCond),
+            std::move(mismatchBody)));  // AND-reduce: any mismatch clears acc
+        appendCountingWhile(outerBody, vj, std::move(innerBound), loopsUsed, [&](std::vector<StmtPtr>& bodyOut) {
+            for (auto& stmt : innerBody) bodyOut.push_back(std::move(stmt));
+        });
+        std::vector<StmtPtr> consumeBody;
+        consumeBody.push_back(makeAssign(found, makeIntConst(1)));
+        outerBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(acc), makeIntConst(1)),
+                                   std::move(consumeBody)));  // CONSUME: only after the inner loop closes
+        appendCountingWhile(root, vi, std::move(outerBound), loopsUsed, [&](std::vector<StmtPtr>& bodyOut) {
+            for (auto& stmt : outerBody) bodyOut.push_back(std::move(stmt));
+        });
+        root.push_back(makeAssignArray(makeIntConst(0), makeVar(found)));
+    } else {
+        std::vector<StmtPtr> body;
+        if (useSentinelFlag) {
+            // Sentinel flag: if (arr[textIdx] == arr[patIdx]) acc = 1
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeIntConst(1)));
+            body.push_back(makeIf(
+                makeCompare(ExprKind::Eq, makeArrayAccess(textIdx->clone()), makeArrayAccess(patIdx->clone())),
+                std::move(then)));
+        } else if (relation == 1) {
+            // Count-if: if (arr[textIdx] > capB) acc = acc + 1
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            body.push_back(
+                makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(textIdx->clone()), makeVar(capB)), std::move(then)));
+        } else {
+            // XOR-reduce: acc = acc ^ arr[textIdx]
+            body.push_back(makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), makeArrayAccess(textIdx->clone()))));
+        }
+
+        // Assemble: acc init, outer counting loop (with inner counting loop
+        // as its body), then write-back arr[0] = acc.
+        root.push_back(makeAssign(acc, makeIntConst(0)));
+        std::vector<StmtPtr> outerBody;
+        outerBody.push_back(makeAssign(vj, makeIntConst(0)));
+        appendCountingWhile(outerBody, vj, std::move(innerBound), loopsUsed, [&](std::vector<StmtPtr>& innerBody) {
+            for (auto& stmt : body) innerBody.push_back(std::move(stmt));
+        });
+        appendCountingWhile(root, vi, std::move(outerBound), loopsUsed, [&](std::vector<StmtPtr>& bodyOut) {
+            for (auto& stmt : outerBody) bodyOut.push_back(std::move(stmt));
+        });
+        root.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+    }
 
     auto block = makeBlock();
     block->body = std::move(root);
@@ -2177,9 +2233,16 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
 
     // Composite primitives (Moção 2, Etapa 3): independent of the skeleton
     // draw above, so it can fire even at loopAccumulatorBias=0.0. Opt-in via
-    // GenConfig::compositeBias. Needs 2 free loop slots (canNestedLoop) and 5
-    // scratch vars for the shared binding context.
-    if (canNestedLoop && cfg.numVars >= 5 && cfg.compositeBias > 0.0 && rng.chance(cfg.compositeBias)) {
+    // GenConfig::compositeBias. Needs 2 free loop slots (canNestedLoop) and 6
+    // scratch vars for the shared binding context (the 6th, `found`, backs
+    // the scoped-conjunction relation added for the substring isolation
+    // follow-up -- FINDINGS.md section 31/32). pickDistinctVars draws from a
+    // pool of size numVars-1 (it never returns v0), so numVars must be at
+    // least one more than the var count requested (6) or the draw loop can
+    // never terminate -- gated at 8, not 6, for headroom (learned the hard
+    // way: numVars=6 here hung tests/generator_tests.cpp's
+    // composite_bias_emits_bound_nested_loops for hours before this fix).
+    if (canNestedLoop && cfg.numVars >= 8 && cfg.compositeBias > 0.0 && rng.chance(cfg.compositeBias)) {
         return genCompositeBlock(rng, cfg, loopsUsed);
     }
 

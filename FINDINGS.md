@@ -1539,3 +1539,741 @@ exactly.
    diagnosed there (independently-drawn skeletons rarely land on
    consistent variables) is really as hard a wall as assumed, or just
    never given enough attempts.
+
+## 25. Held-out discovery benchmark: three problems outside the skeleton library, and the baseline that freezes the starting line
+
+The plenary session (2026-09-20) approved the technical package "divergence
+engine + composite primitives + held-out benchmark" in the order **3 -> 1 -> 2**
+(benchmark first, engine second, primitives third), with the no-LLM clause
+kept intact (section 17's binding decision). This entry is Etapa 1 of that
+plan: the ruler, frozen before any engine/grammar change.
+
+### The three held-out problems
+
+Three new `Problem` subclasses, deliberately NOT in the skeleton library
+(`ProgramGenerator.cpp` untouched), each chosen to test a different
+construction gap from section 24's catalogue:
+
+- **`lis`** (`LisProblem`): longest strictly increasing subsequence. Flat
+  array `[n, values..., n zeros scratch]`. Needs the catalogue's predicted
+  SIXTH one-off primitive: read several already-computed table entries and
+  take a max over them. Ground truth: host O(n^2) DP.
+- **`substring`** (`SubstringProblem`): contiguous substring search. Flat
+  array `[n, text..., m, pattern...]`. Needs a recombination of SHARED
+  primitives (two counting loops with two captured lengths + a per-start
+  match flag) that no existing skeleton assembles.
+- **`cycle`** (`CycleDetectionProblem`): linked-list cycle detection on a
+  next-pointer array `[head, next...]` (n = null). Needs a genuinely new
+  two-pointer shape (Floyd's different-speed pointers, or a pigeonhole
+  counting walk) that is not in the catalogue at all.
+
+All three override `supportsMagnitudeShift() = false` (metadata/indices, not
+shiftable magnitudes). Unit tests cover instance layout, ground-truth
+consistency of every generated instance, and both answer labels; `make test`
+68/68 after the addition (58 prior + 10 new).
+
+### Baseline protocol and result
+
+`scripts/run_heldout_baseline.sh`, output in `data/heldout_baseline_20260920/`.
+Fixed matched budget for every run: beam=500, candidates=800,
+max-program-size=60, step-limit=10000, num-vars=6, max-n=5, 5 seeds (base
+2001), 600s wall cap. Two arms per problem: default `loop-bias=0.4`
+(skeleton pool available, unforced) and `loop-bias=0.0` (no skeleton draw at
+all).
+
+**Result: 0/30 genuinely generalizing solutions.** Every one of the 30 runs
+produced only `UNCONFIRMED` gambiarras -- programs that fully solve their
+current level's exact instances and break one level later, exactly the
+failure mode the structural-invariance gate exists to label. No seed
+produced a single `SUCCESS` record in either arm.
+
+Per-problem high-water marks (max level reached / best score at that level):
+
+| problem | arm bias=0.4 | arm bias=0.0 |
+|---|---|---|
+| lis | N=3 (8-10/14) | N=2 (7-9/10) |
+| substring | N=3 (16-17/21) | N=3 (13/21) |
+| cycle | N=5 (7/10); one seed fully solved N=4 (10/10) but UNCONFIRMED | N=3 (7/8) |
+
+The five-column taxonomy the plenary adopted, applied to the baseline:
+
+| column | answer |
+|---|---|
+| solução encontrada? | 0/30 generalizável (todos UNCONFIRMED) |
+| é equivalente a algoritmo conhecido? | n/a -- nada sobreviveu à verificação |
+| usa somente primitivas conhecidas? | n/a |
+| estrutura nova? | n/a |
+| comportamento novo? | n/a |
+
+### What this freezes
+
+This is now the definitive starting line for the 3 -> 1 -> 2 plan: the
+current engine, with or without the skeleton library, gets zero traction on
+these three shapes at a matched modest budget. Etapa 2 (the divergence
+engine, Moção 1) and Etapa 3 (composite primitives with binding, Moção 2)
+will be measured against exactly this table -- a result only counts as
+progress if it moves one of these problems from UNCONFIRMED to an
+independently-verified SUCCESS without hand-writing its skeleton.
+
+## 26. Divergence engine (Moção 1, Etapa 2): collects alternatives, still zero generalizers
+
+Implemented `SearchConfig::postSolveSizes` (`--post-solve-sizes`, default 0):
+after the first full solve of a level, the level stays open for N more
+program-size steps; the champion is frozen (excluded from the beam so elite
+slots grow alternatives instead of re-selecting it), every NEW full-solve
+candidate found during the window is recorded with its own cascade, and
+promotion happens only when the window closes -- to the level reached by the
+archived champion whose cascade went farthest (ties: smaller program). 0
+reproduces the original promote-immediately behavior exactly. Records are
+deduplicated per program@level so an archived champion re-found later cannot
+double-count. `make test` 71/71 (3 new tests: default-mode record count is
+unchanged, the window records alternative champions, and the window still
+promotes after the budget elapses without deadlocking).
+
+**A/B against the section 25 baseline** (`scripts/run_heldout_divergence_ab.sh`,
+`data/heldout_divergence_ab_20260920/`): same binary, same matched budget
+(beam=500, candidates=800, size=60, step-limit=10000, num-vars=6, max-n=5,
+5 seeds base 2001, 600s wall), four arms -- bias 0.4/0.0 x post 0/20.
+
+**Result: 0/30 genuinely generalizing solutions in the post=0 control arm AND
+0/30 in the post=20 treatment arm.** The control arm re-confirms section 25's
+baseline with the new binary (same max levels and scores), so the comparison
+is matched. The window does its mechanical job -- UNCONFIRMED records per run
+jump from 1-4 to ~19-29 as alternative gambiarras get archived -- but every
+one of those alternatives is another wrong-but-fully-scoring program, and
+none generalizes. The trade is also visible: max level reached DROPS in
+several treatment runs (e.g. `lis` bias=0.4 solves N=2 in 3/5 control seeds
+but only N=1 in 5/5 treatment seeds, per `confirmed_levels`/"solves N=" in
+the raw logs -- corrected from an earlier N=3/N=2 misreading of the level the
+search was merely attempting, not the level actually solved) because each
+open window spends size budget re-exploring the same level instead of
+climbing.
+
+**Conclusion, honest negative, correctly scoped:** this specific survival
+mechanism -- keeping wrong-but-fully-scoring alternatives alive in a post-
+solve window -- did not produce construction of any generalizing new shape,
+in this search space, under this generation operator. That is narrower than
+"the bottleneck is construction, not survival" (the earlier phrasing):
+this experiment does not rule out every possible survival strategy, only
+this one. Combined with sections 18/20/21, it is nonetheless the fourth
+independent confirmation that widening what the beam keeps alive, by itself,
+does not create the missing shape. The engine change stays (opt-in, default
+off, same status as `speedBonusWeight`/`exprMutationRate` before it): the
+archive semantics are exactly what the composite-primitives stage (Etapa 3,
+Moção 2) will need to tell "recombined something new" from "re-found the
+same gambiarra". But by itself, on the held-out ruler, it is a clean null
+result.
+
+## 27. Composite primitives with binding (Moção 2, Etapa 3): the operator composes the shape, but the search never converges to the clean version
+
+Two-layer success criteria, fixed BEFORE any code (per the plenary audit):
+- **Test A (composition) = `substring`**: its solution is a NEW recombination
+  of section 24's catalogued primitives (two counting loops with two captured
+  lengths + a per-start match flag) in an arrangement no existing skeleton
+  assembles. Success here = the search composes it unaided; record as
+  "composition learned", never as "discovery".
+- **Test B (open discovery) = `lis`**: needs the catalogue's predicted SIXTH
+  one-off primitive (read several already-computed table cells and take a
+  max), which the composite family cannot express by construction. Expected
+  to fail; a failure is the measured frontier of "primitives + binding" and
+  is direct input for Moção 4, NOT a reason to add an ad-hoc LIS primitive.
+- `cycle` is the reserve (a new two-pointer shape), reported separately.
+
+Implemented `GenConfig::compositeBias` (`--composite-bias`, opt-in, default
+0.0): at a generic statement slot with 2 free loop slots, emits a two-loop
+block assembled from catalogued pieces -- capture `arr[0]`, capture at a
+computed position (`arr[arr[0]+k]`), two counting loops with derived bounds,
+affine two-sequence indices (`base1+i+j` vs `capA+base2+j`), and a relation
+piece (align-match sentinel / count-if / xor / running best) -- under ONE
+shared binding context (`pickDistinctVars` once; every piece uses those
+variables, never fresh independent draws). This is deliberately a FAMILY of
+composites (the substring solution is one coherent draw among ~50), not a new
+named skeleton. Original grammar tokens stay available (the operator is one
+trigger among many, never a replacement). `make test` 72/72.
+
+**Three iterations, one real bug found:** v1's coherent outer bound was
+`n - m`; the first A/B showed the operator composing the right shape with the
+wrong bound (champion: outer `v5 < v2` = n, which over-counts and creates
+false positives). A coherence prior (v2) weighted the aligned choices but the
+bound was still wrong. v3 fixed an off-by-one -- the number of valid start
+positions is `n - m + 1` (`(capA - capB) + 1`), not `n - m`; the v1/v2
+champions were one constant away from correct. This is the same
+hand-authored-template fragility the audit warned about, found and fixed
+before the final A/B.
+
+**Final A/B** (`scripts/run_heldout_composite_ab.sh`,
+`data/heldout_composite_ab_v3_20260920/`): loop-bias=0.0 (no skeleton draw at
+all), matched section 25 budget, composite-bias in {0, 0.5, 1.0}, 5 seeds.
+
+| test | composite=0 | composite=0.5 | composite=1.0 |
+|---|---|---|---|
+| Test A `substring` | 0/5; N=2-3, best 13/21 | 0/5; N=3-4, best 23/29 | 0/5; N=3-4, best 24/29 |
+| Test B `lis` | 0/5; N=2, best 9/10 | 0/5; N=2-3, best 11/14 | 0/5; N=2-3, best 11/14 |
+| reserve `cycle` | 0/5; N=1-3 | 0/5; N=2-3 | 0/5; N=1-2 |
+
+**What the operator did and did not do:** the binding discipline WORKS. The
+v3 champions at N=3 contain the exact coherent composite -- `while (v2 <
+((v5 - v3) + 1)) { ... if (arr[(1 + (v2 + v1))] == arr[(v5 + (2 + v1))]) ... }`
+-- i.e. the operator composed the target primitive arrangement, including the
+correct `n-m+1` bound, without a human writing the algorithm. But every such
+champion is a 100+-node overgrown program (growth spliced extra composite
+blocks into the body), scores full only on the current level, and fails the
+structural-invariance gate one or two levels later.
+
+**Isolation test (`tests/composite_isolation_tests.cpp`), corrected reading:**
+the plenary's working hypothesis after the A/B was "construction succeeded,
+convergence to a clean version did not" -- i.e. a selection/growth problem.
+Hand-writing the CLEAN version of what the catalog's pieces can assemble
+(no growth corruption at all) disproves that hypothesis. The catalog's
+"align-match sentinel" relation piece is `if (arr[textIdx] == arr[patIdx])
+acc = 1`, fired unconditionally inside the inner loop -- a flat OR over
+every `(i, j)` pair. `substring` needs an AND over the whole inner window
+for a FIXED `i` (a per-outer-iteration flag that starts true, clears on any
+mismatch, and is only compared/OR'd into the accumulator after the inner
+loop closes). The catalog has no piece with that reset-before/compare-after
+shape. `catalog_only_composite_does_not_generalize_even_when_clean` confirms
+the clean catalog-only composite fails by level 4, with **zero** growth
+corruption -- the champions' 100+-node bloat was very likely the search's
+attempt to compensate for the missing piece with ad-hoc structure, not
+incidental noise on top of an otherwise-correct program.
+
+A second test, `true_substring_algorithm_generalizes_and_is_reachable_by_the_interpreter`,
+hand-writes the actually-correct algorithm (with the reset+AND+compare-after
+piece) and confirms it generalizes exactly across levels 1-8, instances and
+adversarial instances alike, at 62 nodes -- so the shape IS within the
+interpreter's expressive power. The gap is specifically in the composite
+catalog's piece inventory, not in what Mini-C can express.
+
+**Revised verdict for Test A: not "partial via selection failure" but a
+construction gap of the same KIND as Test B, only smaller** -- `substring`
+needs one piece (reset-scoped conjunction) the catalog does not have, exactly
+as `lis` needs a piece (read-several-cells-and-max) the catalog does not
+have. Both are catalog-completeness gaps, not survival/selection gaps. This
+sharpens sections 18/20/21/22's repeated finding: every mechanism tested so
+far that only changes what survives (diversity, crossover, niches,
+annealing, the Moção 1 archive) or how existing pieces recombine (Moção 2)
+leaves the actual bottleneck untouched -- the grammar/catalog has to contain
+the needed piece before any search mechanism can find it.
+
+Test B failed as predicted (the composite family has no "read several
+computed cells and take a max" piece, so `lis` stayed out of reach by
+construction) -- direct input for the Moção 4 discussion. `cycle` likewise
+stayed out of reach.
+
+**Next actions, in order:** (1) DONE -- isolation confirmed the gap is in the
+catalog's piece inventory, not selection/growth; (2) do NOT spend further
+effort tuning `exprMutationRate`/growth-granularity/the Moção 1 archive
+against this specific case -- that lever was ruled out by the isolation
+test, not just deprioritized; (3) if a piece with the reset-then-conjunction
+shape were added to the catalog, `substring` would move from "construction
+gap" to "the same open question sections 18/20/21 raise for every other
+solved skeleton": would the search actually recombine it into the right
+place, or does adding it become one more skeleton by another name? That
+question is deliberately NOT tested here -- it would require designing the
+new piece carefully enough to stay general (usable by other future
+held-out problems) rather than shaped specifically for `substring`, which
+is exactly the "17 skeletons vs. 6 new ones" trap the plenary flagged before
+Etapa 3 began. The composite operator stays opt-in (default 0.0).
+
+## 28. Diversity battery: does the combination of both new mechanisms increase archived diversity across the ORIGINAL 21, and does it regress anything?
+
+Etapas 2 and 3 measured `--post-solve-sizes` and `--composite-bias` only
+against the 3 held-out problems, in isolation from each other. Open
+question after the session: turned on TOGETHER, across the *original*
+skeleton-solved problems (where the search already generalizes), does the
+divergence window collect more distinct alternative programs, and does it
+cost anything?
+
+**Setup** (`scripts/run_diversity_battery.sh`, `data/diversity_battery_20260920/`):
+13 problems -- 10 from the original 21 (`sorting`, `min`, `max`, `sum`,
+`gcd`, `is_prime`, `factorial`, `contains`, `three_sum`,
+`graph_reachability`) plus the 3 held-out (`lis`, `substring`, `cycle`).
+Two arms, matched budget/seed: **control** (today's default, both flags
+off) vs. **treatment** (`--post-solve-sizes 15 --composite-bias 0.3`
+together). beam=300, candidates=800, size=80, step-limit=4000, loop-bias=0.4,
+3 seeds/arm, 90s wall cap.
+
+### Result 1: diversity rises sharply, generalization is UNCHANGED
+
+For the 10 runs that completed (see the bug below for the 3 that didn't),
+distinct archived `program_id` count per run and the union of levels that
+reach confirmed `SUCCESS`:
+
+| problem | distinct programs, control -> treatment | SUCCESS levels, control | SUCCESS levels, treatment |
+|---|---|---|---|
+| sorting | 2 -> 32 | 2-5 | 2-5 (identical) |
+| min / max | 2 -> 32 | 2-8 | 2-8 (identical) |
+| sum | 2 -> 32 | 2-8 | 2-8 (identical) |
+| contains | 1 -> 16 | 1-8 | 1-8 (identical) |
+| gcd | 1 -> 16 | 1-15 | 1-15 (identical) |
+| three_sum | 3 -> 48 | 3-6 | 3-6 (identical) |
+| graph_reachability | 2 -> 48 | 3-5 | 3-5 (identical, control also reaches 2 but treatment's first SUCCESS starts one level later -- see caveat below) |
+| lis (held-out) | 1.3 -> 18.7 | none | none (as expected, section 27) |
+| substring (held-out) | 1.3 -> 16 | none | none (as expected, section 27) |
+
+Spot-checked (`max_treatment_seed3001`) that the extra `program_id`s are
+genuinely distinct program TEXT, not a hashing artifact (e.g. `v1 = v0;`,
+`v1 = 2;`, `v3 = v1;`, `v3 = v2;` -- different trivial level-1 candidates,
+all legitimately different programs).
+
+**Caveat on `graph_reachability`:** control's SUCCESS union is `[2,3,4,5]`
+in the aggregate table above but the per-seed detail shows the divergence
+window can shift WHICH level a given seed's cascade starts confirming from
+by one, consistent with section 26's observed cost (the window spends size
+budget re-exploring instead of climbing) -- worth a closer per-seed look
+before calling this cost-free at scale, but no run's FINAL reachable level
+regressed.
+
+### Result 2: a genuine hang bug, found only by this broader sweep
+
+`is_prime`, `factorial`, and `cycle` -- the only three problems in this
+batch run with `--num-vars 5` -- **timed out on every one of their 9
+treatment-arm runs** (3 problems x 3 seeds), producing zero output (not
+even a flushed level header) after the full 90s wall cap. All 9 corresponding
+control runs finished in under 3.1s.
+
+**Isolated with direct reproduction** (`./algosearch --problem is_prime
+--num-vars 5 ... --composite-bias 0.3 --post-solve-sizes 15`, no wall cap,
+15s timeout): hangs deterministically, zero bytes of output even
+unbuffered. Bisected the trigger:
+
+| composite-bias | post-solve-sizes | num-vars | Result |
+|---|---|---|---|
+| 0.3 | 0 | 5 | OK |
+| 0 | 15 | 5 | OK |
+| 0.3 | 15 | 6 | OK |
+| **0.3** | **15** | **5** | **HANGS** |
+
+**Conclusion: a specific, reproducible interaction bug between
+`--composite-bias` and `--post-solve-sizes`, triggered only at exactly
+`--num-vars 5`.** Root cause not yet isolated to a line of code, but the
+prime suspect is `genCompositeBlock`'s `pickDistinctVars(rng, cfg, 5)`
+call (`ProgramGenerator.cpp`): at `numVars == 5` it must consume EVERY
+available variable with no slack, which combined with the divergence
+window's requirement to keep finding a NEW (textually different) champion
+every extra size step plausibly starves some retry/dedup loop of any
+variable-assignment freedom to try. This is untested against the codebase's
+other tight-numVars problems and is not yet fixed.
+
+**Status: both flags remain opt-in and default off, so no existing default
+run is affected.** But this rules out recommending the two flags be used
+together on any `--num-vars 5` problem until fixed, and is a blocking
+prerequisite for extending the divergence-window + composite-operator
+combination to the rest of the original 21 (several of which use
+`num-vars` values in this range).
+
+**Next action:** root-cause and fix the hang (suspect `pickDistinctVars`
+under composite-bias interacting with the divergence window's frozen-
+champion dedup), then re-run `is_prime`/`factorial`/`cycle` in this battery
+before drawing any conclusion about diversity gains for `num-vars 5`
+problems specifically.
+
+### Where the diversity increase actually comes from
+
+Mechanistically, distinct from any new "creativity": the divergence window
+(`SearchConfig::postSolveSizes`, section 26) is the primary source. Once a
+level's first full solve happens, the window keeps the level open for N
+more program-size steps, excludes the champion from the beam, and records
+EVERY subsequent NEW full-solve program (deduplicated by `program@level`)
+as a separate archive entry instead of promoting immediately. Composite-bias
+(section 27) adds a second, smaller contribution: because it injects a
+whole new family of two-loop statement shapes into `genStmt`'s draw
+distribution (independent of the skeleton draw), more of the size-growth
+mutations happening during that same open window land on structurally
+different programs than the ordinary grammar alone would produce -- so the
+window has a wider variety of shapes available to find and archive, not
+just more time to re-find variations of the one shape the skeleton grammar
+already favors. Both pieces were already known: this battery's contribution
+is confirming the same compounding effect holds across the ORIGINAL 21
+problems, not just the 3 held-out ones -- and that, for the 10 problems
+where both flags run cleanly, it costs nothing in final generalization.
+
+## 29. Long-budget sorting run: real structural transition, inflated diversity counts, and a growth-corruption stall
+
+A ~20h-budgeted `sorting` run was attempted, combining `--post-solve-sizes 150`
+`--composite-bias 0.15` with the pre-existing diversity/recursion machinery
+(`scripts/run_sorting_20h.sh`, `data/sorting_20h_20260920/`), to see how many
+structurally distinct sorting algorithms accumulate under a large budget.
+Two infrastructure bugs surfaced and were fixed before the run that produced
+the data below (both worth recording, since either would silently corrupt
+any future long-budget run):
+
+1. **`--program-size` is a single counter for the ENTIRE run, not reset per
+   level** (`BeamSearch.cpp:303`: `for (int size = 1; size <=
+   config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size)`).
+   With `--post-solve-sizes 150` and `--max-program-size 300`, only ~1.5
+   divergence windows fit in the whole run before the outer loop's size
+   condition failed -- the search then exited NORMALLY (`exit=0`, looks like
+   a clean finish) after only 2 levels. `--max-program-size` must scale with
+   `(number of levels expected to complete a divergence window) x
+   (post-solve-sizes)`, not with the complexity of any single program.
+2. **`--benchmark` is a different code path** (`runBenchmarkMode` in
+   `main.cpp`) that runs `--benchmark-seeds` independent short verification
+   searches and never touches `--output`/`--checkpoint-path` at all --
+   passing it alongside a long exploration run silently discards the
+   intended search entirely. Scripts for long single-run exploration must
+   NOT pass `--benchmark`.
+
+Also added this session: `SearchConfig::checkpointPath` /
+`--checkpoint-path` (`BeamSearch.hpp/.cpp`, `main.cpp`), which overwrites
+the solutions file at every level promotion instead of only on natural
+completion -- the engine has no internal wall-clock cutoff (section 8), so
+an external `timeout`/`kill` previously lost everything. 2 new tests
+(`checkpoint_path_writes_progress_before_the_run_completes`,
+`empty_checkpoint_path_writes_no_file`), `make test` 76/76.
+
+### What the corrected run actually found (levels 1-38, killed after stalling -- see below)
+
+- **Levels 2-31: the classic selection-sort skeleton, repeatedly.** 8
+  distinct `program_id`s each generalize across all 30 levels (structural
+  invariance confirmed, labeled `SUCCESS`), but inspecting the program TEXT
+  shows they are the SAME selection-sort core (`for i: find min in [i,n),
+  swap`) with cosmetic variable renaming and inert dead-code tails (`v3 =
+  v4; v3 = v4;`, an `if` that never fires) appended by the divergence
+  window's growth. The archive's `program_id` dedup (by exact program text)
+  counts these as 8 "distinct" solutions; they are ONE algorithm.
+- **Levels 32+: a genuine structural transition.** Programs acquire
+  `call(...)` (recursion, gated by `--recursion-call-bias`) and `aux[...]`
+  (a second array, gated by `--second-array-bias`) -- the classic
+  merge-sort/divide-and-conquer signature -- and a level-36 sample is
+  recognizably **heap sort** (`v2 = (v7 + v7) + 1` is the standard
+  `2*i + 1` heap-child index, with sift-down comparison/swap logic). Coarse
+  structural signatures (counts of `while`/`if`/`swap`/`call`/`aux[`, ignoring
+  variable names and literals) across the 152 distinct `SUCCESS` programs
+  found 106 distinct coarse shapes -- real diversity, not cosmetic, starting
+  specifically where recursion/second-array become reachable.
+- **Raw counters overstate diversity substantially.** 1376 total records /
+  661 distinct `program_id`s sounds like massive diversity; the honest count
+  of functionally distinct algorithm FAMILIES actually present is closer to
+  2-3 (selection sort; a heap-sort-like family; whatever the many
+  `call`+`aux[` variants at level 32+ collapse to once de-duplicated by
+  behavior, not text) -- most of the raw count is dead-code padding on
+  repeats of the same shape, consistent with sections 26-28's repeated
+  finding that the divergence window archives quantity, not algorithmic
+  variety, by default.
+
+### The run stalled at N=39 for 8+ hours -- growth corruption, live
+
+`LEVEL 39` never progressed: `best score = 4/48` held constant for the
+entire observed stall, while `best size` crept from ~1600 to ~1650 nodes
+with zero score improvement. This is section 27's "growth corruption"
+finding, caught live and at much larger scale: after enough stacked
+divergence windows, the champion program accumulates so much bloat that
+further mutation can no longer find ANY working candidate for the next
+level, and the search has no escape mechanism (no simplification pass, no
+size-based penalty, no restart) -- it simply spins at the same score
+indefinitely, burning the entire remaining wall budget for zero information.
+Killed manually after 8+ hours with no progress; the `--checkpoint-path`
+guarantee held exactly as designed -- levels 1-38 (1376 records) survived
+the kill intact.
+
+**Conclusion:** post-solve-sizes' archive is a real, working mechanism for
+surfacing structurally different algorithm families when the grammar CAN
+reach them (recursion/second-array unlocking merge/heap sort here) -- but it
+has no ceiling on program bloat, and unbounded growth eventually kills
+forward progress entirely rather than degrading gracefully. A future
+divergence-window run should either cap cumulative growth per champion (not
+just per window), or add a periodic simplification/re-seeding step when a
+level's score stalls for N consecutive size-steps -- neither exists today.
+Until then, long-budget runs using `--post-solve-sizes` should be treated as
+"run until it stalls, then stop and inspect," not "run for a fixed wall
+budget unattended."
+
+## 30. Why `genBinarySearchSkeletonBlock` never gets picked up unforced: two real generator bugs found and fixed, one probability wall left standing
+
+Direct follow-up to sections 20-24's open question (`contains_ordered` never
+finds anything sub-linear, and stage 4's fully hand-written skeleton stays
+in the default pool but is never selected). Prior instrumentation only ever
+looked at the WINNING candidate per run; this time the skeleton's actual
+draw rate was measured directly.
+
+**Instrumentation added** (`ProgramGenerator.cpp`, gated behind
+`ALGOSEARCH_DEBUG_SKELETON_COUNTS`, same non-production status as
+`ALGOSEARCH_DEBUG_LANDSCAPE`/`ALGOSEARCH_DEBUG_ISLANDS`): two atomic
+counters, incremented every time the `loopAccumulatorBias` trigger fires at
+all, and every time it specifically lands on `BinarySearch`.
+
+**First result, surprising:** the skeleton is NOT rare. At `--num-vars 9`,
+one `contains_ordered` run drew it **16,116 times out of 145,681** total
+skeleton-trigger events (~11%, matching the weighted-roll arithmetic:
+weight 3 out of ~34 total, times `loopAccumulatorBias=0.4`). Raising
+`--num-vars` to 24 (far more headroom than the skeleton's 8 reserved
+scalars need) changed the draw count only mildly (12,263/119,781) and
+**changed the survivor count not at all: zero**, in both cases. This rules
+out variable-name collision between the skeleton's 8 reserved scalars and
+sibling statements as the cause.
+
+**Root cause #1, found by comparing against the one known-working
+instance:** section 22's forced stage-4 run (5/5 genuinely generalizing)
+has the skeleton as the ENTIRE program body, alone, no siblings. Ordinary
+free generation builds a block of up to `maxStatementsPerBlock` (default 4)
+statements, and the skeleton -- like every `gen*SkeletonBlock`/
+`genCompositeBlock` -- is just one candidate for one of those slots. Any
+sibling statement generated after it in the same block has a good chance
+of doing `arr[0] = ...` (the single most ordinary "write the output"
+idiom in this grammar), silently clobbering the skeleton's already-correct
+result. **Fix:** `genBlockStmts` now stops adding further statements to a
+block the instant one of them is `StmtKind::Block` -- the one AST shape
+every dedicated skeleton (and only skeletons) returns, confirmed by reading
+every `case 0..4`/`default` branch of `genStmt`'s ordinary paths, none of
+which ever return `Block`. Purely corrective: a terminal skeleton never
+depended on a not-yet-generated sibling, so nothing that mattered is lost.
+
+**Root cause #2, found after #1 alone still gave zero survivors (14,242
+draws, 0 survivors):** the skeleton draw was also reachable while
+generating the body of an `if` or an unrelated `while`. A self-contained
+"compute the whole answer" skeleton gated behind a random condition only
+produces the right answer on whichever instances satisfy that condition;
+nested inside an unrelated loop, it only runs however many times (0, 1,
+many) that loop's own random condition/counter happens to iterate. Either
+way it can never reach a full score. **Fix:** the skeleton-draw trigger now
+requires `!insideIf && !insideWhile` (both threaded through `genStmt`
+already, no new plumbing needed) -- only fires in a context guaranteed to
+execute exactly once.
+
+**Verification:** `make test` 87/87 after both fixes. Regression check --
+`ALGOSEARCH_FORCE_SKELETON=binarysearch --num-vars 9 --loop-bias 1.0`
+(section 22's exact forced protocol) still gives 5/5 genuinely
+generalizing, now benchmarked as O(1) (`exponent ~0.19-0.20`) at the sizes
+tested rather than section 22's O(log n) label -- same correct algorithm,
+tighter fit. Draw counts dropped as expected as each guard landed (16,116
+-> 11,012 -> 6,887 across the two fixes), confirming both guards are
+actually excluding the contexts they target, not silently no-op-ing.
+
+**Residual result: still negative.** 11 unforced seeds total after both
+fixes (3 at `--num-vars 9 --max-n 8`, 8 more at `--num-vars 9 --max-n 20
+--loop-bias 0.6`, `--post-solve-sizes 30 --speed-bonus-weight 0.3`
+throughout) -- zero produced a genuine binary-search survivor. One
+`SUCCESS` candidate in the batch contained `/` (division), size 40, but
+inspection showed a decorative dead `(0/2)` expression inside the ordinary
+linear scan, not the skeleton's shape -- a reminder that "contains a `/`"
+alone is not sufficient evidence and every candidate flagged this way
+needs to be read, not just grepped.
+
+**Where this leaves it:** both fixes are genuine, generic corrections (not
+gated behind a new opt-in bias, since sibling-clobbering and
+conditional/looped execution of a self-contained skeleton can only ever
+hurt correctness for ANY problem using ANY dedicated skeleton, never help)
+-- they should quietly improve every other skeleton-dependent problem's
+construction reliability too, not just `contains_ordered`. But removing
+both construction bugs was not sufficient on its own to flip the outcome
+here: the residual probability of a clean draw arriving AND surviving
+`BeamSearch`'s promote-on-first-full-solve behavior (section 23) within a
+~3000-candidates-per-size-step budget is still too low across the 11 seeds
+tried. The next honest step, if pursued, is a budget an order of magnitude
+larger (`--candidates`/`--beam-width` in the tens of thousands, not
+thousands) rather than further bug-hunting in the generator -- the
+construction path is now clean; what's left is a probability-mass problem.
+
+Code: `src/search/ProgramGenerator.cpp` (`genBlockStmts`'s
+`StmtKind::Block` early-stop; the skeleton trigger's `!insideIf &&
+!insideWhile` guard; `ALGOSEARCH_DEBUG_SKELETON_COUNTS` instrumentation).
+Data: `data/binary_search_gap_20260921/`, `data/skeleton_fix_20260921/`.
+
+## 31. Substring isolation test: the gap is compositional (search), not expressive (VM), same two-phase protocol as TSP/DTW
+
+`SubstringProblem.hpp`'s own comment states a design-time hypothesis that
+was never actually checked: the naive O(n*m) substring-match shape
+"recombines only the project's SHARED primitives (counting loop +
+captured scalar + sentinel flag) in an arrangement no existing skeleton
+builds" -- kept out of the skeleton library on purpose as a held-out
+ruler for compositional generalization. Ran the same two-phase isolation
+protocol sections 18-19 used for TSP/DTW to check that hypothesis for
+real, prompted by a batch sweep (`data/heavy_battery_20260921_1848/`)
+where `substring` (along with `shortest_path`, `tsp`, `dtw`, `lis`) timed
+out at 30 wall-clock minutes with no solution -- initially suspected as a
+`--num-vars` misconfiguration like `tsp`/`dtw` (see section 30's sibling
+fix in `main.cpp`'s new `resolveNumVars`), but `substring` has no
+dedicated skeleton at all, so no `numVars` gate applies to it -- the
+timeout needed its own diagnosis.
+
+**Phase 1 -- can the VM execute the correct algorithm at all?** Hand-built
+the naive nested-loop program directly in AST form (`tests/
+substring_isolation_tests.cpp`), using *only* primitives every other
+skeleton already relies on (`Assign`/`If`/`While`/compare/arithmetic/
+array access -- deliberately no `Break`/`Continue`, to keep the
+comparison to what free search's own vocabulary already contains):
+finds `n`/`m`/`patternBase` from the flat-array encoding, then for each
+start position `i` in `[0, n-m]` walks `j` in `[0, m)` comparing
+`text[i+j]` to `pattern[j]`, clearing an `ok` flag on any mismatch, and
+setting a `found` flag when a full window matches. Three tests, 90/90
+total suite: hand-picked cases (front/middle/back match, absent,
+single-element, pattern-longer-than-text guard), all of
+`SubstringProblem::generateInstances` for N=1..8, and all of
+`generateAdversarialInstances` (wide-range values, negatives) for N=2,4,
+6,8. **Result: passes every case.** This rules out the VM/interpreter as
+the bottleneck -- the algorithm is squarely inside Mini-C's expressive
+range with the existing primitive set.
+
+**Phase 2 -- can free search compose it from the same catalog?** Ran the
+real search with no dedicated skeleton (none exists for `substring`),
+`--num-vars 12` (matching phase 1's scratch-register count, so
+insufficient registers can't be the excuse), generous budget
+(`--beam-width 1000 --candidates 3000 --max-program-size 200 --step-
+limit 20000 --seed 1000`), N=1..8. **Result: negative, and not narrowly
+-- the search never even gets close to the right shape.** What it finds
+at each level it manages to fully solve is a different kind of
+wrong: at N=1 a **verbatim selection-sort fragment** (score 4/4, only
+because moving the array's minimum to position 0 happens to satisfy
+`output[0]`'s label by coincidence at that tiny N); at N=3, after ~700
+rounds plateaued at 17/18, an eventual 18/18 "solution" that is a
+**156-node grab-bag** mixing selection-sort remnants, XOR-indexed array
+writes, and binary-search-shaped arithmetic bolted together via
+degenerate expressions like `arr[((1 + v4) ^ (v1 + 3))]` and
+`v0 = (arr[3] / (v3 - arr[v11]))` -- syntactically valid, numerically
+tuned to that N's 18 instances, held-out 8/26 (fails immediately outside
+training). Both are flagged `UNCONFIRMED (fails structural invariance)`
+by the search's own promotion check before this run's script ever
+inspected them -- the search itself already knows these aren't real
+algorithms. By N=4 (29 instances) the search plateaus at 26/29 and the
+run ends (170s) without ever producing a full solve at that level, let
+alone anything resembling the ok-flag/mismatch-per-position structure
+phase 1 confirmed the VM can run.
+
+**Conclusion, matching the TSP/DTW precedent exactly:** the VM can
+execute the target algorithm (phase 1, unambiguous), but free
+recombination of the existing primitive catalog does not find it (phase
+2, unambiguous) -- what appears instead is memorization artifacts
+(selection-sort reuse, index arithmetic tuned to one N's instances) that
+happen to clear the binary pass/fail bar at small N without encoding the
+actual match logic. This is the same "no correct-and-selective neighbor
+nearby in expression-space" failure mode section 18 described for TSP's
+`cost < best` guard: a per-position "compare all j, clear a flag on any
+mismatch, only commit found on a clean sweep" idiom sits in a part of
+program-space generic mutation doesn't wander into, even with ample
+`numVars`, budget, and 8 clean training levels to fit against.
+Practical implication, same as section 18's: `substring` needs a
+hand-written `genSubstringSkeletonBlock` (nested counting loop +
+captured `ok` flag, mirroring `genDtwSkeletonBlock`'s two-phase-verified
+approach) if it's meant to be solvable rather than serve purely as the
+held-out compositionality ruler its own doc comment already names it as.
+
+Kept: `tests/substring_isolation_tests.cpp` (3 tests, phase 1's
+hand-written reference implementation, permanently regression-tested).
+Not yet built: the skeleton itself -- phase 2's negative result is the
+diagnosis, not the fix. `make test` 90/90 after adding the isolation
+tests.
+
+Data: `data/heavy_battery_20260921_1848/log_substring.txt` (the original
+timeout), free-search log referenced in this section's own investigation
+(not committed as a `data/` battery -- a single diagnostic run, not a
+sweep).
+
+## 32. Scoped conjunction: adding the missing piece as a family capability, not a substring scaffold -- positive on two different problems
+
+Section 31 confirmed the gap for `substring` is a catalog-completeness
+gap (VM can run it, the composite catalog cannot compose it): the
+catalog's three relation pieces (sentinel-flag/count-if/xor, from section
+27) all fire unconditionally once per `(i, j)` pair inside the inner
+loop, and none has the RESET-before/AND-reduce/CONSUME-after scope
+discipline `exists i, forall j: condition(i, j)` needs. Implemented that
+as a fourth relation piece, `genCompositeBlock`'s "scoped conjunction":
+a per-outer-iteration flag (`acc`) resets to true before the inner loop,
+clears on any inner mismatch, and is only OR'd into a persistent `found`
+register AFTER the inner loop closes -- deliberately built as one more
+member of the existing relation-piece family (same shared binding
+context, same affine `textIdx`/`patIdx` index forms as the other three),
+not a `genSubstringSkeletonBlock`. The mismatch predicate itself is also
+a draw (`Ne` or `Le`, 50/50), so the piece isn't hard-coded to
+substring's own equality test either. Needs a 6th binding variable
+(`found`); the shared context grew from 5 to 6 vars.
+
+**A real bug found immediately: infinite loop, not just a wasted-budget
+gate.** `pickDistinctVars` draws from a pool of size `numVars - 1` (it
+never returns `v0`); bumping the shared context to 6 vars without
+re-checking the trigger's `numVars >= 6` gate left `numVars=6` exactly
+one short of what 6 *distinct* draws need, and `tests/generator_tests.cpp`'s
+`composite_bias_emits_bound_nested_loops` (which used `numVars=6`) hung
+for **7.5+ hours of CPU** before this was caught by the user noticing
+`make test` was still "grinding" long after it should have finished.
+Root-caused via `ps` (one thread pinned at 99% CPU inside
+`algosearch_tests`) rather than by reading code first -- the honest
+lesson here is procedural, not algorithmic: after touching generator/
+search code, run `make test` under an explicit `timeout` from then on,
+since a bug in this layer can hang rather than merely fail. Fixed by
+raising the composite-bias trigger's gate to `numVars >= 8` (real
+headroom, not the minimum that happens to work) in both
+`ProgramGenerator.cpp` and `main.cpp`'s `resolveNumVars` (which now also
+auto-raises `numVars` to 8 whenever `--composite-bias > 0`, mirroring the
+TSP/DTW/shortest_path fix earlier in this same session -- see the
+`resolveNumVars` comment), and bumping the existing test's `numVars` to 8.
+`make test` (under `timeout`) 92/92 afterward.
+
+**The family test, run before trusting the result on `substring` alone:**
+per this session's own working agreement (echoing the plenary discipline
+in sections 26-28) -- a new piece that only ever helps the ONE problem it
+was diagnosed against is indistinguishable from a disguised skeleton.
+Added `DominatedWindowProblem` (`dominated_window`, `src/problems/
+DominatedWindowProblem.{hpp,cpp}`): identical flat two-sequence encoding
+and index arithmetic to `SubstringProblem`, but a different `forall j`
+predicate -- `text[i+j] > pattern[j]` (strict elementwise dominance)
+instead of equality -- chosen specifically to reuse the shape while
+forcing the search to use the `Le`-mismatch draw, not the `Ne` one tuned
+for substring.
+
+Ran both problems the same way: `--loop-bias 0.0 --composite-bias 1.0
+--num-vars 8`, no skeleton draw at all possible (loop-bias governs the
+named-skeleton path exclusively), so any solution found is composed
+purely from the relation-piece family. **Both converged to the clean,
+correct shape immediately** (well under a second, `--max-n 6`):
+- `substring`: first_level 3, confirmed_levels 4, held-out 33/33 at N=6,
+  outer bound the aligned `(n-m)+1` -- the exact correct bound.
+- `dominated_window`: first_level 2, confirmed_levels 5, held-out 33/33
+  at N=6, correctly used the `Le` mismatch draw (`arr[textIdx] <=
+  arr[patIdx]` clears the flag, matching "dominance requires strictly
+  greater").
+
+Both re-confirmed under `--benchmark --benchmark-seeds 5`: **5/5
+genuinely generalizing solutions for each, 0 rejected**, independently
+re-verified (not just the search's own SUCCESS label), both fit at
+empirical exponent ~1.9-2.0/r²=1.00 (correct O(n·m) quadratic).
+
+**One honest caveat, not swept under the rug:** `dominated_window`'s
+benchmarked champion used the outer bound `i < n` (the catalog's "plain
+capA" option), not the aligned `i < (n-m)+1` `substring` converged to --
+looser than necessary (lets `i` run past valid start positions into the
+region where `textIdx` reads into the pattern's own encoding slots
+instead of past the true array bounds). It nonetheless passed every
+training, held-out, and adversarial instance across 5 independent
+benchmark seeds. Plausible reading: for this problem's specific value
+ranges, an over-run window's spurious comparison happens to resolve
+false often enough that it never manifested as a counted failure in
+what was tested -- the same kind of "passes everything tried, still not
+proven" gap section 27's off-by-one bugs warn about. Recorded here
+rather than either asserting it's definitely a hidden bug or definitely
+fine; a targeted adversarial case constructed to break exactly that
+bound (an over-run window whose spurious comparison would spuriously
+dominate) is the natural follow-up before trusting this specific
+champion program, not the piece in general.
+
+**Conclusion: this is a genuine composed-capability gain, not a
+disguised scaffold.** Same generic piece (reset/AND/consume plus a
+2-way mismatch-predicate draw), zero problem-specific code, solved two
+structurally-identical-but-semantically-different members of the
+`exists i, forall j` family on first contact, both independently
+verified. This directly answers the open question sections 18/27 left
+standing ("if a piece with the missing shape were added, would the
+search actually recombine it into the right place, or does adding it
+become one more skeleton by another name?") -- for this piece, on this
+small family, the answer is recombination, not another skeleton.
+`compositeBias` stays opt-in (default 0.0), same status as every other
+research lever in this file.
+
+**Not yet done, natural next steps:** (1) the outer-bound caveat above;
+(2) a third/fourth family member testing a genuinely different index
+pattern (e.g. a single-sequence window predicate, `arr[i+j]` compared
+against `arr[i]` rather than a second captured sequence) to find where
+this specific piece's generality actually ends -- expected to fail by
+construction, since `patIdx` is currently always affine in the SAME
+`capA`/`base2` captured at the top, never re-derived from the outer
+loop's own `vi`; (3) folding `dominated_window` into `main.cpp`'s
+`recommendedNumVars` table / a real skeleton is explicitly NOT the
+point -- it exists only as this section's family-test ruler, same
+status as `substring` itself.
+
+Code: `src/search/ProgramGenerator.cpp` (`genCompositeBlock`'s scoped-
+conjunction relation, 6-var binding context, `numVars >= 8` gate),
+`src/main.cpp` (`resolveNumVars`'s composite-bias case),
+`src/problems/DominatedWindowProblem.{hpp,cpp}`, `tests/
+held_out_problems_tests.cpp` (`dominated_window_problem_*`),
+`tests/generator_tests.cpp` (`numVars` fix). `make test` 92/92.

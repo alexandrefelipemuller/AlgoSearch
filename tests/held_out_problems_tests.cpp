@@ -3,6 +3,7 @@
 #include <set>
 
 #include "problems/CycleDetectionProblem.hpp"
+#include "problems/DominatedWindowProblem.hpp"
 #include "problems/LisProblem.hpp"
 #include "problems/SubstringProblem.hpp"
 #include "test_framework.hpp"
@@ -129,6 +130,63 @@ TEST(substring_problem_instances_cover_both_labels_with_correct_answers) {
             bool occurs = hostContainsSubstring(text, pattern);
             CHECK_EQ(inst.expectedOutput[0], occurs ? 1 : 0);
             if (occurs)
+                present++;
+            else
+                absent++;
+        }
+        CHECK(present > 0);
+        CHECK(absent > 0);
+    }
+}
+
+// ---- DominatedWindowProblem (FINDINGS.md section 32: second member of the
+// "exists i, forall j: condition(i, j)" family, testing whether the
+// composite operator's scoped-conjunction piece generalizes beyond
+// substring's own encoding) ----
+
+bool hostHasDominatedWindow(const std::vector<int>& text, const std::vector<int>& pattern) {
+    int n = static_cast<int>(text.size());
+    int m = static_cast<int>(pattern.size());
+    if (m == 0) return true;
+    if (m > n) return false;
+    for (int i = 0; i + m <= n; ++i) {
+        bool dominates = true;
+        for (int j = 0; j < m; ++j) {
+            if (text[static_cast<size_t>(i) + j] <= pattern[static_cast<size_t>(j)]) {
+                dominates = false;
+                break;
+            }
+        }
+        if (dominates) return true;
+    }
+    return false;
+}
+
+TEST(dominated_window_problem_is_solution_checks_strict_dominance) {
+    DominatedWindowProblem problem;
+    // text = [5 6 7], pattern = [4 5] -> window at i=1 (6>4, 7>5) dominates
+    CHECK(problem.isSolution({3, 5, 6, 7, 2, 4, 5}, {1, 0, 0, 0, 0, 0, 0}));
+    // text = [5 6 7], pattern = [6 7] -> no window strictly dominates (every window ties or loses)
+    CHECK(problem.isSolution({3, 5, 6, 7, 2, 6, 7}, {0, 0, 0, 0, 0, 0, 0}));
+    CHECK(!problem.isSolution({3, 5, 6, 7, 2, 6, 7}, {1, 0, 0, 0, 0, 0, 0}));
+}
+
+TEST(dominated_window_problem_instances_cover_both_labels_with_correct_answers) {
+    DominatedWindowProblem problem(/*exhaustiveMaxN=*/5, 30, 8, 1);
+    for (int level = 1; level <= 6; ++level) {
+        auto instances = problem.generateInstances(level);
+        CHECK(instances.size() > 0);
+        int present = 0, absent = 0;
+        for (const auto& inst : instances) {
+            int n = inst.input[0];
+            CHECK_EQ(n, level);
+            int m = inst.input[static_cast<size_t>(n) + 1];
+            CHECK_EQ(inst.input.size(), static_cast<size_t>(n) + m + 2);
+            std::vector<int> text(inst.input.begin() + 1, inst.input.begin() + 1 + n);
+            std::vector<int> pattern(inst.input.begin() + n + 2, inst.input.end());
+            bool dominates = hostHasDominatedWindow(text, pattern);
+            CHECK_EQ(inst.expectedOutput[0], dominates ? 1 : 0);
+            if (dominates)
                 present++;
             else
                 absent++;

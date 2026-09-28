@@ -15,6 +15,7 @@
 #include "problems/ThreeSumProblem.hpp"
 #include "problems/SingleNumberProblem.hpp"
 #include "problems/CycleDetectionProblem.hpp"
+#include "problems/DominatedWindowProblem.hpp"
 #include "problems/DtwProblem.hpp"
 #include "problems/LisProblem.hpp"
 #include "problems/SubstringProblem.hpp"
@@ -128,7 +129,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -169,6 +170,14 @@ int recommendedNumVars(const std::string& problem) {
 // (see FINDINGS.md section 18).
 void resolveNumVars(CliArgs& args) {
     int recommended = recommendedNumVars(args.problem);
+    // --composite-bias > 0 can trigger genCompositeBlock regardless of
+    // problem, which needs numVars >= 8 (pickDistinctVars draws 6 distinct
+    // scratch vars from a pool of numVars-1) -- unlike an under-provisioned
+    // skeleton gate (which just never fires, wasting budget), an
+    // under-provisioned pickDistinctVars pool never terminates. Learned the
+    // hard way: numVars=6 here hung a test for hours before this and the
+    // matching ProgramGenerator.cpp gate fix (FINDINGS.md section 32).
+    if (args.compositeBias > 0.0 && recommended < 8) recommended = 8;
     if (args.numVars < recommended) {
         if (args.numVarsExplicit) {
             std::cerr << "note: raising --num-vars from " << args.numVars << " to " << recommended
@@ -205,6 +214,7 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "lis") return std::make_unique<LisProblem>(4, 30, numVars, seed);
     if (name == "substring") return std::make_unique<SubstringProblem>(5, 30, numVars, seed);
     if (name == "cycle") return std::make_unique<CycleDetectionProblem>(6, 30, numVars, seed);
+    if (name == "dominated_window") return std::make_unique<DominatedWindowProblem>(5, 30, numVars, seed);
     return nullptr;
 }
 
@@ -355,7 +365,7 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown problem: " << args.problem
                    << " (available: sorting, min, max, sum, contains, contains_ordered, is_prime, gcd, mod, factorial, fibonacci, "
                       "count, average, reverse, power, three_sum, single_number, graph_reachability, shortest_path, tsp, dtw, "
-                      "lis, substring, cycle)\n";
+                      "lis, substring, cycle, dominated_window)\n";
         return 1;
     }
 

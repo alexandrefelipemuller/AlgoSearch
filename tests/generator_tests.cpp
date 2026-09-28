@@ -138,7 +138,7 @@ TEST(composite_bias_emits_bound_nested_loops) {
     };
 
     GenConfig on;
-    on.numVars = 6;
+    on.numVars = 8;  // genCompositeBlock needs numVars >= 8, see its call site's comment
     on.maxLoops = 4;
     on.maxBlockDepth = 3;
     on.maxStatementsPerBlock = 3;
@@ -153,7 +153,7 @@ TEST(composite_bias_emits_bound_nested_loops) {
     CHECK(loopsOn >= 2);
 
     GenConfig off;
-    off.numVars = 6;
+    off.numVars = 8;
     off.maxLoops = 4;
     off.maxBlockDepth = 3;
     off.maxStatementsPerBlock = 3;
