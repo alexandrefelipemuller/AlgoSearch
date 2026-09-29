@@ -3114,3 +3114,35 @@ reproducibility); promoting it into the default product is the natural
 next step.
 
 Data: `data/combinator_v2_benchmark_20260929/`.
+
+## 42. Adjacent-pair axis promoted into the default combinator family (branch `combinator-adjacent-default`) -- test prepared, not yet run
+
+Section 40 found the adjacent-pair loop axis costs nothing on the 12
+problems v1 already solved and makes four more reliable. It is now part of
+the default combinator product (`GenConfig::combinatorAdjacent = true`).
+`--combinator-v1` restores the frozen v1 family of commit fb0e539, checked
+byte-identical against a pre-change build; the new default is
+byte-identical to the old `--combinator-adjacent` (still accepted, now a
+no-op), so section 40's v2 arms already are the validation of this
+promotion. **Reproducibility note:** the v1 arms of the committed scripts
+in `data/combinator_gate_20260929/`, `data/combinator_benchmark_20260929/`,
+`data/post_freeze_benchmark_20260929/` and
+`data/combinator_v2_benchmark_20260929/` predate this change; re-running
+them now needs `--combinator-v1` added. Tests:
+`combinator_default_family_reaches_adjacent_pair_problems`,
+`combinator_v1_family_does_not_reach_is_sorted`; `make test` 112/112.
+
+**Still open, prepared for the next joint test:** `combinatorBias` itself
+stays opt-in. `scripts/run_combinator_default_battery.sh` A/Bs combinator
+0.5 on top of the project's default skeleton library (loop-bias 0.4) over
+the modest battery's 17 problems plus the 12 combinator-era problems, 5
+matched seeds; `scripts/summarize_prune_ab.py` reads its output.
+**Predictions, registered now:** no problem of the 17 loses genuine
+successes (the skeleton path is unchanged, the combinator only adds
+candidates); the combinator-era problems go from 0 (skeleton library alone,
+as in section 39) to solved wherever they are in the v2 product, i.e.
+everything except longest_run, max_adjacent_gap, cycle and lis. The one
+risk worth watching: the combinator's early stop in
+`generateRandomProgram` also stops after a SKELETON block when the
+combinator is on, which could change how the 17 problems' fresh programs
+look.

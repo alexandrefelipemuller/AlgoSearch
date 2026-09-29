@@ -6,6 +6,10 @@
 #include "core/Random.hpp"
 #include "interpreter/Interpreter.hpp"
 #include "problems/ContainsProblem.hpp"
+#include "problems/CountDescentsProblem.hpp"
+#include "problems/HasAdjacentEqualProblem.hpp"
+#include "problems/IsSortedProblem.hpp"
+#include "problems/StrictlyIncreasingProblem.hpp"
 #include "problems/CountProblem.hpp"
 #include "problems/MaxArrayProblem.hpp"
 #include "problems/MinArrayProblem.hpp"
@@ -43,9 +47,10 @@ bool solvesLevels(const Problem& problem, const Stmt& program, int fromLevel, in
 // Phase-1 style reachability (same protocol as sections 18/31): does the
 // combinator family CONTAIN a program that solves `problem` on levels 2-6?
 // If not, no amount of search could find one through this operator.
-bool familyReaches(const Problem& problem, uint64_t seed) {
+bool familyReaches(const Problem& problem, uint64_t seed, bool adjacent = true) {
     Random rng(seed);
     GenConfig cfg = combinatorOnly();
+    cfg.combinatorAdjacent = adjacent;
     for (int i = 0; i < 4000; ++i) {
         Program p = generateRandomProgram(rng, 2, cfg);  // an empty root is already size 1
         if (solvesLevels(problem, *p, 2, 6)) return true;
@@ -79,4 +84,17 @@ TEST(combinator_block_is_a_single_top_level_statement) {
         if (!p->body.empty() && p->body.back()->kind == StmtKind::Block) blocks++;
     }
     CHECK(blocks > 150);
+}
+
+TEST(combinator_default_family_reaches_adjacent_pair_problems) {
+    // Section 42: the adjacent-pair loop is part of the default product...
+    CHECK(familyReaches(IsSortedProblem(8), 11));
+    CHECK(familyReaches(CountDescentsProblem(8), 12));
+    CHECK(familyReaches(StrictlyIncreasingProblem(8), 13));
+    CHECK(familyReaches(HasAdjacentEqualProblem(8), 14));
+}
+
+TEST(combinator_v1_family_does_not_reach_is_sorted) {
+    // ...and --combinator-v1 still reproduces the frozen family without it.
+    CHECK(!familyReaches(IsSortedProblem(8), 11, /*adjacent=*/false));
 }

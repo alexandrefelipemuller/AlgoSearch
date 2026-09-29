@@ -2169,9 +2169,9 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 //               length-prefixed, or two length-prefixed sequences (the four
 //               encodings this repo's problems actually use);
 //   loop     -- single counting loop, nested (full), nested triangular
-//               (j from i+1), or two converging pointers; plus, with
-//               --combinator-adjacent (section 40, v2), adjacent pairs
-//               (elem(i-1), elem(i)) in one pass;
+//               (j from i+1), two converging pointers, or (since section
+//               40, default since 42; --combinator-v1 drops it) adjacent
+//               pairs (elem(i-1), elem(i)) in one pass;
 //   relation -- sum, running best, count-if, exists, scoped forall (section
 //               32's piece), xor, conditional swap, swap;
 //   comparator and write-back follow from the relation.
@@ -2245,8 +2245,8 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         loop = Loop::NestedFull;
     } else {
         int maxLoop = nestedOk ? 3 : 0;
-        // Adjacent (section 40, --combinator-adjacent) is drawn as one more
-        // option only when enabled, so the frozen v1 family is untouched.
+        // Adjacent (section 40) is one more option unless cfg asks for the
+        // frozen v1 family (--combinator-v1), which stays byte-identical.
         int options = maxLoop + 1 + (cfg.combinatorAdjacent ? 1 : 0);
         int pick = rng.uniformInt(0, options - 1);
         loop = pick <= maxLoop ? static_cast<Loop>(pick) : Loop::Adjacent;

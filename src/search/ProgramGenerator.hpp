@@ -166,10 +166,12 @@ struct GenConfig {
     // context (idea B, FINDINGS.md section 38; generalizes compositeBias).
     double combinatorBias = 0.0;
 
-    // Opt-in (false = the frozen v1 axes of commit fb0e539, byte-identical):
-    // adds one loop-axis value to the combinator, adjacent pairs
-    // (elem(i-1), elem(i)) in a single pass (FINDINGS.md section 40).
-    bool combinatorAdjacent = false;
+    // The adjacent-pair loop-axis value (elem(i-1), elem(i)) in a single pass,
+    // FINDINGS.md section 40. On by default since section 42 (no dilution on
+    // any previously solved problem); false reproduces the frozen v1 family
+    // of commit fb0e539 exactly (`--combinator-v1`). Only matters when
+    // combinatorBias > 0.
+    bool combinatorAdjacent = true;
 
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
