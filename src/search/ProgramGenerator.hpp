@@ -159,6 +159,13 @@ struct GenConfig {
     // behavioral duplication, mostly identical crashes (FINDINGS.md section 36).
     bool roleTypedVars = false;
 
+    // Opt-in (0.0 = off, reproduces today's behavior exactly): probability
+    // that a top-level generic statement slot emits a combinator-algebra
+    // block instead -- a product of layout x loop x relation axes built only
+    // from section 24's catalogued primitives, under one shared binding
+    // context (idea B, FINDINGS.md section 38; generalizes compositeBias).
+    double combinatorBias = 0.0;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current

@@ -2730,3 +2730,135 @@ handed those candidates to reject. New test
 `first_solve_at_max_level_is_unconfirmed_not_vacuously_success`,
 `make test` 96/96. A cascade first solving at `maxLevel - 1` still counts
 with one level of lookahead (weaker than the default 3, but not vacuous).
+
+## 38. Combinator algebra (idea B): 9 problems solved in isolation from a product of catalogued axes, one algorithm no skeleton contains -- and a second verification weakness
+
+**Why B, and what it is.** Every positive result in this log came from
+generating coordinated structure (sections 5/7's atomic skeleton, 27/32's
+composite with a shared binding context); every attempt to widen what the
+beam keeps alive failed (sections 5, 21, 26, 28, 29), and single coherent
+pieces alone (section 37's role typing) raised novelty without producing
+algorithms. B generalizes the one mechanism that composed without a named
+skeleton: `genCombinatorBlock` (`GenConfig::combinatorBias`,
+`--combinator-bias`, opt-in) draws a block as a PRODUCT of independent
+axes, all bound to one six-variable context:
+
+- **layout** (the four input encodings this repo's problems use): whole
+  array; key in arr[0]; length-prefixed; two length-prefixed sequences;
+- **loop**: single counting loop; nested full; nested triangular (j from
+  i+1); two converging pointers;
+- **relation**: sum, running best, count-if, exists, scoped forall (section
+  32's piece), xor, conditional swap, swap -- with a drawn comparator and
+  write-back to arr[0] (none for in-place relations).
+
+Every axis value is a primitive already catalogued in section 24.
+Deliberately absent: pointer chasing (`cycle`) and "max over
+already-computed table cells" (`lis`), the two held-out shapes the plenary
+ruled must not be added ad hoc. Like the skeletons after section 30, the
+block only fires in a context that runs exactly once (not inside if/while),
+and -- with the flag on only -- a fresh program stops growing after it, the
+same sibling-clobbering fix section 30 applied to `genBlockStmts`, now also
+at the program root. Byte-identical when off (re-checked). `make test`
+98/98, including `combinator_family_reaches_catalogued_array_problems`: a
+phase-1 reachability test (sections 18/31's protocol) confirming the family
+CONTAINS a program solving levels 2-6 for sum, min, max, contains, count,
+single_number, reverse, sorting and substring.
+
+**Criteria registered before running:** (1) gate -- clean new-behavior rate
+above the existing composite's; (2) composition -- `--benchmark`-verified
+solutions, isolation arm, on problems that score 0 there today; (3) the
+interesting part -- correct algorithms that are NOT the text of any
+existing skeleton.
+
+**(1) Gate** (`data/combinator_gate_20260929/`, isolation arm, all three
+arms at `--num-vars 8` so the binding context's variable count is not a
+confound; 8 problems x 2 seeds):
+
+| problem | clean new, fresh: control / composite 1.0 / combinator 0.5 | outcome control / composite / combinator |
+|---|---|---|
+| sum | 0.8% / 0.0% / 2.4% | 0/2 / 0/2 / 2/2 |
+| min | 1.0% / 0.0% / 2.4% | 0/2 / 0/2 / 2/2 |
+| max | 0.8% / 0.0% / 2.4% | 0/2 / 0/2 / 2/2 |
+| count | 1.0% / 0.0% / 1.9% | 0/2 / 0/2 / 2/2 |
+| contains | 0.9% / 0.0% / 1.2% | 0/2 / 0/2 / 2/2 |
+| reverse | 1.9% / 0.0% / 3.3% | 0/2 / 0/2 / 2/2 |
+| sorting | 0.8% / 0.0% / 2.8% | 0/2 / 0/2 / 2/2 |
+| single_number | 2.2% / 0.0% / 3.1% | 0/2 / 0/2 / 2/2 |
+
+The composite scores 0 clean novelty on these (it is specific to two-
+sequence problems); the combinator raises it 1.3-3.5x over control. The
+outcome column already answers (2) at this sample: 16/16 vs 0/16 vs 0/16.
+
+**(2) Independent verification** (`data/combinator_benchmark_20260929/`,
+`--benchmark --benchmark-seeds 5`, seed 3000, same isolation budget):
+
+| problem | generalizing kept / rejected | champion |
+|---|---|---|
+| sum, min, max, count, contains, single_number | 5/0 each | canonical linear scan (accumulate / running best / count-if / exists / xor), O(n) |
+| reverse | 5/0 | two converging pointers + swap, O(n) |
+| substring | 5/0 | section 32's scoped-forall window, O(n*m) |
+| sorting | 5/0 | see (3), O(n^2) |
+| lis | 0/0 | -- (out of reach by construction, as designed) |
+| cycle | **2/3** | see below -- a false positive |
+
+45/45 on the nine target problems. The champions are clean, with none of
+the dead code or index tricks free search normally carries: e.g. min is
+`best = arr[0]; for i: if (arr[i] < best) best = arr[i]; arr[0] = best`.
+
+**(3) An algorithm no skeleton in this project contains.** All five
+sorting champions are
+```
+for i in 0..n: for j in 0..n: if (arr[i] <= arr[j]) swap(arr[i], arr[j])
+```
+-- the full (not triangular) double loop with the "wrong-looking"
+comparison, known in the literature as "I can't believe it can sort"
+(Fung, 2021). It is neither the SelectionSort nor the HeapSort/MergeSort
+skeleton, nor bubble sort; it came out of the product (nested full x
+conditional swap x `<=`). Verified exhaustively, not only by benchmark:
+correct on all 21,728 arrays with values in [-2, 2] for n = 0..6 and [0, 2]
+for n = 7, duplicates included.
+
+Taxonomy (section 25's five columns) for the sorting result: solution found
+-- yes; equivalent to a known algorithm -- yes (Fung's); only known
+primitives -- yes; new STRUCTURE relative to this project's skeleton
+library -- yes; new behavior -- no. For the other eight: "composition
+learned" (a member of a designed family selected by search with no
+problem-specific hint), not discovery -- the axes were designed with these
+encodings in view.
+
+**A second verification weakness, found by the `cycle` false positive.**
+`--benchmark` accepted 2 `cycle` programs although the family has no
+pointer-chasing piece. The fastest is "exists i<j with arr[i] == arr[j]"
+(whole x triangular x exists(==)) preceded by `arr[arr[0]] = 0`. Checked
+against EVERY functional graph for n = 1..6 (all heads, all next
+arrays): **wrong on 33-47% of them** (e.g. head = n with every next = 0).
+It passes only on the instance generator's own distribution, and
+`--benchmark` draws its large-n instances from that same generator. So
+`--benchmark` certifies "generalizes over the generator's distribution",
+not "correct"; for problems with a small enumerable input space, an
+exhaustive small-n check is a strictly stronger test (as done above for
+sorting). Consequences: `cycle` stays unsolved (0 genuine); the nine
+problems above were read by hand and sorting checked exhaustively; any
+future claim on a held-out problem needs the exhaustive check, not the
+benchmark alone. Not fixed in the engine yet (candidate: a
+`Problem::exhaustiveInstances(n)` hook used by `--benchmark` when defined).
+
+**What this does and does not show.** It shows the product-of-axes idea
+works as a generation mechanism: one opt-in operator solves nine problems
+in the isolation arm that no other mechanism in this log could (sections
+5, 33, 37: 0/N), verified, with clean programs, and it found a correct
+sorting algorithm that exists nowhere in the skeleton library. It does
+NOT yet show discovery: the axes were written with these problems'
+encodings in view, so eight of nine are "the family contains the answer
+and search picked it". The honest next test is the one section 32 used:
+new problems written AFTER the axes are frozen (this commit freezes them),
+whose natural algorithms are axis combinations no existing problem uses
+-- e.g. palindrome check (whole x converging x forall(!=)), inversion count
+(whole x triangular x count-if(>)), has-duplicate (whole x triangular x
+exists(==)), is-sorted -- plus `lis`/`cycle` as the out-of-reach ruler,
+with exhaustive small-n verification from the start.
+
+Data: `data/combinator_gate_20260929/`, `data/combinator_benchmark_20260929/`.
+Code: `src/search/ProgramGenerator.{hpp,cpp}` (`genCombinatorBlock`,
+trigger in `genStmt`, root stop in `generateRandomProgram`), `src/main.cpp`
+(`--combinator-bias`, `resolveNumVars`), `tests/combinator_tests.cpp`.

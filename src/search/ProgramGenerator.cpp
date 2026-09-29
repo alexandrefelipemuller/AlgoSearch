@@ -2149,6 +2149,243 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// -- Combinator algebra (GenConfig::combinatorBias, FINDINGS.md section 38) --
+//
+// Idea B: generalizes genCompositeBlock -- the one mechanism in this log that
+// composed a generalizing algorithm without a named skeleton (sections 27,
+// 32) -- from one fixed two-loop family into a PRODUCT of independent axes,
+// every piece bound to the same six context variables:
+//   layout   -- how the input is encoded: whole array, key in arr[0],
+//               length-prefixed, or two length-prefixed sequences (the four
+//               encodings this repo's problems actually use);
+//   loop     -- single counting loop, nested (full), nested triangular
+//               (j from i+1), or two converging pointers;
+//   relation -- sum, running best, count-if, exists, scoped forall (section
+//               32's piece), xor, conditional swap, swap;
+//   comparator and write-back follow from the relation.
+// Every axis value is a primitive already catalogued in section 24; nothing
+// here is new vocabulary. Deliberately absent: pointer chasing (`cycle`) and
+// "max over already-computed table cells" (`lis`), the two held-out shapes
+// the plenary ruled must not be patched in ad hoc -- they stay out of reach
+// by construction and remain the ruler.
+namespace combinator {
+
+enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
+enum class Loop { Single, NestedFull, NestedTriangular, Converging };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap };
+
+ExprKind drawComparator(Random& rng) {
+    static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
+    return kinds[rng.uniformInt(0, 5)];
+}
+
+// arr[base + x], with `base` a literal or capA + literal.
+ExprPtr elemAt(const ExprPtr& base, ExprPtr x) { return makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), std::move(x))); }
+
+}  // namespace combinator
+
+StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    using namespace combinator;
+    std::vector<int> v = pickDistinctVars(rng, cfg, 6);
+    int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
+
+    bool nestedOk = (cfg.maxLoops - loopsUsed) >= 2;
+    // Pair is always a nested window, so it needs two free loop slots.
+    Layout layout = static_cast<Layout>(rng.uniformInt(0, nestedOk ? 3 : 2));
+    std::vector<StmtPtr> root;
+
+    // Layout: element base, element count, and the key operand (if any).
+    ExprPtr base, bound, base2, bound2, key;
+    switch (layout) {
+        case Layout::Whole:
+            base = makeIntConst(0);
+            bound = makeVar(0);
+            key = makeIntConst(rng.uniformInt(0, cfg.maxConst));
+            break;
+        case Layout::KeyPrefixed:
+            root.push_back(makeAssign(capA, makeArrayAccess(makeIntConst(0))));
+            base = makeIntConst(0);  // haystack is arr[1..n-1]; the loop starts at 1
+            bound = makeVar(0);
+            key = makeVar(capA);
+            break;
+        case Layout::LengthPrefixed:
+            root.push_back(makeAssign(capA, makeArrayAccess(makeIntConst(0))));
+            base = makeIntConst(1);
+            bound = makeVar(capA);
+            key = makeIntConst(rng.uniformInt(0, cfg.maxConst));
+            break;
+        case Layout::Pair:
+            root.push_back(makeAssign(capA, makeArrayAccess(makeIntConst(0))));
+            root.push_back(makeAssign(capB, makeArrayAccess(makeBinOp(ExprKind::Add, makeVar(capA), makeIntConst(1)))));
+            base = makeIntConst(1);
+            bound = makeVar(capA);
+            base2 = makeBinOp(ExprKind::Add, makeVar(capA), makeIntConst(2));
+            bound2 = makeVar(capB);
+            break;
+    }
+    int loopStart = layout == Layout::KeyPrefixed ? 1 : 0;
+
+    // Loop: a pair layout is a sliding window (outer start i, inner offset j);
+    // every other layout draws freely. Single needs one free loop slot, the
+    // rest two.
+    Loop loop;
+    if (layout == Layout::Pair) {
+        loop = Loop::NestedFull;
+    } else {
+        int maxLoop = nestedOk ? 3 : 0;
+        loop = static_cast<Loop>(rng.uniformInt(0, maxLoop));
+    }
+
+    // Relation, restricted to what makes sense for the loop's operand arity:
+    // a single loop sees one element; nested and converging loops see a pair.
+    static const Relation singleRel[] = {Relation::Sum, Relation::Best, Relation::CountIf, Relation::Exists, Relation::Xor};
+    static const Relation pairRel[] = {Relation::CountIf, Relation::Exists, Relation::Forall, Relation::SwapIf, Relation::Swap};
+    Relation rel = loop == Loop::Single ? singleRel[rng.uniformInt(0, 4)] : pairRel[rng.uniformInt(0, 4)];
+    if (layout == Layout::Pair && (rel == Relation::SwapIf || rel == Relation::Swap)) rel = Relation::Forall;
+    ExprKind cmp = drawComparator(rng);
+
+    // Operands for this loop shape.
+    ExprPtr a, b, posA, posB;
+    if (layout == Layout::Pair) {
+        a = elemAt(base, makeBinOp(ExprKind::Add, makeVar(vi), makeVar(vj)));  // text[i + j]
+        b = elemAt(base2, makeVar(vj));                                        // pattern[j]
+    } else {
+        posA = makeBinOp(ExprKind::Add, base->clone(), makeVar(vi));
+        a = makeArrayAccess(posA->clone());
+        if (loop != Loop::Single) {
+            posB = makeBinOp(ExprKind::Add, base->clone(), makeVar(vj));
+            b = makeArrayAccess(posB->clone());
+        }
+    }
+
+    // The relation's statement at the innermost point, its accumulator
+    // init, and whether the result is written back to arr[0].
+    std::vector<StmtPtr> inner;
+    std::vector<StmtPtr> perOuterReset, perOuterConsume;  // Forall on nested loops only
+    bool writeBack = true;
+    int accInit = 0;
+    int resultVar = acc;
+    ExprPtr rhs = b ? b->clone() : key->clone();
+    switch (rel) {
+        case Relation::Sum:
+            inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), a->clone())));
+            break;
+        case Relation::Xor:
+            inner.push_back(makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), a->clone())));
+            break;
+        case Relation::Best: {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, a->clone()));
+            inner.push_back(makeIf(makeCompare(rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt, a->clone(), makeVar(acc)),
+                                   std::move(then)));
+            accInit = -1;  // sentinel: initialized from the first element below
+            break;
+        }
+        case Relation::CountIf: {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
+            break;
+        }
+        case Relation::Exists: {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeIntConst(1)));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
+            break;
+        }
+        case Relation::Forall: {
+            // Mismatch clears the flag. On a converging loop the scope is the
+            // whole walk (flag starts 1, written at the end); on a nested loop
+            // it is section 32's reset-per-outer / consume-after-inner shape.
+            std::vector<StmtPtr> clear;
+            clear.push_back(makeAssign(acc, makeIntConst(0)));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(clear)));
+            if (loop == Loop::Converging) {
+                accInit = 1;
+            } else {
+                perOuterReset.push_back(makeAssign(acc, makeIntConst(1)));
+                std::vector<StmtPtr> consume;
+                consume.push_back(makeAssign(found, makeIntConst(1)));
+                perOuterConsume.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(acc), makeIntConst(1)), std::move(consume)));
+                resultVar = found;
+            }
+            break;
+        }
+        case Relation::SwapIf: {
+            std::vector<StmtPtr> then;
+            then.push_back(makeSwap(posA->clone(), posB->clone()));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
+            writeBack = false;
+            break;
+        }
+        case Relation::Swap:
+            inner.push_back(makeSwap(posA->clone(), posB->clone()));
+            writeBack = false;
+            break;
+    }
+
+    if (writeBack) {
+        if (accInit == -1) {
+            root.push_back(makeAssign(acc, makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart)))));
+        } else {
+            root.push_back(makeAssign(acc, makeIntConst(accInit)));
+        }
+        if (resultVar == found) root.push_back(makeAssign(found, makeIntConst(0)));
+    }
+
+    // Loop assembly.
+    switch (loop) {
+        case Loop::Single:
+            root.push_back(makeAssign(vi, makeIntConst(loopStart)));
+            appendCountingWhile(root, vi, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                for (auto& s : inner) body.push_back(std::move(s));
+            });
+            break;
+        case Loop::NestedFull:
+        case Loop::NestedTriangular: {
+            ExprPtr outerBound = bound->clone();
+            ExprPtr innerBound = bound->clone();
+            if (layout == Layout::Pair) {
+                // window starts: n - m + 1 (the aligned bound section 27 fixed)
+                outerBound = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Sub, makeVar(capA), makeVar(capB)), makeIntConst(1));
+                innerBound = bound2->clone();
+            }
+            std::vector<StmtPtr> outerBody;
+            ExprPtr jStart = loop == Loop::NestedTriangular ? makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))
+                                                             : makeIntConst(loopStart);
+            outerBody.push_back(makeAssign(vj, std::move(jStart)));
+            for (auto& s : perOuterReset) outerBody.push_back(std::move(s));
+            appendCountingWhile(outerBody, vj, std::move(innerBound), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                for (auto& s : inner) body.push_back(std::move(s));
+            });
+            for (auto& s : perOuterConsume) outerBody.push_back(std::move(s));
+            root.push_back(makeAssign(vi, makeIntConst(loopStart)));
+            appendCountingWhile(root, vi, std::move(outerBound), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                for (auto& s : outerBody) body.push_back(std::move(s));
+            });
+            break;
+        }
+        case Loop::Converging: {
+            // lo = start, hi = bound - 1; while (lo < hi) { rel; lo++; hi--; }
+            root.push_back(makeAssign(vi, makeIntConst(loopStart)));
+            root.push_back(makeAssign(vj, makeBinOp(ExprKind::Sub, bound->clone(), makeIntConst(1))));
+            std::vector<StmtPtr> body;
+            for (auto& s : inner) body.push_back(std::move(s));
+            body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
+            body.push_back(makeAssign(vj, makeBinOp(ExprKind::Sub, makeVar(vj), makeIntConst(1))));
+            loopsUsed++;
+            root.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(vi), makeVar(vj)), std::move(body)));
+            break;
+        }
+    }
+
+    if (writeBack) root.push_back(makeAssignArray(makeIntConst(0), makeVar(resultVar)));
+
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 // -- Role-typed variables (GenConfig::roleTypedVars, FINDINGS.md section 36) --
 //
 // Every variable gets one fixed role by its index, the same for the whole
@@ -2552,6 +2789,17 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         return genCompositeBlock(rng, cfg, loopsUsed);
     }
 
+    // Combinator algebra (idea B, FINDINGS.md section 38): independent of
+    // both draws above, so it can fire at loopAccumulatorBias=0.0. Like the
+    // dedicated skeletons after section 30's fix, it is a self-contained
+    // computation (it writes its own answer), so it only fires in a context
+    // guaranteed to run exactly once. Same 6-var binding context and
+    // numVars >= 8 headroom as genCompositeBlock.
+    if (canLoop && !insideIf && !insideWhile && cfg.numVars >= 8 && cfg.combinatorBias > 0.0 &&
+        rng.chance(cfg.combinatorBias)) {
+        return genCombinatorBlock(rng, cfg, loopsUsed);
+    }
+
     // Recursion extension (see GenConfig::recursionCallBias): checked before
     // the ordinary statement-kind choice below so a Call can appear
     // anywhere a generic statement can (top level or nested in if/while),
@@ -2712,6 +2960,11 @@ Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg)
         guard++;
         root->body.push_back(genStmt(rng, cfg.maxBlockDepth, cfg, loopsUsed));
         if (static_cast<int>(root->body.size()) > cfg.maxStatementsPerBlock * 4) break;
+        // Section 30's sibling-clobbering fix, applied at the program root
+        // too, but only with combinatorBias on (keeps every other mode
+        // byte-identical): a self-contained block writes its own answer, and
+        // a later sibling like `arr[0] = ...` would silently overwrite it.
+        if (cfg.combinatorBias > 0.0 && root->body.back()->kind == StmtKind::Block) break;
     }
     return root;
 }
