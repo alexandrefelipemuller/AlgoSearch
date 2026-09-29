@@ -356,3 +356,29 @@ TEST(empty_checkpoint_path_writes_no_file) {
     std::ifstream in(path);
     CHECK(!in.good());
 }
+
+TEST(first_solve_at_max_level_is_unconfirmed_not_vacuously_success) {
+    // A cascade that starts AT maxLevel has no level beyond it to check;
+    // before the fix the capped lookahead passed trivially and labeled it
+    // SUCCESS (FINDINGS.md section 37). AlwaysZeroProblem's no-op program
+    // solves every level, so starting the search at maxLevel isolates the
+    // case: the record must stay UNCONFIRMED.
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 20;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.startLevel = 5;
+    cfg.maxLevel = 5;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK_EQ(solutions.size(), static_cast<size_t>(1));
+    CHECK_EQ(solutions.front().firstLevel, 5);
+    CHECK_EQ(solutions.front().finalStatus, std::string("UNCONFIRMED"));
+}

@@ -2719,3 +2719,14 @@ Data: `data/role_typed_ab_20260929/`, `data/prune_generation_ab_graph_20260929/`
 `src/search/ProgramGenerator.cpp` (`genIndexExpr` v2),
 `scripts/run_flag_ab.sh`, `scripts/summarize_prune_ab.py` (vacuous
 split), `scripts/compare_behavior_novelty.py` (clean column).
+
+### Follow-up: engine fix applied
+
+`BeamSearch.cpp` now labels a cascade whose first solve is AT `maxLevel`
+as UNCONFIRMED ("no lookahead possible"), since nothing beyond it can
+confirm the program. Only the label and log line change -- search
+progression never depended on it -- and `--benchmark` simply stops being
+handed those candidates to reject. New test
+`first_solve_at_max_level_is_unconfirmed_not_vacuously_success`,
+`make test` 96/96. A cascade first solving at `maxLevel - 1` still counts
+with one level of lookahead (weaker than the default 3, but not vacuous).

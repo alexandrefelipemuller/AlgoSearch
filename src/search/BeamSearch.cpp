@@ -782,7 +782,14 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             int confirmedLevels = static_cast<int>(cascade.size());
 
             int requiredLevel = std::min(currentLevel + config_.invarianceLookahead, config_.maxLevel);
-            bool invarianceHolds = config_.invarianceLookahead <= 0 || level >= requiredLevel;
+            // A first solve AT maxLevel has no level beyond it to check: the
+            // capped requiredLevel equals currentLevel and the check used to
+            // pass trivially, labeling any program that memorized the last
+            // level's instances SUCCESS (FINDINGS.md section 37). Such a
+            // cascade confirmed nothing, so it stays UNCONFIRMED.
+            bool lookaheadPossible = currentLevel < config_.maxLevel;
+            bool invarianceHolds =
+                config_.invarianceLookahead <= 0 || (lookaheadPossible && level >= requiredLevel);
 
             // Search progression ALWAYS advances on the cascade reached here
             // (exactly like before the gate existed): the engine still needs
@@ -797,7 +804,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             // get labeled a confirmed, validated algorithm vs. a provisional
             // fit -- pure bookkeeping on top of unchanged search dynamics.
             std::string status = invarianceHolds ? "SUCCESS" : "UNCONFIRMED";
-            if (!invarianceHolds) {
+            if (!invarianceHolds && !lookaheadPossible) {
+                log::info("  UNCONFIRMED (no lookahead possible): first solves N=" + std::to_string(currentLevel) +
+                          " at the maximum level, so nothing beyond it can confirm the program generalizes");
+            } else if (!invarianceHolds) {
                 log::info("  UNCONFIRMED (fails structural invariance): solves N=" + std::to_string(currentLevel) +
                           " but breaks before N=" + std::to_string(requiredLevel) +
                           " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
