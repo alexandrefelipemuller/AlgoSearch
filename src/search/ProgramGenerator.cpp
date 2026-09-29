@@ -2149,12 +2149,127 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// -- Role-typed variables (GenConfig::roleTypedVars, FINDINGS.md section 36) --
+//
+// Every variable gets one fixed role by its index, the same for the whole
+// program and across later mutations (growProgram inserts statements long
+// after the first draw, so a per-program assignment could not be kept
+// consistent): v0 is the bound n (the interpreter seeds it with the input
+// length; never assigned here), odd scratch variables are indices, even
+// scratch variables are values. Array positions only ever come from index
+// expressions and scalar comparisons never mix the two kinds -- the binding
+// discipline section 27 found causal for the composite family, applied to
+// the free grammar. Section 35 measured ~90% of generated candidates
+// duplicating an already-seen behavior, most of them identical crashes;
+// incoherent index use (an accumulator as arr's subscript) is the suspected
+// source.
+bool isIndexVar(int v) { return v > 0 && v % 2 == 1; }
+
+int pickIndexVar(Random& rng, const GenConfig& cfg) {
+    int count = cfg.numVars / 2;  // v1, v3, ... below numVars
+    if (count == 0) return 0;
+    return 2 * rng.uniformInt(0, count - 1) + 1;
+}
+
+// Falls back to an index var when numVars leaves no even scratch slot.
+int pickValueVar(Random& rng, const GenConfig& cfg) {
+    int count = (cfg.numVars - 1) / 2;  // v2, v4, ... below numVars
+    if (count == 0) return pickIndexVar(rng, cfg);
+    return 2 * rng.uniformInt(1, count);
+}
+
+ExprPtr genIndexExpr(Random& rng, const GenConfig& cfg) {
+    int choice = rng.uniformInt(0, 9);
+    if (choice < 5) return makeVar(pickIndexVar(rng, cfg));
+    if (choice < 7) return makeIntConst(rng.uniformInt(0, cfg.maxConst));
+    if (choice < 9) {
+        ExprKind k = rng.chance(0.5) ? ExprKind::Add : ExprKind::Sub;
+        return makeBinOp(k, makeVar(pickIndexVar(rng, cfg)), makeIntConst(rng.uniformInt(1, std::max(1, cfg.maxConst))));
+    }
+    return makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(rng.uniformInt(1, std::max(1, cfg.maxConst))));
+}
+
+// What an index variable may be assigned: a start (0/1), a step (+/- 1), the
+// bound, or another index.
+ExprPtr genIndexUpdateExpr(Random& rng, const GenConfig& cfg, int target) {
+    int choice = rng.uniformInt(0, 5);
+    switch (choice) {
+        case 0: return makeIntConst(rng.uniformInt(0, 1));
+        case 1: return makeBinOp(ExprKind::Add, makeVar(target), makeIntConst(1));
+        case 2: return makeBinOp(ExprKind::Sub, makeVar(target), makeIntConst(1));
+        case 3: return makeVar(0);
+        default: return genIndexExpr(rng, cfg);
+    }
+}
+
+ExprPtr genTypedValueExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
+    if (depthBudget <= 0 || rng.chance(0.35)) {
+        int leaf = rng.uniformInt(0, 2);
+        if (leaf == 0) return makeIntConst(rng.uniformInt(0, cfg.maxConst));
+        if (leaf == 1) return makeVar(pickValueVar(rng, cfg));
+        return makeArrayAccess(genIndexExpr(rng, cfg));
+    }
+    if (rng.chance(0.08)) {  // same always-on arithmetic/bitwise substitution as genValueExpr
+        static const ExprKind extKinds[] = {ExprKind::Mul,    ExprKind::Div,    ExprKind::Mod,   ExprKind::BitAnd,
+                                             ExprKind::BitOr, ExprKind::BitXor, ExprKind::Shl,   ExprKind::Shr};
+        ExprKind k = extKinds[rng.uniformInt(0, 7)];
+        ExprPtr lhs = genTypedValueExpr(rng, depthBudget - 1, cfg);
+        return makeBinOp(k, std::move(lhs), genTypedValueExpr(rng, depthBudget - 1, cfg));
+    }
+    int choice = rng.uniformInt(0, 3);
+    switch (choice) {
+        case 0: return makeArrayAccess(genIndexExpr(rng, cfg));
+        case 1:
+        case 2: {
+            ExprPtr lhs = genTypedValueExpr(rng, depthBudget - 1, cfg);
+            return makeBinOp(choice == 1 ? ExprKind::Add : ExprKind::Sub, std::move(lhs),
+                             genTypedValueExpr(rng, depthBudget - 1, cfg));
+        }
+        default: return makeVar(pickValueVar(rng, cfg));
+    }
+}
+
+// Either an index-side test (index against the bound or another index) or a
+// value-side test (value/element against value/element), never mixed.
+ExprPtr genTypedCondExpr(Random& rng, const GenConfig& cfg) {
+    ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Le, ExprKind::Ge, ExprKind::Ne};
+    ExprKind k = kinds[rng.uniformInt(0, 5)];
+    if (rng.chance(0.5)) {
+        ExprPtr lhs = makeVar(pickIndexVar(rng, cfg));
+        return makeCompare(k, std::move(lhs), rng.chance(0.6) ? makeVar(0) : genIndexExpr(rng, cfg));
+    }
+    ExprPtr lhs = genTypedValueExpr(rng, cfg.maxExprDepth, cfg);
+    return makeCompare(k, std::move(lhs), genTypedValueExpr(rng, cfg.maxExprDepth, cfg));
+}
+
+// The condition used by genStmt's generic if/while and growProgram's
+// condition mutation: role-typed when enabled, otherwise the ordinary draw.
+ExprPtr genStmtCondExpr(Random& rng, const GenConfig& cfg) {
+    if (!cfg.roleTypedVars) return genCondExpr(rng, cfg.maxExprDepth, cfg);
+    gGenConds++;
+    ExprPtr c = genTypedCondExpr(rng, cfg);
+    prunePart(cfg, ConstantCondition, c, [&] { return genTypedCondExpr(rng, cfg); },
+              [&] { return constantConditionValue(*c).has_value(); });
+    return c;
+}
+
 // Generic (non-skeleton) statement builders for genStmt's ordinary paths,
 // each wired to its GenConfig::pruneGeneration rule. Every one builds the
 // statement exactly as genStmt used to inline, then checks it post hoc (see
 // prunePart).
 StmtPtr genPlainAssign(Random& rng, const GenConfig& cfg) {
     gGenAssigns++;
+    if (cfg.roleTypedVars) {
+        // Never assigns v0 (the bound); index vars get index updates only.
+        int target = rng.chance(0.5) ? pickIndexVar(rng, cfg) : pickValueVar(rng, cfg);
+        auto gen = [&]() -> ExprPtr {
+            return isIndexVar(target) ? genIndexUpdateExpr(rng, cfg, target) : genTypedValueExpr(rng, cfg.maxExprDepth, cfg);
+        };
+        StmtPtr s = makeAssign(target, gen());
+        prunePart(cfg, SelfAssign, s->valueExpr, gen,
+                  [&] { return s->valueExpr->kind == ExprKind::Var && s->valueExpr->varIndex == s->varIndex; });
+        return s;
+    }
     StmtPtr s = makeAssign(rng.uniformInt(0, cfg.numVars - 1), genValueExpr(rng, cfg.maxExprDepth, cfg));
     prunePart(cfg, SelfAssign, s->valueExpr, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); },
               [&] { return s->valueExpr->kind == ExprKind::Var && s->valueExpr->varIndex == s->varIndex; });
@@ -2165,9 +2280,18 @@ StmtPtr genPlainAssign(Random& rng, const GenConfig& cfg) {
 // the same array being written.
 StmtPtr genPlainArrayAssign(Random& rng, const GenConfig& cfg, bool aux) {
     gGenArrayAssigns++;
+    ExprKind readKind = aux ? ExprKind::AuxAccess : ExprKind::ArrayAccess;
+    if (cfg.roleTypedVars) {
+        ExprPtr index = genIndexExpr(rng, cfg);
+        StmtPtr s = aux ? makeAssignAux(std::move(index), genTypedValueExpr(rng, cfg.maxExprDepth, cfg))
+                        : makeAssignArray(std::move(index), genTypedValueExpr(rng, cfg.maxExprDepth, cfg));
+        prunePart(cfg, ArraySelfAssign, s->valueExpr, [&] { return genTypedValueExpr(rng, cfg.maxExprDepth, cfg); }, [&] {
+            return s->valueExpr->kind == readKind && exprEqual(s->valueExpr->lhs.get(), s->indexExpr.get());
+        });
+        return s;
+    }
     StmtPtr s = aux ? makeAssignAux(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg))
                     : makeAssignArray(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
-    ExprKind readKind = aux ? ExprKind::AuxAccess : ExprKind::ArrayAccess;
     prunePart(cfg, ArraySelfAssign, s->valueExpr, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); }, [&] {
         return s->valueExpr->kind == readKind && exprEqual(s->valueExpr->lhs.get(), s->indexExpr.get());
     });
@@ -2176,6 +2300,13 @@ StmtPtr genPlainArrayAssign(Random& rng, const GenConfig& cfg, bool aux) {
 
 StmtPtr genPlainSwap(Random& rng, const GenConfig& cfg) {
     gGenSwaps++;
+    if (cfg.roleTypedVars) {
+        ExprPtr first = genIndexExpr(rng, cfg);
+        StmtPtr s = makeSwap(std::move(first), genIndexExpr(rng, cfg));
+        prunePart(cfg, SelfSwap, s->indexExpr2, [&] { return genIndexExpr(rng, cfg); },
+                  [&] { return exprEqual(s->indexExpr.get(), s->indexExpr2.get()); });
+        return s;
+    }
     StmtPtr s = makeSwap(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
     prunePart(cfg, SelfSwap, s->indexExpr2, [&] { return genValueExpr(rng, cfg.maxExprDepth, cfg); },
               [&] { return exprEqual(s->indexExpr.get(), s->indexExpr2.get()); });
@@ -2454,7 +2585,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             if (rng.chance(0.4))
                 elseBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
                                           insideWhile);
-            return makeIf(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(thenBody), std::move(elseBody));
+            return makeIf(genStmtCondExpr(rng, cfg), std::move(thenBody), std::move(elseBody));
         }
         case 3:
             if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
@@ -2465,7 +2596,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             loopsUsed++;
             auto body = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/false,
                                        /*insideWhile=*/true);
-            return makeWhile(genCondExpr(rng, cfg.maxExprDepth, cfg), std::move(body));
+            return makeWhile(genStmtCondExpr(rng, cfg), std::move(body));
         }
         default:
             return genPlainAssign(rng, cfg);
@@ -2624,7 +2755,7 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
         collectCondSites(*root, condSites);
         if (!condSites.empty()) {
             Stmt* target = condSites[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(condSites.size()) - 1))];
-            target->cond = genCondExpr(rng, cfg.maxExprDepth, cfg);
+            target->cond = genStmtCondExpr(rng, cfg);
         }
     }
     return root;

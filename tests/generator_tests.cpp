@@ -232,3 +232,49 @@ TEST(prune_generation_off_still_emits_trivial_sites) {
 TEST(prune_generation_removes_trivial_sites_from_generate_and_grow) {
     CHECK_EQ(trivialSitesAcrossSample(trivialProneConfig(true), 21), 0);
 }
+
+TEST(role_typed_vars_keep_indices_and_values_apart) {
+    // With roleTypedVars on and no skeleton drawable, every array subscript
+    // is built only from index vars (odd), v0 and literals, and v0 is never
+    // assigned.
+    GenConfig cfg;
+    cfg.numVars = 6;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.roleTypedVars = true;
+    Random rng(33);
+    int violations = 0, subscripts = 0;
+    std::function<void(const Expr&)> checkIndex = [&](const Expr& e) {
+        if (e.kind == ExprKind::Var && e.varIndex != 0 && e.varIndex % 2 == 0) violations++;
+        if (e.kind == ExprKind::ArrayAccess || e.kind == ExprKind::AuxAccess) violations++;
+        if (e.lhs) checkIndex(*e.lhs);
+        if (e.rhs) checkIndex(*e.rhs);
+    };
+    std::function<void(const Expr&)> walkExpr = [&](const Expr& e) {
+        if (e.kind == ExprKind::ArrayAccess) {
+            subscripts++;
+            checkIndex(*e.lhs);
+        }
+        if (e.lhs) walkExpr(*e.lhs);
+        if (e.rhs) walkExpr(*e.rhs);
+    };
+    std::function<void(const Stmt&)> walk = [&](const Stmt& st) {
+        if (st.kind == StmtKind::Assign && st.varIndex == 0) violations++;
+        if (st.kind == StmtKind::AssignArray || st.kind == StmtKind::Swap) {
+            subscripts++;
+            checkIndex(*st.indexExpr);
+        }
+        if (st.kind == StmtKind::Swap) checkIndex(*st.indexExpr2);
+        for (const Expr* e : {st.valueExpr.get(), st.indexExpr.get(), st.indexExpr2.get(), st.cond.get()})
+            if (e) walkExpr(*e);
+        for (const auto& c : st.body) walk(*c);
+        for (const auto& c : st.elseBody) walk(*c);
+    };
+    for (int i = 0; i < 200; ++i) {
+        Program p = generateRandomProgram(rng, 20, cfg);
+        walk(*p);
+        Program grown = growProgram(*p, p->size() + 10, rng, cfg);
+        walk(*grown);
+    }
+    CHECK(subscripts > 0);
+    CHECK_EQ(violations, 0);
+}

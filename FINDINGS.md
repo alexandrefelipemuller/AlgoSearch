@@ -2531,3 +2531,80 @@ by construction.
 Data: `data/behavior_dup_measure_20260929/` (`err_*.txt` hold the
 `[behavior-debug]` lines). Code: `src/search/BeamSearch.cpp`
 (`behaviorHashFull`/`behaviorHashPrefix`, `BehaviorTally`).
+
+## 36. Role-typed variables (idea C): new-behavior rate up 1.4-2.5x in the free grammar, crashes down; first gate passed, outcome not yet tested
+
+Section 35 measured that ~90% of scored candidates duplicate an
+already-seen behavior, mostly identical crashes, and proposed the
+new-behavior rate as the cheap gate a grammar change must pass before an
+expensive generalization A/B. This is the first idea put through that gate.
+
+**Implementation** (`GenConfig::roleTypedVars`, `--role-typed-vars`, opt-in,
+byte-identical when off -- re-checked on the same 3 configurations as
+section 33; new test `role_typed_vars_keep_indices_and_values_apart`,
+`make test` 95/95). Generic grammar only; skeletons and the composite family
+keep their own bindings. Roles are fixed by variable index so they survive
+later mutation: v0 is the read-only bound n, odd scratch variables are
+indices, even ones are values. Array subscripts (reads, array assignments,
+swaps) come only from index expressions -- index var, literal, index +/-
+literal, n - literal. Index vars are only assigned a start (0/1), a step
+(+/-1), n, or another index expression. Conditions compare index vs.
+bound/index or value vs. value, never across roles. Pruning (section 33)
+still applies to the typed draws.
+
+**Measurement** (`data/role_typed_measure_20260929/run.sh`: exactly section
+35's 8 configs and seeds with `--role-typed-vars` added; control = section
+35's data, same binary behavior when off; comparison via
+`scripts/compare_behavior_novelty.py`):
+
+| config | new behavior, fresh | new behavior, mutant | runtime errors | timeouts | outcome (2 seeds) |
+|---|---|---|---|---|---|
+| iso sum | 9.5% -> **23.5%** | 14.2% -> 18.5% | 55.2% -> 36.9% | 3.4% -> 11.0% | N 2,1 -> 3,3 |
+| iso min | 13.8% -> **19.4%** | 17.0% -> 19.3% | 49.7% -> 41.0% | 6.1% -> 11.6% | N 1,4 -> 3,4 |
+| iso sorting | 8.3% -> **14.0%** | 16.0% -> 22.2% | 55.6% -> 44.4% | 3.5% -> 8.5% | N 1,3 -> 2,3 |
+| iso min + crossover | 13.0% -> **24.3%** | 22.7% -> 38.3% | 49.8% -> 36.4% | 4.1% -> 11.4% | N 3,2 -> 3,5 |
+| iso gcd | 4.4% -> 3.7% | 6.5% -> 6.0% | 65.4% -> 57.9% | 2.5% -> 5.3% | no records either arm |
+| def factorial | 3.0% -> 2.8% | 12.6% -> 11.4% | 59.1% -> 56.2% | 4.3% -> 5.7% | SUCCESS both |
+| def reverse | 31.2% -> **16.1%** | 26.9% -> 16.3% | 44.4% -> 19.1% | 7.7% -> 7.6% | S,- -> S,S |
+| composite substring | 1.9% -> 1.9% | 10.0% -> 10.2% | 39.0% -> 38.8% | 1.0% -> 0.9% | SUCCESS both |
+
+(new behavior = 1 - duplicate rate; errors/timeouts = share of all instance
+executions; outcome = max n_reached per seed, no isolation run reaches
+SUCCESS in either arm.)
+
+**Reading:**
+
+1. **The gate is passed where the idea acts.** On the four array problems in
+   the isolation arm (free grammar only), fresh candidates produce a new
+   behavior 1.4-2.5x more often, and runtime errors fall 8-18 points --
+   the suspected mechanism from section 35 (incoherent subscripts crashing
+   the same way) is confirmed as a real, large source of redundancy.
+2. **Timeouts rise 2-3x in the same configs.** Coherent index loops no
+   longer crash, so more of them run until the step limit (`while (v1 <
+   v0)` without an increment). The redundancy moved partly from cheap
+   crashes to expensive timeouts; any outcome A/B has to watch wall time.
+3. **No effect where the free grammar isn't doing the work** (gcd is a
+   magnitude problem with a 1-2 element array; factorial/substring are
+   solved by a skeleton/composite), as expected.
+4. **A real expressiveness cost, found by the metric itself:** `reverse`'s
+   new-behavior rate HALVED. Its natural subscript is `n - 1 - i`, which the
+   index grammar cannot build (`n - literal` and `index +/- literal` only).
+   Both seeds still solved via the skeleton, but in the free grammar this
+   shape is now unreachable. Fix before any outcome A/B: add `n - index -
+   literal` (and `index + index`) to `genIndexExpr`.
+5. Outcomes moved slightly in C's favor (isolation max level up in 5 of 8
+   seed pairs, down in none) but 2 seeds on a 0-SUCCESS floor is not
+   evidence of anything yet.
+
+**Status:** opt-in, default off. The cheap gate says C is worth an
+expensive test; it does not say C helps. Next, in order: close the
+subscript gap from point 4 and re-measure `reverse`; then a matched
+10-seed isolation A/B on the outcome (max confirmed level, SUCCESS, wall
+time) -- the first time since section 5 that an isolation-arm change has a
+measured mechanism behind it.
+
+Data: `data/role_typed_measure_20260929/`. Code: `src/search/
+ProgramGenerator.{hpp,cpp}` (`genIndexExpr`, `genIndexUpdateExpr`,
+`genTypedValueExpr`, `genTypedCondExpr`, `genStmtCondExpr`, typed branches
+of `genPlain*`), `src/main.cpp`, `tests/generator_tests.cpp`,
+`scripts/compare_behavior_novelty.py`.

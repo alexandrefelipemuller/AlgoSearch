@@ -148,6 +148,17 @@ struct GenConfig {
     // exit when ALGOSEARCH_DEBUG_PRUNE_COUNTS is set (FINDINGS.md section 33).
     bool pruneGeneration = false;
 
+    // Opt-in (false = off, reproduces today's behavior exactly): role-typed
+    // variables for the GENERIC grammar only (skeletons and the composite
+    // family keep their own bindings). v0 is the read-only bound n, odd scratch
+    // variables are indices, even ones are values; array positions come only
+    // from index expressions (index var, literal, index +/- literal, n -
+    // literal), index vars are only assigned starts/steps/the bound/another
+    // index, and a condition compares either index-vs-bound/index or
+    // value-vs-value, never across roles. Motivated by section 35's ~90%
+    // behavioral duplication, mostly identical crashes (FINDINGS.md section 36).
+    bool roleTypedVars = false;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current
