@@ -7,6 +7,8 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <array>
+#include <map>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
@@ -134,6 +136,13 @@ struct CandidateRecord {
     int size = 0;
     int score = 0;       // exact instances solved -- the only thing ever used for
                           // promotion decisions and reported as "score" in logs/records
+    // Diagnostic only (ALGOSEARCH_DEBUG_BEHAVIOR, FINDINGS.md section 35):
+    // hash of the exact (status, output array) across ALL instances, and
+    // across only the first behaviorPrefixInstances -- the full one defines
+    // "behaviorally identical", the prefix one is the cheap pre-filter a
+    // generation-time behavioral dedup would use.
+    size_t behaviorHashFull = 0;
+    size_t behaviorHashPrefix = 0;
     double fitness = 0;  // score + inversions-based partial credit; search-internal
                           // ranking heuristic only, never substitutes for `score`
     int totalTests = 0;
@@ -167,10 +176,14 @@ std::string behaviorSignature(const CandidateRecord& rec) {
 // order). Splits the work across threads: each candidate is evaluated fully
 // independently (Interpreter::run and Problem methods touch no shared
 // mutable state), so this is embarrassingly parallel and needs no locking.
+constexpr size_t behaviorPrefixInstances = 3;
+
+void mixHash(size_t& h, size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); }
+
 void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& instances, const Problem& problem,
                       const Interpreter& interp, unsigned numThreads, std::vector<CandidateRecord>& scored, size_t outOffset,
                       int& timeouts, int& errors, bool trackCorrectness = false, double speedBonusWeight = 0.0,
-                      long stepLimit = 1) {
+                      long stepLimit = 1, bool trackBehaviorHash = false) {
     size_t n = pool.size();
     for (size_t i = 0; i < n; ++i) {
         scored[outOffset + i].program = std::move(pool[i]);
@@ -196,6 +209,7 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                 int score = 0;
                 double fitness = 0.0;
                 if (trackCorrectness) rec.correctness.reserve(instances.size());
+                size_t instIndex = 0;
                 for (const auto& inst : instances) {
                     long steps = 0;
                     ExecStatus status = problem.evaluateInto(*rec.program, inst, interp, output,
@@ -215,6 +229,18 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                         fitness += problem.partialScore(inst.input, output);
                     }
                     if (trackCorrectness) rec.correctness.push_back(status == ExecStatus::SUCCESS);
+                    if (trackBehaviorHash) {
+                        // TIMEOUT/RUNTIME_ERROR outputs are partial garbage:
+                        // hash only the status for those, so two programs that
+                        // both crash count as behaving the same.
+                        size_t h = static_cast<size_t>(status);
+                        if (status != ExecStatus::TIMEOUT && status != ExecStatus::RUNTIME_ERROR) {
+                            for (int v : output) mixHash(h, std::hash<int>{}(v));
+                        }
+                        mixHash(rec.behaviorHashFull, h);
+                        if (instIndex < behaviorPrefixInstances) mixHash(rec.behaviorHashPrefix, h);
+                    }
+                    instIndex++;
                 }
                 rec.size = rec.program->size();
                 rec.score = score;
@@ -312,6 +338,12 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     // 23: a dedicated skeleton correct-but-bigger than a trivial scan never
     // had a mechanism to win even once both existed in the same window).
     double postSolveBestFitness = 0.0;
+    // ALGOSEARCH_DEBUG_BEHAVIOR tallies, per level, per origin
+    // (0 = mutant of a beam survivor, 1 = fresh random, 2 = crossover).
+    struct BehaviorTally {
+        long candidates = 0, dupFull = 0, dupFullZeroScore = 0, dupPrefix = 0, prefixFalseMerge = 0, neutral = 0;
+    };
+    std::map<int, std::array<BehaviorTally, 3>> behaviorTallies;
     std::unordered_set<std::string> frozenChampions;
     std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
 
@@ -381,18 +413,52 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
         bool debugLandscape = std::getenv("ALGOSEARCH_DEBUG_LANDSCAPE") != nullptr;
         bool trackCorrectness = config_.behaviorNicheRate > 0.0 || debugLandscape;
+        bool debugBehavior = std::getenv("ALGOSEARCH_DEBUG_BEHAVIOR") != nullptr;
         auto scoreStart = std::chrono::steady_clock::now();
         std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness,
-                         config_.speedBonusWeight, config_.stepLimit);
+                         config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors,
-                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
+                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
-                         timeouts, errors, trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
+                         timeouts, errors, trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         size_t annealIndex = grownPool.size() + freshPool.size() + crossoverPool.size();
         scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors,
-                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit);
+                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         totalCandidatesScored += static_cast<long>(scored.size());
+
+        // Diagnostic only (FINDINGS.md section 35, idea E's go/no-go): how
+        // many candidates scored this size step behave EXACTLY like one
+        // already in the beam or already scored earlier this step -- i.e.
+        // how much of the evaluation budget a behavioral dedup could
+        // reclaim -- and how well a cheap first-3-instances signature would
+        // find them. grownPool is interleaved [elite clone, mutant], so each
+        // mutant's parent behavior is known; a mutant identical to it is a
+        // neutral mutation.
+        if (debugBehavior) {
+            std::unordered_set<size_t> seenFull, seenPrefix;
+            for (size_t i = 0; i < grownPool.size(); i += 2) {
+                seenFull.insert(scored[i].behaviorHashFull);
+                seenPrefix.insert(scored[i].behaviorHashPrefix);
+            }
+            auto tally = [&](size_t i, int origin) {
+                const CandidateRecord& r = scored[i];
+                BehaviorTally& t = behaviorTallies[currentLevel][origin];
+                t.candidates++;
+                bool dupFull = !seenFull.insert(r.behaviorHashFull).second;
+                bool dupPrefix = !seenPrefix.insert(r.behaviorHashPrefix).second;
+                if (dupFull) t.dupFull++;
+                if (dupFull && r.score == 0) t.dupFullZeroScore++;
+                if (dupPrefix) t.dupPrefix++;
+                if (dupPrefix && !dupFull) t.prefixFalseMerge++;
+            };
+            for (size_t i = 1; i < grownPool.size(); i += 2) {
+                if (scored[i].behaviorHashFull == scored[i - 1].behaviorHashFull) behaviorTallies[currentLevel][0].neutral++;
+                tally(i, 0);
+            }
+            for (size_t i = grownPool.size(); i < grownPool.size() + freshPool.size(); ++i) tally(i, 1);
+            for (size_t i = grownPool.size() + freshPool.size(); i < annealIndex; ++i) tally(i, 2);
+        }
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 
         if (debugLandscape) {
@@ -842,6 +908,19 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     if (elapsed > 0.0) {
         double genRate = totalCandidatesGenerated / elapsed;
         double scoreRate = totalCandidatesScored / elapsed;
+        if (!behaviorTallies.empty()) {
+            static const char* const originNames[3] = {"mutant", "fresh", "crossover"};
+            for (const auto& [level, perOrigin] : behaviorTallies) {
+                for (int o = 0; o < 3; ++o) {
+                    const BehaviorTally& t = perOrigin[static_cast<size_t>(o)];
+                    if (t.candidates == 0) continue;
+                    std::cerr << "[behavior-debug] level=" << level << " origin=" << originNames[o]
+                              << " candidates=" << t.candidates << " dup_full=" << t.dupFull
+                              << " dup_full_zero_score=" << t.dupFullZeroScore << " dup_prefix=" << t.dupPrefix
+                              << " prefix_false_merge=" << t.prefixFalseMerge << " neutral=" << t.neutral << "\n";
+                }
+            }
+        }
         std::cout << "  profile: gen=" << genPhaseSeconds << "s score=" << scorePhaseSeconds << "s sort=" << sortPhaseSeconds
                   << "s other=" << (elapsed - genPhaseSeconds - scorePhaseSeconds - sortPhaseSeconds) << "s | generated "
                   << totalCandidatesGenerated << " (" << static_cast<long>(genRate) << "/s), scored " << totalCandidatesScored

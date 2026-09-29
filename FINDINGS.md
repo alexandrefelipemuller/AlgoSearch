@@ -2437,3 +2437,97 @@ Data: `data/bloat_diagnostic_20260928/` (`log.txt` the ordinary search
 log, `bloat.log` the raw/simplified/dead_frac samples). `make test` 94/94
 (instrumentation is diagnostic-only, no new test needed beyond the
 existing suite already exercising `canonicalText`'s fold+DCE pass).
+
+## 35. Behavioral redundancy of generation: 70-98% of scored candidates behave exactly like something already seen
+
+First measurement for the "increase generation diversity" line opened after
+section 34's general review. That review's synthesis: every real gain in this
+log came from changing WHAT is generated (sections 5, 17, 27, 32), and every
+attempt to widen what the BEAM keeps alive (sections 5, 21, 26, 28, 29) raised
+distinct-program counts without creating a new shape. The obvious missing
+number was how behaviorally diverse generation actually is -- this section
+measures it before building anything (idea E: generation-time behavioral
+dedup; also the baseline for ideas B/C/D).
+
+**Instrumentation** (`ALGOSEARCH_DEBUG_BEHAVIOR`, `BeamSearch.cpp`, off by
+default, no RNG use; byte-identical output when off, re-checked on two
+configurations; `make test` 94/94). Each scored candidate gets a hash of its
+exact behavior: (status, full output array) on every instance of the level,
+with TIMEOUT/RUNTIME_ERROR hashed by status only. Per size step, a candidate
+is a **duplicate** if its behavior equals a current beam survivor's or an
+earlier candidate's in the same step -- i.e. its evaluation told the search
+nothing new. Also recorded: a cheap 3-instance prefix hash (the pre-filter a
+real dedup would need, since the full hash only exists after full
+evaluation), its **false-merge** rate (prefix-duplicate but actually new
+behavior), and **neutral** mutants (grownPool is interleaved [elite clone,
+mutant], so a mutant identical in behavior to its own parent is detectable).
+
+**Run** (`data/behavior_dup_measure_20260929/run.sh`, 2 seeds each):
+isolation arm (loop-bias 0.0) sum/min/sorting/gcd; default arm
+reverse/factorial; section 32's composite substring; min with
+`--crossover-rate 0.2`. Pooled per config and candidate origin:
+
+| config | origin | candidates | duplicate | of dups, score 0 | 3-prefix dup | false merge | neutral mutants |
+|---|---|---|---|---|---|---|---|
+| iso sum | fresh | 447k | 90.5% | 90.8% | 97.2% | 6.9% | |
+| iso sum | mutant | 148k | 85.8% | 25.1% | 93.9% | 8.6% | 47.0% |
+| iso min | fresh | 447k | 86.2% | 84.1% | 96.9% | 11.1% | |
+| iso min | mutant | 148k | 83.0% | 19.6% | 94.0% | 11.8% | 40.2% |
+| iso sorting | fresh | 447k | 91.7% | 85.1% | 97.5% | 6.0% | |
+| iso sorting | mutant | 148k | 84.0% | 23.2% | 93.6% | 10.2% | 37.3% |
+| iso gcd | fresh | 447k | 95.6% | 86.7% | 99.0% | 3.4% | |
+| iso gcd | mutant | 148k | 93.5% | 76.2% | 97.0% | 3.6% | 19.7% |
+| def reverse | fresh | 249k | 68.8% | 80.4% | 94.2% | 27.0% | |
+| def reverse | mutant | 82k | 73.1% | 27.5% | 89.3% | 18.2% | 43.0% |
+| def factorial | fresh | 447k | 97.0% | 88.0% | 98.9% | 2.0% | |
+| def factorial | mutant | 148k | 87.4% | 47.6% | 94.7% | 7.7% | 12.7% |
+| composite substring | fresh | 4.8k | 98.1% | 55.4% | 98.7% | 0.7% | |
+| composite substring | mutant | 2.0k | 90.0% | 45.5% | 96.1% | 6.3% | 47.1% |
+| min + crossover | crossover | 89k | 92.1% | 0.4% | 98.1% | 6.2% | |
+
+**What this says:**
+
+1. **Behavioral diversity of generation is tiny.** Only ~2-30% of scored
+   candidates (typically ~10%) produce a behavior the search hasn't already
+   seen in that step or in its beam. Textual dedup (`Dedup.hpp`) already
+   ran on the fresh pool, so these are textually distinct programs that do
+   the same thing.
+2. **Fresh random programs collapse onto a few junk behaviors.** 80-90% of
+   fresh duplicates score 0; the ordinary search log explains most of it:
+   in `iso_min`, ~68% of all instance executions end in RUNTIME_ERROR
+   (~16.9k errors of ~25k executions per size step). Random generation
+   mostly produces programs that crash the same way.
+3. **Mutants are 12-47% neutral**: roughly a third of all beam mutations
+   leave behavior exactly unchanged. That is a free neutral network the
+   search already walks (relevant to idea D: semantics-preserving rewrites
+   would add to an already-large neutral fraction, not create one).
+4. **Crossover is 92% duplicate but almost never junk** (0.4% of its dups
+   score 0): transplants mostly land in places that don't change what the
+   recipient computes.
+5. **A 3-instance prefix is not a safe dedup filter**: false merges run 1-27%
+   (median ~7%; `reverse` 18-27%) -- it would silently discard genuinely new
+   behaviors, especially on problems whose early instances are uninformative.
+
+**Honest limits.** Counts are per candidate, not cost-weighted: RUNTIME_ERROR
+executions abort early and are cheap, so the compute a dedup could reclaim is
+well below the ~90% duplicate rate (the expensive case is TIMEOUT, ~3% of
+executions in `iso_min`). Duplicates are counted within one size step only;
+across steps the rate can only be higher. Two seeds per config -- enough for
+rates this far from 50%, not for fine comparisons between configs.
+
+**Decision on idea E:** as a compute-saving dedup it is weak (cheap crashes
+dominate the duplicates, and the only cheap pre-filter mis-merges up to 27%
+of new behaviors). Not built. **The measurement itself is the useful
+product**: "fraction of generated candidates with a new behavior" is a cheap,
+problem-agnostic proxy for generation diversity, measurable in minutes, and
+directly comparable across grammar changes -- the missing baseline for ideas
+B (combinator algebra) and C (role-typed variables). A grammar change that
+cannot raise it is unlikely to create new shapes; one that raises it is worth
+the expensive generalization A/B. Point 2 also suggests a concrete first
+target for C: most fresh junk is crashing programs, plausibly incoherent
+index use (`arr[x]` with `x` an accumulator), which role-typing would prevent
+by construction.
+
+Data: `data/behavior_dup_measure_20260929/` (`err_*.txt` hold the
+`[behavior-debug]` lines). Code: `src/search/BeamSearch.cpp`
+(`behaviorHashFull`/`behaviorHashPrefix`, `BehaviorTally`).
