@@ -3025,3 +3025,19 @@ check the winner on V = 7, 8, which selection never saw.
    property of mutation-based search, not of the guard -- i.e. A is the
    right complement to B for "structure from the product, small holes by
    enumeration".
+
+**Run 1 result (selection on V = 2..6) -- prediction 1 FAILED, informatively.**
+76 training instances, 38,970 conditions -> 1,090 observational classes ->
+96 correct on every training instance. Fastest: `(mBase - best) <= level`,
+1.91x fewer steps than no pruning -- and WRONG on held-out V = 7 and 8. The
+top of the ranking is unsound pruning that happens not to break at small V.
+The reason is quantitative: at V <= 6 the sound guard `cost < best` saves
+only 4% of steps (231,844 vs 241,216), so selection by speed on small
+instances rewards aggressive unsound guards far more than the sound one.
+Section 18's wall is therefore not only "no gradient for mutation": the
+small training sizes barely separate sound from unsound pruning at all.
+
+**Follow-up prediction, registered before run 2:** selecting on V = 2..8
+(where unsound guards break more often and sound pruning pays more), the
+fastest correct class is sound on held-out V = 9, 10 -- `cost < best` or an
+equivalent/stronger sound bound.

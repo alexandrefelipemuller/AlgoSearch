@@ -468,6 +468,12 @@ void runFillTspGuardMode(const CliArgs& args) {
         std::cout << "  " << std::setw(12) << steps[i] << " steps  x" << std::fixed << std::setprecision(2)
                   << static_cast<double>(noPrune) / static_cast<double>(steps[i]) << " vs no pruning  " << reps[i]->toString() << "\n";
     }
+    {
+        // Where the hand-written guard's class lands among the correct ones.
+        size_t rank = 0;
+        for (size_t i : correct) rank += steps[i] < handGuard ? 1 : 0;
+        std::cout << "[fill] hand-written `cost < best` would rank #" << (rank + 1) << " of " << correct.size() << " by steps\n";
+    }
     if (correct.empty()) return;
 
     // Held-out check of the winner on larger V than it was selected on.
