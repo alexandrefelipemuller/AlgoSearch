@@ -3070,3 +3070,47 @@ using only the problem's own oracle:
 Not done yet.
 
 Data: `data/fill_tsp_guard_20260929/`.
+
+## 40 (results). Combinator v2: every registered prediction held; plus search reaches beyond the v1 product occasionally
+
+Reachability (20,000 sampled blocks, correct on EVERY input n = 2..6), v1 /
+v2: is_sorted 0 / 40, count_descents 0 / 33, strictly_increasing 0 / 31,
+has_adjacent_equal 0 / 23, longest_run 0 / 0, max_adjacent_gap 0 / 0.
+
+Search + `--benchmark` with the exhaustive check
+(`data/combinator_v2_benchmark_20260929/`, isolation arm, 5 seeds, seed
+5000; v1 and v2 of each problem run concurrently):
+
+| problem | v1 kept/rejected, wall | v2 kept/rejected, wall | prediction |
+|---|---|---|---|
+| is_sorted | 1/2, 141 s | **5/0, 2.1 s** | 1 held |
+| count_descents | 0/0, 218 s | **5/0, 2.4 s** | 2 held |
+| strictly_increasing | 0/1, 166 s | **5/0, 2.4 s** | 2 held |
+| has_adjacent_equal | 2/1, 88 s | **5/0, 2.0 s** | 2 held |
+| longest_run | 0/0 | 0/0 | 3 held (negative control) |
+| max_adjacent_gap | 0/0 | 0/0 | 3 held (negative control) |
+| 12 previously solved | 59/60 kept (sum: 4 distinct) | 60/60, same wall (+/- 0.3 s) | 4 held: no dilution |
+
+**The surprise: v1 found 3 correct programs outside its product.**
+Reachability says no single v1 block solves is_sorted or
+has_adjacent_equal, yet v1's search produced verified ones (exhaustive
+check passed):
+- has_adjacent_equal: the triangular x exists(==) block with ONE point
+  mutation -- the inner increment `j = j + 1` became `j = n`, so the inner
+  loop runs once (j = i + 1): triangular turned into adjacent. Clean, O(n).
+- is_sorted: 102 nodes, three chained blocks plus mutations (`v0 = 3` in
+  place of an increment). Traced by hand: block 2 overwrites arr[0] with an
+  element taking part in an inversion among positions 1..n-1 if there is
+  one, block 3 flags any later element smaller than arr[0]. Correct, O(n^2),
+  ugly.
+
+**Corrected reading of section 39:** the product's span is the RELIABLE
+capability (5/5 in about 2 s); beyond it, search composes blocks and
+mutations into correct programs occasionally (1-2 of 5 seeds, 90-140 s,
+often bloated). Adding the axis value turns an occasional, slow, ugly
+success into a reliable, instant, clean one -- and costs nothing on the
+problems already solved. `--combinator-adjacent` stays opt-in (v1
+reproducibility); promoting it into the default product is the natural
+next step.
+
+Data: `data/combinator_v2_benchmark_20260929/`.
