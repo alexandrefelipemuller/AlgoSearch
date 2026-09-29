@@ -16,6 +16,10 @@
 #include "problems/SingleNumberProblem.hpp"
 #include "problems/CycleDetectionProblem.hpp"
 #include "problems/DominatedWindowProblem.hpp"
+#include "problems/HasDuplicateProblem.hpp"
+#include "problems/InversionCountProblem.hpp"
+#include "problems/IsSortedProblem.hpp"
+#include "problems/PalindromeProblem.hpp"
 #include "problems/DtwProblem.hpp"
 #include "problems/LisProblem.hpp"
 #include "problems/SubstringProblem.hpp"
@@ -135,7 +139,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -222,6 +226,10 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "substring") return std::make_unique<SubstringProblem>(5, 30, numVars, seed);
     if (name == "cycle") return std::make_unique<CycleDetectionProblem>(6, 30, numVars, seed);
     if (name == "dominated_window") return std::make_unique<DominatedWindowProblem>(5, 30, numVars, seed);
+    if (name == "palindrome") return std::make_unique<PalindromeProblem>(numVars, seed);
+    if (name == "inversion_count") return std::make_unique<InversionCountProblem>(numVars, seed);
+    if (name == "has_duplicate") return std::make_unique<HasDuplicateProblem>(numVars, seed);
+    if (name == "is_sorted") return std::make_unique<IsSortedProblem>(numVars, seed);
     return nullptr;
 }
 

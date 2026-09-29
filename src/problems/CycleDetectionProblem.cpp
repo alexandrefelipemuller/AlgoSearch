@@ -1,5 +1,7 @@
 #include "problems/CycleDetectionProblem.hpp"
 
+#include "problems/ArrayInstances.hpp"
+
 #include <set>
 
 #include "core/Random.hpp"
@@ -161,6 +163,15 @@ bool CycleDetectionProblem::isSolution(const std::vector<int>& input, const std:
         if (input[static_cast<size_t>(i)] < 0 || input[static_cast<size_t>(i)] > n) return false;
     }
     return output[0] == (listHasCycle(input) ? 1 : 0);
+}
+
+// Every (head, next[]) with head and each next in [0, n] -- all functional
+// graphs on n nodes plus null -- for n <= 5 ((n+1)^(n+1) inputs, 46,656 at
+// n = 5). Section 38 found a "has a repeated value" program that passes the
+// sampled benchmark here while wrong on ~45% of these.
+std::vector<std::vector<int>> CycleDetectionProblem::exhaustiveInputs(int n) const {
+    if (n < 1 || n > 5) return {};
+    return allArraysOver(n + 1, 0, n);
 }
 
 }  // namespace algosearch

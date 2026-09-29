@@ -205,3 +205,13 @@ that always errors (`/ 0`). Set `ALGOSEARCH_DEBUG_PRUNE_COUNTS=1` to print how
 often each shape is drawn. A matched-seed A/B found it neutral: it removes
 5-8% junk per site without changing success rate or wall time -- see
 `FINDINGS.md` section 33.
+
+The combinator algebra (`--combinator-bias`, opt-in) builds a block as a
+product of layout x loop x relation axes from catalogued primitives under one
+shared binding context. With no named skeleton available it solves sum, min,
+max, count, contains, single_number, reverse, sorting (as Fung's "I can't
+believe it can sort") and substring, plus three problems written after its
+axes were frozen (`palindrome`, `inversion_count`, `has_duplicate`); it
+cannot reach `is_sorted`, `cycle` or `lis`, as predicted. `--benchmark` now
+also checks every small input for problems that define
+`Problem::exhaustiveInputs`. See `FINDINGS.md` sections 38-39.

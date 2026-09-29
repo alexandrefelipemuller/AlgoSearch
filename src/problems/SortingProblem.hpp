@@ -27,6 +27,7 @@ public:
     // {0..N-1} or small non-negative random samples).
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
+    std::vector<std::vector<int>> exhaustiveInputs(int n) const override;
 
     // 1.0 - (inversions in `output`) / (max possible inversions), gated to
     // 0.0 if `output` isn't even a rearrangement of `input` (guards against

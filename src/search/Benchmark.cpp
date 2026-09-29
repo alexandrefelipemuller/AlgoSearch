@@ -68,6 +68,17 @@ bool checkOneInstance(const Problem& problem, const Stmt& program, const Interpr
 bool verifyGeneralization(const Problem& problem, const Stmt& program, long stepLimit, std::string& outReason,
                            bool seedRecursionBounds) {
     Interpreter interp(stepLimit, /*maxRecursionDepth=*/200, seedRecursionBounds);
+    // Exhaustive small-n check first (see Problem::exhaustiveInputs): every
+    // input the problem can enumerate, not a sample from its generator.
+    for (int n = 1;; ++n) {
+        std::vector<std::vector<int>> inputs = problem.exhaustiveInputs(n);
+        if (inputs.empty()) break;
+        for (size_t k = 0; k < inputs.size(); ++k) {
+            Instance inst{inputs[k], {}};
+            std::string label = " exhaustively at n=" + std::to_string(n) + " input#" + std::to_string(k);
+            if (!checkOneInstance(problem, program, interp, inst, label, outReason)) return false;
+        }
+    }
     for (int n : kVerificationSizes) {
         for (int t = 0; t < kTrialsPerSize; ++t) {
             uint64_t seed = static_cast<uint64_t>(n) * 7919ULL + static_cast<uint64_t>(t) * 104729ULL + 17;

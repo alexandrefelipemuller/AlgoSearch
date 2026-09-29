@@ -69,6 +69,17 @@ public:
     // possible encoding.
     virtual bool supportsMagnitudeShift() const { return true; }
 
+    // Every input of size n over a small value domain, for problems whose
+    // input space is small enough to enumerate. verifyGeneralization checks
+    // ALL of them (n = 1, 2, ... until this returns empty) before its sampled
+    // large-n checks: those samples come from the problem's own instance
+    // generator, so on their own they only certify "generalizes over that
+    // distribution" -- section 38's `cycle` false positive passed them while
+    // being wrong on ~45% of all small inputs. Expected outputs are not
+    // needed: correctness is decided by isSolution(). Default: none, so
+    // problems that don't opt in are verified exactly as before.
+    virtual std::vector<std::vector<int>> exhaustiveInputs(int /*n*/) const { return {}; }
+
     // Whether `output` is a correct solution for `input`.
     virtual bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const = 0;
 

@@ -32,6 +32,7 @@ public:
     std::string describeLevel(int level) const override;
     int nextLevel(int level) const override;
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
+    std::vector<std::vector<int>> exhaustiveInputs(int n) const override;
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     int numVars() const override { return numVars_; }
     // head and every next pointer are non-shiftable indices.

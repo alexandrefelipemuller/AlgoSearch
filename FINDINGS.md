@@ -2862,3 +2862,106 @@ Data: `data/combinator_gate_20260929/`, `data/combinator_benchmark_20260929/`.
 Code: `src/search/ProgramGenerator.{hpp,cpp}` (`genCombinatorBlock`,
 trigger in `genStmt`, root stop in `generateRandomProgram`), `src/main.cpp`
 (`--combinator-bias`, `resolveNumVars`), `tests/combinator_tests.cpp`.
+
+## 39. Post-freeze test of the combinator algebra: 3 of 3 predicted-reachable new problems solved, 0 of 3 predicted-unreachable, and an exhaustive check in --benchmark
+
+Section 38 left one honest objection standing: its axes were designed with
+the solved problems' encodings in view, so eight of nine results were "the
+family contains the answer and search picked it". This section runs the
+test section 32 used for the scoped-conjunction piece: problems written
+AFTER the axes were frozen (commit fb0e539), whose natural algorithms are
+axis combinations no pre-existing problem used, with predictions registered
+before any run.
+
+### First, the verification fix section 38 called for
+
+`Problem::exhaustiveInputs(n)` (opt-in hook, default none): every input of
+size n over a small domain. `verifyGeneralization` (`--benchmark`) now
+checks ALL of them for n = 1, 2, ... before its sampled large-n checks, with
+correctness decided by `isSolution`. Implemented for `cycle` (every
+functional graph with head, n <= 5, up to 46,656 inputs), `sorting` (every
+array over [-1, 2], n <= 5) and the four new problems (every array over
+[-1, 2], n <= 6). Regression tests: section 38's exact `cycle` false
+positive is now rejected (`exhaustive_check_rejects_section_38_cycle_false_positive`)
+and Fung's sort is still accepted. Problems without the hook are verified
+exactly as before.
+
+### The four new problems (`ScalarFromArrayProblem` base, whole-array input, answer in output[0])
+
+- `palindrome` -- natural algorithm: whole x converging x forall(!=);
+- `inversion_count` -- whole x triangular x count-if(>);
+- `has_duplicate` -- whole x triangular x exists(==);
+- `is_sorted` -- needs an adjacent comparison (arr[i-1] > arr[i]) or the
+  negation of "an inversion exists"; the frozen axes have neither.
+
+Instances mix exhaustive small-domain arrays, random arrays over [0, n],
+constructed arrays for the rare label (mirrored halves, planted repeats,
+sorted arrays with one adjacent swap) and the shared structural arrays;
+majority label 57-75% for n >= 2. Tests per AGENTS.md: labels are ground
+truth, both labels present, hand-written reference solutions pass every
+level, adversarial instance and the exhaustive check, and a near-miss
+palindrome (compares only the two ends) is rejected. `make test` 105/105.
+
+**Predictions registered before running:** palindrome, inversion_count and
+has_duplicate reachable; is_sorted not; cycle and lis stay out of reach.
+
+### Results
+
+Reachability (sampling 20,000 frozen-family blocks, correct on EVERY input
+n = 2..6): palindrome 39, inversion_count 48, has_duplicate 33,
+**is_sorted 0** -- exactly as predicted.
+
+Search + `--benchmark` with the exhaustive check
+(`data/post_freeze_benchmark_20260929/`; 5 seeds, seed 4000, `--num-vars
+8`, budget as in section 38), three arms:
+
+| problem | isolation (loop-bias 0.0) | skeleton library (loop-bias 0.4) | combinator 0.5 (isolation) |
+|---|---|---|---|
+| palindrome | 0 | 0 | **5 kept / 0 rejected** |
+| inversion_count | 0 | 0 | **5 / 0** |
+| has_duplicate | 0 | 0 | **5 / 0** |
+| is_sorted | 0 | 0 | 0 / 2 (exhaustive, n <= 2) |
+| cycle | 0 | 0 | 0 / **5** (exhaustive, n <= 2) |
+| lis | 0 | 0 | 0 / 0 |
+
+Every prediction held. The champions are the canonical algorithms, clean
+(e.g. palindrome: `ok = 1; lo = 0; hi = n-1; while (lo < hi) { if (arr[lo]
+!= arr[hi]) ok = 0; lo++; hi--; } arr[0] = ok`, O(n); inversion count and
+has-duplicate: the triangular double loop, O(n^2)). The full skeleton
+library solves none of the new problems, so this is not something the
+project could already do. The exhaustive check caught all 7 false
+positives in the combinator arm -- including the five `cycle` programs of
+the same shape section 38's `--benchmark` had accepted.
+
+### What this establishes, and what it doesn't
+
+- The combinator algebra **generalizes beyond the problems it was designed
+  around**: problems written after the freeze are solved iff their
+  algorithm is a member of the product, and the reachability test predicts
+  which ones in advance. That is the difference from every skeleton in
+  this log -- a skeleton solves the problem it was written for; the
+  product solves problems nobody wrote a block for.
+- It does NOT discover anything outside the product. is_sorted is a
+  trivially simple algorithm, yet unreachable because one axis value
+  (adjacent comparison / negated exists) is missing; cycle and lis likewise.
+  Capability is exactly the product's span, no more -- search selects, it
+  does not invent.
+- The natural long-term lever is therefore the axes themselves: each new
+  axis value multiplies the span (e.g. an "adjacent pair" operand or a
+  negated relation would reach is_sorted and any other adjacent-pair
+  problem). Adding one is legitimate only under the same discipline:
+  freeze, predict, test on problems written afterwards, verify
+  exhaustively.
+- Taxonomy (section 25): solution found -- yes (15/15); known algorithm --
+  yes; only known primitives -- yes; new structure relative to the
+  skeleton library -- yes for all three; new behavior -- no. "Composition
+  learned", now demonstrated on problems unseen at design time.
+
+Data: `data/post_freeze_benchmark_20260929/`. Code:
+`src/problems/Problem.hpp` (`exhaustiveInputs`), `src/search/Benchmark.cpp`,
+`src/problems/ArrayInstances.{hpp,cpp}` (`allArraysOver`,
+`randomArraysOver`), `src/problems/ScalarFromArrayProblem.{hpp,cpp}`,
+`src/problems/{Palindrome,InversionCount,HasDuplicate,IsSorted}Problem.{hpp,cpp}`,
+`src/problems/{CycleDetection,Sorting}Problem.{hpp,cpp}` (exhaustive
+inputs), `src/main.cpp`, `tests/exhaustive_verification_tests.cpp`,
+`tests/post_freeze_problems_tests.cpp`.

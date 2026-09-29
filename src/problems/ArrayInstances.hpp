@@ -27,4 +27,11 @@ std::vector<std::vector<int>> generateBaseArrays(int n, int exhaustiveMaxN, int 
 // having memorized the other.
 std::vector<std::vector<int>> generateStructuralArrays(int n, uint64_t seed, uint64_t seedOffset, int wideRangeSamples);
 
+// Every array of length n with values in [lo, hi] ((hi-lo+1)^n of them),
+// for Problem::exhaustiveInputs. Callers keep n small.
+std::vector<std::vector<int>> allArraysOver(int n, int lo, int hi);
+
+// `count` arrays of length n with values drawn uniformly from [lo, hi].
+std::vector<std::vector<int>> randomArraysOver(int n, int lo, int hi, int count, uint64_t seed);
+
 }  // namespace algosearch

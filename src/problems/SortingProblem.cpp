@@ -90,4 +90,11 @@ double SortingProblem::partialScore(const std::vector<int>& input, const std::ve
     return 1.0 - static_cast<double>(inversions) / static_cast<double>(maxInversions);
 }
 
+// Every array of length n <= 5 over [-1, 2] (duplicates and negatives
+// included), 1,024 inputs at n = 5 -- see Problem::exhaustiveInputs.
+std::vector<std::vector<int>> SortingProblem::exhaustiveInputs(int n) const {
+    if (n < 1 || n > 5) return {};
+    return allArraysOver(n, -1, 2);
+}
+
 }  // namespace algosearch

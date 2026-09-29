@@ -64,4 +64,29 @@ std::vector<std::vector<int>> generateStructuralArrays(int n, uint64_t seed, uin
     return arrays;
 }
 
+std::vector<std::vector<int>> allArraysOver(int n, int lo, int hi) {
+    std::vector<std::vector<int>> arrays;
+    if (n <= 0 || hi < lo) return arrays;
+    std::vector<int> current(static_cast<size_t>(n), lo);
+    while (true) {
+        arrays.push_back(current);
+        int pos = n - 1;
+        while (pos >= 0 && current[static_cast<size_t>(pos)] == hi) current[static_cast<size_t>(pos--)] = lo;
+        if (pos < 0) break;
+        current[static_cast<size_t>(pos)]++;
+    }
+    return arrays;
+}
+
+std::vector<std::vector<int>> randomArraysOver(int n, int lo, int hi, int count, uint64_t seed) {
+    std::vector<std::vector<int>> arrays;
+    Random rng(seed);
+    for (int c = 0; c < count; ++c) {
+        std::vector<int> values(static_cast<size_t>(n));
+        for (int& v : values) v = rng.uniformInt(lo, hi);
+        arrays.push_back(std::move(values));
+    }
+    return arrays;
+}
+
 }  // namespace algosearch
