@@ -1,0 +1,24 @@
+[fill] 108 training instances (V=2..8), 22035 guard evaluations, 3148 snapshots kept
+[fill] 38970 conditions enumerated, 1322 observationally distinct on the snapshots
+[fill] 120 classes correct on every training instance
+[fill] baselines: no pruning 5390055 steps, hand-written `cost < best` 5233872 steps
+[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):
+       1560561 steps  x3.45 vs no pruning  (v5 <= v7)
+       1564506 steps  x3.45 vs no pruning  ((v9 - v11) <= 2)
+       1582105 steps  x3.41 vs no pruning  ((v4 + v10) < v7)
+       1597947 steps  x3.37 vs no pruning  ((v5 - v7) < v8)
+       1613159 steps  x3.34 vs no pruning  ((v4 + v9) < v7)
+       1641939 steps  x3.28 vs no pruning  ((v4 + v10) <= v7)
+       1642703 steps  x3.28 vs no pruning  ((v5 - v7) < v9)
+       1728068 steps  x3.12 vs no pruning  ((v5 - v7) < v10)
+       1744580 steps  x3.09 vs no pruning  ((v2 + v4) <= v7)
+       1751772 steps  x3.08 vs no pruning  ((v4 + v9) <= v7)
+       1753799 steps  x3.07 vs no pruning  ((v4 + v8) < v7)
+       1754718 steps  x3.07 vs no pruning  ((v5 - v7) <= v8)
+       1757108 steps  x3.07 vs no pruning  ((v5 - v7) <= 2)
+       1762590 steps  x3.06 vs no pruning  ((v5 - v7) <= v9)
+       1762930 steps  x3.06 vs no pruning  ((v5 - v7) <= v10)
+[fill] hand-written `cost < best` would rank #55 of 120 by steps
+[fill] held-out V=9 (24 instances): winner WRONG, steps winner 5586390 / hand 37227741 / no pruning 42001295
+[fill] held-out V=10 (24 instances): winner WRONG, steps winner 44697234 / hand 4319 / no pruning 4301
+wall 4.11 s

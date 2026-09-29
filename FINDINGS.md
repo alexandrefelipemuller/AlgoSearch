@@ -3041,3 +3041,32 @@ small training sizes barely separate sound from unsound pruning at all.
 (where unsound guards break more often and sound pruning pays more), the
 fastest correct class is sound on held-out V = 9, 10 -- `cost < best` or an
 equivalent/stronger sound bound.
+
+**Run 2 result (selection on V = 2..8) -- follow-up prediction FAILED too.**
+108 training instances, 1,322 classes, 120 correct on all of them. Fastest:
+`pcBase <= best` (3.45x fewer steps than no pruning) -- WRONG on held-out
+V = 9. Since pcBase = 1 + 3V, it prunes everything once a tour cheaper than
+3V + 1 is known: an exploit of the instance generator's small weight range,
+the same failure class as section 38's `cycle` false positive. The sound
+`cost < best` is in the candidate set and correct, but ranks #55 of 120
+(#57 of 96 in run 1): dozens of unsound, distribution-exploiting guards pass
+the test filter and are faster.
+
+**Conclusion for idea A as run here:** enumeration fixes REACH (the sound
+guard is found without any gradient) but not SELECT. Correctness judged by
+samples from the problem's own generator cannot separate sound pruning from
+pruning that is only valid on that distribution, and ranking by speed then
+actively prefers the unsound ones -- more instances from the same generator
+do not fix this (run 2 had 108 instances and larger V). This refines
+section 18: the wall is not only mutation's missing gradient but the
+absence of a soundness signal. What would supply one without ML, both
+using only the problem's own oracle:
+- a per-evaluation soundness label: at each traced guard evaluation,
+  "pruning here is safe" iff the best completion of the current partial
+  tour (brute force, feasible at V <= 8) cannot beat `best`; require zero
+  unsafe prunes, then rank by speed;
+- adversarial instance families built against pruning (wide weight ranges,
+  near-tie tours), so distribution-specific guards fail the filter.
+Not done yet.
+
+Data: `data/fill_tsp_guard_20260929/`.
