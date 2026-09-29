@@ -3153,3 +3153,37 @@ and V = 2..8, plain vs. labeled):
    training states, so "zero unsafe prunes" is still empirical, not a
    proof; a guard could be unsafe only on states the training instances
    never reach. The held-out check measures how much that matters.
+
+## 43 (results). Soundness labels do NOT fix selection -- prediction 1 failed, for the reason caveat 3 anticipated
+
+`data/tsp_guard_soundness_20260929/` (`scripts/run_tsp_guard_soundness.sh`,
+30 s total):
+
+| config | plain winner on held-out | labeled: classes rejected as unsafe | labeled winner on held-out |
+|---|---|---|---|
+| seed 42, select V <= 6 | wrong at V=7, 8 | 5 | SAME guard, wrong at V=7, 8 |
+| seed 42, select V <= 8 | wrong at V=9 | 22 | SAME guard, wrong at V=9 |
+| seed 7, select V <= 6 | wrong at V=7 | 7 | wrong at V=7, 8 |
+| seed 7, select V <= 8 | wrong at V=9 | 5 | SAME guard, wrong at V=9 |
+
+(The V=10 rows are uninformative: the hand guard and no-pruning runs hit
+the 50M step limit there, so "hand ... 4319 steps" is an aborted run, not a
+wrong answer.)
+
+The oracle works as designed -- `cost < best` has 0 unsafe prunes in every
+configuration, and 5-22 classes are rejected -- but **the winning unsound
+guards have zero unsafe prunes on the training states too**. They compare
+`best` against layout constants that grow with V (e.g. `(mBase - best) <=
+level` with mBase = 1 + 4V): at the training sizes they happen to prune only
+where it is safe, and the relationship breaks as V grows. Labels computed on
+traced training states are an empirical check over the same distribution,
+exactly caveat 3. The sound guard still ranks mid-pack (#40-#83).
+
+**What this rules in:** the missing signal is invariance across SCALE, not
+more labels at the same scale. The natural next test is metamorphic:
+multiplying every weight by a constant k (or adding k to every edge, which
+shifts every tour by V*k) preserves which pruning decisions are sound for a
+cost-based guard, while guards that compare costs to layout constants or
+small literals flip. Requiring a candidate to make the same decisions (or
+keep zero unsafe prunes) on scaled copies of the training instances should
+eliminate exactly the class that wins today. Not implemented yet.
