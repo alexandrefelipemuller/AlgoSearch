@@ -484,6 +484,21 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         int bestSize = scored.front().size;
         log::progress(scored.size(), bestScore, static_cast<int>(instances.size()), bestSize, timeouts, errors);
 
+        // Diagnostic only (FINDINGS.md section 33's phase-3 go/no-go check):
+        // how much of the current best candidate's size is provably dead by
+        // canonicalText's own fold+DCE definition (see
+        // rawAndSimplifiedSize's doc comment), tracked over time to see
+        // whether a stalled level's bloat is removable junk or live code the
+        // search is actually relying on. Every 20 size-steps, never gated
+        // behind config so a run doesn't need to be relaunched to turn it on.
+        if (std::getenv("ALGOSEARCH_DEBUG_BLOAT") != nullptr && size % 20 == 0 && scored.front().program) {
+            auto [rawSz, simplifiedSz] = rawAndSimplifiedSize(*scored.front().program);
+            std::cerr << "[bloat-debug] level=" << currentLevel << " size_step=" << size << " best_score=" << bestScore
+                       << "/" << instances.size() << " raw=" << rawSz << " simplified=" << simplifiedSz
+                       << " dead_frac=" << (rawSz > 0 ? 1.0 - static_cast<double>(simplifiedSz) / rawSz : 0.0)
+                       << "\n";
+        }
+
         int immigrantCount = 0;
         int eliteCount = config_.beamWidth;
         if (config_.diversityRate > 0.0) {

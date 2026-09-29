@@ -2367,3 +2367,73 @@ Data: `data/prune_generation_ab_20260927/`,
 ProgramGenerator.{hpp,cpp}` (`prunePart`, `genPlain*`, `genCondExpr`,
 counters), `src/ast/Expr.{hpp,cpp}`, `src/main.cpp`, `tests/
 generator_tests.cpp` (`prune_generation_*`).
+
+## 34. Phase-3 go/no-go check: the bloat in a stalled sorting run is mostly live code, not dead weight -- phase 3 dropped
+
+Direct follow-up to section 33's closing question: is the stall documented
+in section 29 (a champion program growing to 1600+ nodes while score stays
+flat) removable junk, or code the search is actually relying on? Before
+building phase 3 (materializing `canonicalText`'s fold+DCE pass onto beam
+programs, not just its dedup hash), this was checked directly rather than
+assumed.
+
+**Instrumentation** (`ast/Stmt.{hpp,cpp}`'s `rawAndSimplifiedSize`,
+`BeamSearch.cpp`'s `ALGOSEARCH_DEBUG_BLOAT`): reuses the exact same
+fold-constant-conditions + backward-liveness-DCE pass `canonicalText`
+already trusts for dedup, but returns `{raw node count, node count after
+that pass}` instead of building a string -- cheap enough to call every 20
+size-steps without materially slowing the search. Verified on a short smoke
+run first: score/size/dead-fraction all stable and non-pathological (~22%),
+confirming the instrumentation measures what it claims to.
+
+**Decision rule, registered before running:** dead fraction at a stall
+>50% -> phase 3 has a real target, build it. <20% -> the bloat is live,
+drop the pruning line here. In between -> discuss with the data in hand.
+
+**Run:** exact replay of section 29's configuration
+(`scripts/run_sorting_20h.sh`'s parameters, seed 42, same
+`--post-solve-sizes 150 --composite-bias 0.15` etc.), with
+`ALGOSEARCH_DEBUG_BLOAT=1`, watched via a polling script rather than left
+unattended for 20h. Two stalls were caught directly, not merely inferred:
+
+- **N=39, score plateaued at 47/48 for 45+ minutes**, size flat at 251
+  nodes (candidate pool identical between checks -- growth had genuinely
+  stopped, not just the score). `dead_frac` steady at 13.5-14.3%.
+- **N=40, score plateaued at 3/48 for 45+ minutes** (the low-score,
+  churning-size pattern section 29 actually described as the pathological
+  case) -- raw size oscillated 550-961 nodes without converging, but
+  `dead_frac` stayed at 9.5-11.9% throughout.
+
+Across all 292 instrumented samples in the run (levels 1-40), **the
+maximum dead fraction observed was ~10%** (0.0999) -- it never
+approached even the lenient 20% threshold, let alone 50%, at any point,
+stall or not.
+
+**Conclusion: phase 3 is dropped, a genuine negative result, not merely
+deferred.** The bloat this project has been calling "growth corruption"
+since section 27 is predominantly LIVE code by this file's own existing,
+tested definition of dead (the same fold+DCE `canonicalText` already
+applies) -- materializing that pass onto beam programs would shave ~10%
+off a stalled candidate's size, not fix the stall. This also sharpens
+what "growth corruption" actually is: not accumulated dead weight from
+repeated divergence-window padding (section 29's own text speculated this
+without checking), but the search churning through many different
+~600-900-node variations that are each mostly doing SOMETHING, just not
+converging on a correct one -- consistent with section 27's earlier,
+harder-won finding that superficially similar bloat there was compensating
+for a missing catalog piece, not incidental noise. A future attempt at
+this problem needs a different lever (e.g. a size-based fitness penalty
+that discourages the churn itself, or the periodic re-seeding section 29
+also floated), not a simplification pass.
+
+Kept: the diagnostic itself (`rawAndSimplifiedSize`,
+`ALGOSEARCH_DEBUG_BLOAT`) -- cheap, off by default, no behavior change,
+useful for the next time this question comes up on a different problem.
+Not pursued further: phases 2/3/4/5 of section 33's five-phase plan (2 and
+4 were never gated on this check and remain open if revisited later, but
+neither was the priority item here).
+
+Data: `data/bloat_diagnostic_20260928/` (`log.txt` the ordinary search
+log, `bloat.log` the raw/simplified/dead_frac samples). `make test` 94/94
+(instrumentation is diagnostic-only, no new test needed beyond the
+existing suite already exercising `canonicalText`'s fold+DCE pass).

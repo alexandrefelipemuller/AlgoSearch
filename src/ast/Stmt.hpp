@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -123,5 +124,9 @@ StmtPtr makeBreak();
 // used on the actual program the search keeps/executes -- only on a
 // throwaway clone built for this comparison.
 std::string canonicalText(const Stmt& program);
+
+// See Stmt.cpp's doc comment: {raw node count, node count after the same
+// fold+DCE canonicalText uses}. Diagnostic only (FINDINGS.md section 33).
+std::pair<int, int> rawAndSimplifiedSize(const Stmt& program);
 
 }  // namespace algosearch

@@ -382,4 +382,21 @@ std::string canonicalText(const Stmt& program) {
     return clone->toString();
 }
 
+// Same fold+DCE pass as canonicalText, minus the variable-renaming step
+// (irrelevant to node count) and minus the toString() call (avoids building
+// a string just to measure a size) -- research-only diagnostic for
+// FINDINGS.md section 33's "is the beam's bloat actually removable, or
+// live?" question (ALGOSEARCH_DEBUG_BLOAT in BeamSearch.cpp). Returns the
+// node count BEFORE and AFTER the same fold+DCE canonicalText already
+// trusts for dedup, so a caller can compute what fraction of a champion's
+// size is provably-dead by this file's own existing, tested definition of
+// "dead" -- not a new/different notion of simplification.
+std::pair<int, int> rawAndSimplifiedSize(const Stmt& program) {
+    int rawSize = program.size();
+    StmtPtr clone = program.clone();
+    foldConstantConditions(*clone);
+    stripDeadAndComputeLiveIn(*clone, VarSet{});
+    return {rawSize, clone->size()};
+}
+
 }  // namespace algosearch
