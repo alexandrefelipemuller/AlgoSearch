@@ -143,6 +143,7 @@ struct CandidateRecord {
     // generation-time behavioral dedup would use.
     size_t behaviorHashFull = 0;
     size_t behaviorHashPrefix = 0;
+    bool behaviorAnyFailure = false;  // some instance hit TIMEOUT or RUNTIME_ERROR
     double fitness = 0;  // score + inversions-based partial credit; search-internal
                           // ranking heuristic only, never substitutes for `score`
     int totalTests = 0;
@@ -234,6 +235,7 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                         // hash only the status for those, so two programs that
                         // both crash count as behaving the same.
                         size_t h = static_cast<size_t>(status);
+                        if (status == ExecStatus::TIMEOUT || status == ExecStatus::RUNTIME_ERROR) rec.behaviorAnyFailure = true;
                         if (status != ExecStatus::TIMEOUT && status != ExecStatus::RUNTIME_ERROR) {
                             for (int v : output) mixHash(h, std::hash<int>{}(v));
                         }
@@ -342,6 +344,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     // (0 = mutant of a beam survivor, 1 = fresh random, 2 = crossover).
     struct BehaviorTally {
         long candidates = 0, dupFull = 0, dupFullZeroScore = 0, dupPrefix = 0, prefixFalseMerge = 0, neutral = 0;
+        long newClean = 0;  // new behavior with no TIMEOUT/RUNTIME_ERROR on any instance
     };
     std::map<int, std::array<BehaviorTally, 3>> behaviorTallies;
     std::unordered_set<std::string> frozenChampions;
@@ -448,6 +451,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 bool dupFull = !seenFull.insert(r.behaviorHashFull).second;
                 bool dupPrefix = !seenPrefix.insert(r.behaviorHashPrefix).second;
                 if (dupFull) t.dupFull++;
+                if (!dupFull && !r.behaviorAnyFailure) t.newClean++;
                 if (dupFull && r.score == 0) t.dupFullZeroScore++;
                 if (dupPrefix) t.dupPrefix++;
                 if (dupPrefix && !dupFull) t.prefixFalseMerge++;
@@ -917,7 +921,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                     std::cerr << "[behavior-debug] level=" << level << " origin=" << originNames[o]
                               << " candidates=" << t.candidates << " dup_full=" << t.dupFull
                               << " dup_full_zero_score=" << t.dupFullZeroScore << " dup_prefix=" << t.dupPrefix
-                              << " prefix_false_merge=" << t.prefixFalseMerge << " neutral=" << t.neutral << "\n";
+                              << " prefix_false_merge=" << t.prefixFalseMerge << " neutral=" << t.neutral << " new_clean=" << t.newClean << "\n";
                 }
             }
         }

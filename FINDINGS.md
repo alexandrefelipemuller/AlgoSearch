@@ -2586,7 +2586,7 @@ SUCCESS in either arm.)
 3. **No effect where the free grammar isn't doing the work** (gcd is a
    magnitude problem with a 1-2 element array; factorial/substring are
    solved by a skeleton/composite), as expected.
-4. **A real expressiveness cost, found by the metric itself:** `reverse`'s
+4. **[Corrected in section 37: this reading was wrong.]** A real expressiveness cost, found by the metric itself: `reverse`'s
    new-behavior rate HALVED. Its natural subscript is `n - 1 - i`, which the
    index grammar cannot build (`n - literal` and `index +/- literal` only).
    Both seeds still solved via the skeleton, but in the free grammar this
@@ -2608,3 +2608,114 @@ ProgramGenerator.{hpp,cpp}` (`genIndexExpr`, `genIndexUpdateExpr`,
 `genTypedValueExpr`, `genTypedCondExpr`, `genStmtCondExpr`, typed branches
 of `genPlain*`), `src/main.cpp`, `tests/generator_tests.cpp`,
 `scripts/compare_behavior_novelty.py`.
+
+## 37. Vacuous SUCCESS at max_level, a metric correction, and the role-typed outcome A/B: no genuine gain
+
+Three things, in the order they were found while running section 36's
+follow-ups.
+
+### Correction to section 36: the `reverse` novelty "drop" was crash-pattern variety
+
+Section 36 read `reverse`'s halved new-behavior rate as an expressiveness
+gap (no `n - 1 - i` subscript) and planned to close it. Adding `n - index -
+{0,1}` and `index + index` to `genIndexExpr` changed nothing (16.1% ->
+16.4%), falsifying that reading. The actual cause is in the metric: the
+behavior hash records TIMEOUT/RUNTIME_ERROR per instance by status, so a
+program that crashes on SOME instances produces a "new behavior" for every
+distinct crash pattern. Added a **clean new behavior** tally (new behavior
+with no TIMEOUT/RUNTIME_ERROR on any instance; `new_clean` in
+`[behavior-debug]`) and re-ran both arms on section 35's exact configs/seeds
+(the control re-run reproduced section 35's numbers exactly):
+
+| config | clean new behavior, fresh (off -> on) | raw new behavior, fresh |
+|---|---|---|
+| iso sum | 0.6% -> 3.2% | 9.5% -> 17.3% |
+| iso min | 0.8% -> 3.6% | 13.8% -> 19.3% |
+| iso sorting | 0.6% -> 2.4% | 8.3% -> 13.1% |
+| iso min + crossover | 0.8% -> 3.9% | 13.0% -> 20.3% |
+| iso gcd | 0.4% -> 1.0% | 4.4% -> 4.0% |
+| def reverse | **4.8% -> 6.1%** | 31.2% -> 16.4% |
+| def factorial / comp substring | unchanged | unchanged |
+
+Under the unpruned grammar **fewer than 1% of fresh candidates produce a
+new, non-crashing behavior**; role typing raises that 4-5x, and `reverse`'s
+clean rate goes UP. The clean rate is the metric to use from here on
+(`scripts/compare_behavior_novelty.py` prints both). The extra subscript
+forms are kept (they are legitimate index shapes). Data:
+`data/behavior_clean_control_20260929/`, `data/role_typed_v2_measure_20260929/`.
+
+### A measurement defect: SUCCESS found at max_level is vacuous
+
+The role-typed outcome A/B (`scripts/run_flag_ab.sh`, new generic
+matched-seed isolation A/B; 7 array problems x 10 fresh seeds 2000-2009,
+loop-bias 0.0, section 33 suite-B budget) first showed `reverse` **0/10 ->
+6/10 SUCCESS**, faster in 10/10 pairs. `--benchmark` (10 seeds) rejected
+**all 6** programs: every one fails at n=1 with a runtime error. All 6 had
+`first_level = 8 = max_level`, `confirmed_levels = 1`.
+
+Cause (`BeamSearch.cpp`): `requiredLevel = min(currentLevel +
+invarianceLookahead, maxLevel)`. A program first solving the LAST level
+gets `requiredLevel == currentLevel`, so the structural-invariance check is
+satisfied without checking anything -- any program that memorizes the
+last level's instances is labeled SUCCESS. Role typing makes the search
+reach N=8 more often (mean N reached 5.6 -> 7.6), where the label is free.
+`--benchmark` re-verifies independently and was never affected; any
+analysis reading `final_status` straight from a solutions JSON was.
+`scripts/summarize_prune_ab.py` now counts a SUCCESS only if first found
+below `max_level`, and reports vacuous ones separately.
+
+**Audit of this session's A/Bs with the corrected count:**
+- Section 33, suite A `graph_reachability`: the corrected count was 1/5 vs
+  **5/5** (4 of the off arm's "SUCCESS" were vacuous) -- an apparent
+  pruning win. Not trusted on the discovery seeds: 30 fresh seeds gave
+  6/30 vs 11/30 (9 vs 4 discordant pairs, McNemar exact p = 0.27), then
+  100 more fresh seeds gave **24/100 vs 30/100 (20 vs 14, p = 0.39)**. No
+  effect; the 5-seed split was luck. Section 33's "neutral" stands.
+- Section 33, suite B `single_number`: corrected 1/5 vs 0/5 (the on arm's
+  success was vacuous). Too few to mean anything; neutral stands.
+- Section 36's role-typed A/B: see below.
+- Earlier sections that counted SUCCESS from JSON without `--benchmark`
+  (e.g. section 28's "SUCCESS levels" union) may include vacuous entries;
+  not re-audited here. Negative results (0/N) cannot be inflated by this.
+
+**Engine fix not applied** (it changes the meaning of a label every
+existing analysis and archive uses): the natural fix is to label a
+cascade that could not look ahead at all (`currentLevel == maxLevel`) as
+UNCONFIRMED. Left as an explicit decision.
+
+### Role-typed variables, outcome A/B: no genuine success, climbs further, costs time
+
+`data/role_typed_ab_20260929/` (on arm with the v2 subscripts),
+corrected count:
+
+| problem | genuine SUCCESS off/on | mean N reached off/on | wall s off/on |
+|---|---|---|---|
+| sum | 0/10 / 0/10 | 1.9 / 2.8 | 18.5 / 25.5 |
+| min | 0/10 / 0/10 | 2.3 / 3.7 | 22.2 / 28.4 |
+| max | 0/10 / 0/10 | 2.2 / 2.7 | 19.2 / 21.5 |
+| count | 0/10 / 0/10 | 1.0 / 1.0 | 22.8 / 24.8 |
+| contains | 0/10 / 0/10 | 1.0 / 1.0 | 25.0 / 28.1 |
+| sorting | 0/10 / 0/10 | 1.7 / 2.0 | 18.1 / 19.2 |
+| reverse | 0/10 / 0/10 (0/6 vacuous) | 5.6 / 7.6 | 137.9 / 75.1 |
+
+**Conclusion: idea C passes the diversity gate (4-5x clean novelty) but
+does not produce a single generalizing program in the isolation arm at
+this budget.** It makes the search fit more levels (N reached up on 5 of 7
+problems) at 10-40% more wall time where it doesn't finish early -- more
+coherent programs, more of them memorizing a level, none of them the
+algorithm. This is the same shape as section 5's diversity result one
+level down: more structurally valid variety, no new algorithm. It also
+calibrates the section 35 gate: raising clean novelty is necessary-looking
+but demonstrably not sufficient. `roleTypedVars` stays opt-in.
+
+What this does NOT rule out: C as a base for B (the composite combinator
+algebra), where the missing ingredient is coordinated structure, not
+coherent subscripts -- section 7's lesson (the atomic skeleton, not any
+single ingredient) suggests exactly this outcome for C alone.
+
+Data: `data/role_typed_ab_20260929/`, `data/prune_generation_ab_graph_20260929/`,
+`data/prune_generation_ab_graph100_20260929/`. Code:
+`src/search/BeamSearch.cpp` (`behaviorAnyFailure`, `new_clean`),
+`src/search/ProgramGenerator.cpp` (`genIndexExpr` v2),
+`scripts/run_flag_ab.sh`, `scripts/summarize_prune_ab.py` (vacuous
+split), `scripts/compare_behavior_novelty.py` (clean column).

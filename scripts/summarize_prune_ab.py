@@ -2,8 +2,12 @@
 """Summarizes a run_prune_generation_ab.sh output directory (FINDINGS.md section 33).
 
 Per (suite, problem, arm), over matched seeds:
-  success   -- runs whose solutions JSON has any final_status == SUCCESS
+  success   -- runs with a GENUINE SUCCESS: first found below the run's max_level.
+               A SUCCESS first found AT max_level is vacuous (the invariance
+               lookahead is capped at max_level, so it checks nothing there --
+               FINDINGS.md section 37) and is counted separately as "vac".
   n_reached -- mean of each run's max n_reached
+  confirmed -- mean of each run's max confirmed_levels
   wall      -- mean wall seconds (times.tsv), plus how many pairs the on-arm was faster in
 Then phase 0: pooled [prune-debug] hit rates per rule, off arm only (the unpruned grammar).
 
@@ -25,9 +29,13 @@ def run_stats(root, suite, problem, seed, arm):
         records = json.load(open(path))
     except (OSError, ValueError):
         return None  # killed by timeout before writing, or still running
-    success = any(r.get("final_status") == "SUCCESS" for r in records)
+    succ = [r for r in records if r.get("final_status") == "SUCCESS"]
+    max_level = int(records[0]["config"]["max_level"]) if records else 0
+    success = any(r.get("first_level", 0) < max_level for r in succ)
+    vacuous = bool(succ) and not success
     n_reached = max((r.get("n_reached", 0) for r in records), default=0)
-    return success, n_reached
+    confirmed = max((r.get("confirmed_levels", 0) for r in records), default=0)
+    return success, n_reached, confirmed, vacuous
 
 
 def main():
@@ -41,9 +49,9 @@ def main():
     for (suite, problem, seed, arm) in times:
         groups.setdefault((suite, problem), set()).add(seed)
 
-    print(f"{'suite':5} {'problem':20} {'success off/on':>15} {'n_reached off/on':>18} {'wall_s off/on':>17} {'on faster':>9} {'timeouts off/on':>15}")
+    print(f"{'suite':5} {'problem':20} {'success off/on':>15} {'n_reached off/on':>18} {'wall_s off/on':>17} {'on faster':>9} {'timeouts off/on':>15} {'confirmed off/on':>17} {'vac off/on':>11}")
     for (suite, problem), seeds in groups.items():
-        agg = {arm: {"succ": 0, "n": [], "wall": [], "to": 0, "runs": 0} for arm in ("off", "on")}
+        agg = {arm: {"succ": 0, "vac": 0, "n": [], "conf": [], "wall": [], "to": 0, "runs": 0} for arm in ("off", "on")}
         faster = pairs = 0
         for seed in sorted(seeds):
             walls = {}
@@ -60,7 +68,9 @@ def main():
                 st = run_stats(root, suite, problem, seed, arm)
                 if st:
                     a["succ"] += st[0]
+                    a["vac"] += st[3]
                     a["n"].append(st[1])
+                    a["conf"].append(st[2])
             if len(walls) == 2:
                 pairs += 1
                 faster += walls["on"] < walls["off"]
@@ -68,7 +78,7 @@ def main():
         off, on = agg["off"], agg["on"]
         print(f"{suite:5} {problem:20} {off['succ']:>6}/{off['runs']} {on['succ']:>3}/{on['runs']:<3} "
               f"{mean(off['n']):>8.1f}/{mean(on['n']):<8.1f} {mean(off['wall']):>8.1f}/{mean(on['wall']):<8.1f} "
-              f"{faster:>4}/{pairs:<4} {off['to']:>8}/{on['to']}")
+              f"{faster:>4}/{pairs:<4} {off['to']:>8}/{on['to']:<6} {mean(off['conf']):>8.1f}/{mean(on['conf']):<8.1f} {off['vac']:>5}/{on['vac']}")
 
     print("\nPhase 0 -- [prune-debug] pooled over the OFF arm (unpruned grammar):")
     for suite in sorted({s for s, _ in groups}):

@@ -1,0 +1,180 @@
+
+LEVEL 1
+vertices V = 1
+instances = 12
+beam = 500
+  candidates = 1 | best score = 12/12 | best size = 1 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 1 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 12/12
+  size 1  held-out 8/8
+  program_id 553e93901e462a6e  first_level 1  confirmed_levels 1
+  programa:
+
+
+LEVEL 2
+vertices V = 2
+instances = 14
+beam = 500
+  candidates = 1502 | best score = 14/14 | best size = 9 | timeouts = 1325 | errors = 4046
+  beam diversity at full solve: 24 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 14/14
+  size 9  held-out 8/8
+  program_id 4994d5e9ce1a6b68  first_level 2  confirmed_levels 1
+  programa:
+swap(arr[(arr[v5] + arr[arr[1]])], arr[v5]);
+
+
+LEVEL 3
+vertices V = 3
+instances = 15
+beam = 500
+  candidates = 2500 | best score = 15/15 | best size = 69 | timeouts = 3732 | errors = 6149
+  beam diversity at full solve: 23 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=3 but breaks before N=6 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=3
+  score 15/15
+  size 69  held-out 8/8
+  program_id f4406b1e6454ceef  first_level 3  confirmed_levels 3
+  programa:
+v2 = arr[0];
+arr[1] = 1;
+v5 = (v2 + 1);
+v1 = 0;
+while ((v1 < v2)) {
+  v4 = 0;
+  while ((v4 < v2)) {
+    if ((arr[(1 + v4)] == 1)) {
+      v3 = 0;
+      while ((v3 < v2)) {
+        if ((arr[(v5 + ((v4 * v2) + v3))] == 1)) {
+          arr[(1 + v3)] = 1;
+        }
+        v3 = (v3 + 1);
+      }
+    }
+    v4 = (v4 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = arr[v2];
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 15/15
+  size 69  held-out 8/8
+  program_id f4406b1e6454ceef  first_level 3  confirmed_levels 3
+  programa:
+v2 = arr[0];
+arr[1] = 1;
+v5 = (v2 + 1);
+v1 = 0;
+while ((v1 < v2)) {
+  v4 = 0;
+  while ((v4 < v2)) {
+    if ((arr[(1 + v4)] == 1)) {
+      v3 = 0;
+      while ((v3 < v2)) {
+        if ((arr[(v5 + ((v4 * v2) + v3))] == 1)) {
+          arr[(1 + v3)] = 1;
+        }
+        v3 = (v3 + 1);
+      }
+    }
+    v4 = (v4 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = arr[v2];
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 15/15
+  size 69  held-out 8/8
+  program_id f4406b1e6454ceef  first_level 3  confirmed_levels 3
+  programa:
+v2 = arr[0];
+arr[1] = 1;
+v5 = (v2 + 1);
+v1 = 0;
+while ((v1 < v2)) {
+  v4 = 0;
+  while ((v4 < v2)) {
+    if ((arr[(1 + v4)] == 1)) {
+      v3 = 0;
+      while ((v3 < v2)) {
+        if ((arr[(v5 + ((v4 * v2) + v3))] == 1)) {
+          arr[(1 + v3)] = 1;
+        }
+        v3 = (v3 + 1);
+      }
+    }
+    v4 = (v4 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = arr[v2];
+
+
+LEVEL 6
+vertices V = 6
+instances = 15
+beam = 500
+  candidates = 2500 | best score = 15/15 | best size = 133 | timeouts = 5201 | errors = 6731
+  beam diversity at full solve: 17 distinct shapes / 500 candidates
+
+N=6
+  score 15/15
+  size 133  held-out 8/8
+  program_id 6182c0aec68f8595  first_level 6  confirmed_levels 1
+  programa:
+v4 = arr[0];
+arr[1] = 1;
+v3 = (v4 + 1);
+v1 = 0;
+while ((v1 < v4)) {
+  while ((arr[v5] > arr[v5])) {
+    v3 = (v0 - (arr[v0] + v0));
+    arr[1] = v2;
+    if ((v2 != v0)) {
+      v4 = arr[((3 | 1) + 1)];
+      arr[1] = arr[((2 - 3) - (v4 + 1))];
+      v3 = 3;
+    } else {
+      if ((arr[v5] < (v1 - v5))) {
+        arr[(v4 - arr[arr[v2]])] = 2;
+      }
+      v5 = arr[((v4 + v0) / (v0 - v0))];
+      v1 = v5;
+      v0 = 1;
+    }
+  }
+  while ((v2 < v4)) {
+    if ((arr[(1 + v2)] == 1)) {
+      v5 = 0;
+      while ((v5 < v4)) {
+        if ((arr[(v3 + ((v2 * v4) + v5))] == 1)) {
+          arr[(1 + v5)] = 1;
+        }
+        v5 = (v5 + 1);
+      }
+    }
+    v2 = (v2 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = arr[v4];
+
+
+Search finished in 0.321081s
+  profile: gen=0.0914835s score=0.207609s sort=0.000935361s other=0.0210531s | generated 12983 (40435/s), scored 6503 (20253/s)
+
+Saved 6 solution record(s) to data/prune_generation_ab_graph100_20260929/solutions_A_graph_reachability_seed1064_off.json

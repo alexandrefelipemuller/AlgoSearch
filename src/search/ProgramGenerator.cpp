@@ -2178,15 +2178,25 @@ int pickValueVar(Random& rng, const GenConfig& cfg) {
     return 2 * rng.uniformInt(1, count);
 }
 
+// Also covers the mirrored subscript `n - index - literal` (reverse,
+// palindrome-style scans) and `index + index` (two-sequence offsets): the
+// first version lacked both, and section 36's own novelty measurement caught
+// it (reverse's new-behavior rate halved).
 ExprPtr genIndexExpr(Random& rng, const GenConfig& cfg) {
-    int choice = rng.uniformInt(0, 9);
+    int choice = rng.uniformInt(0, 11);
     if (choice < 5) return makeVar(pickIndexVar(rng, cfg));
     if (choice < 7) return makeIntConst(rng.uniformInt(0, cfg.maxConst));
     if (choice < 9) {
         ExprKind k = rng.chance(0.5) ? ExprKind::Add : ExprKind::Sub;
         return makeBinOp(k, makeVar(pickIndexVar(rng, cfg)), makeIntConst(rng.uniformInt(1, std::max(1, cfg.maxConst))));
     }
-    return makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(rng.uniformInt(1, std::max(1, cfg.maxConst))));
+    if (choice == 9) return makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(rng.uniformInt(1, std::max(1, cfg.maxConst))));
+    if (choice == 10) {
+        ExprPtr mirrored = makeBinOp(ExprKind::Sub, makeVar(0), makeVar(pickIndexVar(rng, cfg)));
+        return makeBinOp(ExprKind::Sub, std::move(mirrored), makeIntConst(rng.uniformInt(0, 1)));
+    }
+    ExprPtr first = makeVar(pickIndexVar(rng, cfg));
+    return makeBinOp(ExprKind::Add, std::move(first), makeVar(pickIndexVar(rng, cfg)));
 }
 
 // What an index variable may be assigned: a start (0/1), a step (+/- 1), the

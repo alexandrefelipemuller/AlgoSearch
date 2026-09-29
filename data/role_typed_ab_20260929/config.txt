@@ -1,0 +1,3 @@
+FLAG=--role-typed-vars SEEDS=10 SEED_BASE=2000 WALL=300
+PROBLEMS=sum:8:4 min:8:4 max:8:4 count:8:4 contains:8:4 sorting:5:4 reverse:8:4
+BUDGET=--beam-width 500 --candidates 1500 --max-program-size 150 --step-limit 5000 --loop-bias 0.0
