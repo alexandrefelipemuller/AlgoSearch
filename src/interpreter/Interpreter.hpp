@@ -47,16 +47,16 @@ public:
     // Diagnostic/synthesis hook (section 41's hole filling): every time the
     // condition of `site` (an If or While node of the program being run) is
     // about to be evaluated, `onVisit` receives the current scalar
-    // variables. Off (null) by default; the search's scoring path never sets
+    // variables and array. Off (null) by default; the search's scoring path never sets
     // it, so it costs one pointer comparison per If/While when unused.
-    void setConditionTrace(const Stmt* site, std::function<void(const std::vector<int>&)> onVisit) {
+    void setConditionTrace(const Stmt* site, std::function<void(const std::vector<int>&, const std::vector<int>&)> onVisit) {
         traceSite_ = site;
         traceFn_ = std::move(onVisit);
     }
 
 private:
     const Stmt* traceSite_ = nullptr;
-    std::function<void(const std::vector<int>&)> traceFn_;
+    std::function<void(const std::vector<int>&, const std::vector<int>&)> traceFn_;
     long stepLimit_;
     long maxRecursionDepth_;
     bool seedRecursionBounds_;

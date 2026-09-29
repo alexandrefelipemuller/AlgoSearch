@@ -90,6 +90,7 @@ struct CliArgs {
     std::string checkpointPath;
     bool benchmark = false;
     bool fillTspGuard = false;
+    bool soundnessLabels = false;
     int benchmarkSeeds = 5;
 };
 
@@ -140,6 +141,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--checkpoint-path") args.checkpointPath = next("--checkpoint-path");
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
+        else if (arg == "--soundness-labels") args.soundnessLabels = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -160,7 +162,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels]]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -406,19 +408,40 @@ void runFillTspGuardMode(const CliArgs& args) {
 
     // Snapshots of the scalars at every guard evaluation, with no pruning at
     // all (guard = 1), capped by uniform subsampling.
+    // With --soundness-labels every evaluation is kept (arrays too) and
+    // labeled by tspPruneIsSafe; otherwise a uniform 1-in-7 subsample.
     std::vector<std::vector<int>> snapshots;
+    std::vector<char> safeToPrune;
     {
         TspBranchAndBound open = buildTspBranchAndBoundWithGuard(vars, makeIntConst(1));
         Interpreter interp(stepLimit);
         long visits = 0;
-        interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v) {
-            if (visits++ % 7 == 0 && snapshots.size() < 4000) snapshots.push_back(v);
+        interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v, const std::vector<int>& arr) {
+            bool keep = args.soundnessLabels ? snapshots.size() < 60000 : (visits % 7 == 0 && snapshots.size() < 4000);
+            visits++;
+            if (!keep) return;
+            snapshots.push_back(v);
+            if (args.soundnessLabels) safeToPrune.push_back(tspPruneIsSafe(v, arr) ? 1 : 0);
         });
         std::vector<int> out;
         for (const auto& inst : training) interp.run(*open.program, inst.input, numVars, out);
         std::cout << "[fill] " << training.size() << " training instances (V=2.." << args.maxN << "), " << visits
                   << " guard evaluations, " << snapshots.size() << " snapshots kept\n";
+        if (args.soundnessLabels) {
+            long safe = std::count(safeToPrune.begin(), safeToPrune.end(), 1);
+            std::cout << "[fill] soundness labels: " << safe << " evaluations where pruning is safe, "
+                      << (static_cast<long>(safeToPrune.size()) - safe) << " where it would cut a strictly better tour\n";
+        }
     }
+    // Unsafe prunes of a guard: evaluations it would prune (value 0) although
+    // a strictly better tour lies below.
+    auto unsafePrunes = [&](const Expr& guard) {
+        long n = 0;
+        for (size_t k = 0; k < safeToPrune.size(); ++k) {
+            if (!safeToPrune[k] && evalOnSnapshot(guard, snapshots[k]) == 0) n++;
+        }
+        return n;
+    };
 
     std::vector<ExprPtr> all = enumerateConditions(vars, 3);
     size_t enumerated = all.size();
@@ -456,11 +479,23 @@ void runFillTspGuardMode(const CliArgs& args) {
     evaluate(*makeIntConst(1), training, noPrune);
     evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
     std::vector<size_t> correct;
+    long rejectedUnsound = 0;
     for (size_t i = 0; i < reps.size(); ++i) {
-        if (steps[i] >= 0) correct.push_back(i);
+        if (steps[i] < 0) continue;
+        if (args.soundnessLabels && unsafePrunes(*reps[i]) > 0) {
+            rejectedUnsound++;  // correct on the training outputs, but prunes a better tour somewhere
+            continue;
+        }
+        correct.push_back(i);
+    }
+    if (args.soundnessLabels) {
+        std::cout << "[fill] " << rejectedUnsound << " classes correct on training outputs but rejected for unsafe prunes; "
+                  << "hand-written `cost < best` has " << unsafePrunes(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)))
+                  << " unsafe prunes\n";
     }
     std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
-    std::cout << "[fill] " << correct.size() << " classes correct on every training instance\n"
+    std::cout << "[fill] " << correct.size() << " classes correct on every training instance"
+              << (args.soundnessLabels ? " with zero unsafe prunes" : "") << "\n"
               << "[fill] baselines: no pruning " << noPrune << " steps, hand-written `cost < best` " << handGuard << " steps\n"
               << "[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):\n";
     for (size_t k = 0; k < correct.size() && k < 15; ++k) {

@@ -1,5 +1,6 @@
 #include "search/HoleFiller.hpp"
 
+#include <algorithm>
 #include <string>
 #include <unordered_set>
 
@@ -60,6 +61,46 @@ std::vector<ExprPtr> dedupeByTruthVector(std::vector<ExprPtr> conditions, const 
         if (seen.insert(key).second) representatives.push_back(std::move(cond));
     }
     return representatives;
+}
+
+namespace {
+
+// Cheapest way to visit every vertex in `remaining` starting from `at` and
+// return to vertex 0, on top of `costSoFar`; weights of 0 mean "no edge".
+// Returns INT_MAX-ish when no valid completion exists.
+long bestCompletion(const std::vector<int>& arr, int nv, int mBase, int at, long costSoFar, std::vector<int>& remaining,
+                    long cutoff) {
+    auto weight = [&](int from, int to) { return arr[static_cast<size_t>(mBase + from * nv + to)]; };
+    if (costSoFar >= cutoff) return cutoff;  // cannot beat what is already known
+    if (remaining.empty()) {
+        int back = weight(at, 0);
+        return back > 0 ? costSoFar + back : cutoff;
+    }
+    long best = cutoff;
+    for (size_t k = 0; k < remaining.size(); ++k) {
+        int next = remaining[k];
+        int w = weight(at, next);
+        if (w <= 0) continue;
+        std::swap(remaining[k], remaining.back());
+        remaining.pop_back();
+        best = std::min(best, bestCompletion(arr, nv, mBase, next, costSoFar + w, remaining, best));
+        remaining.push_back(next);
+        std::swap(remaining[k], remaining.back());
+    }
+    return best;
+}
+
+}  // namespace
+
+bool tspPruneIsSafe(const std::vector<int>& vars, const std::vector<int>& arr) {
+    int nv = vars[1], uBase = vars[3], mBase = vars[6], best = vars[7], c = vars[9], cost = vars[11];
+    std::vector<int> remaining;
+    for (int k = 0; k < nv; ++k) {
+        if (k != c && arr[static_cast<size_t>(uBase + k)] == 0) remaining.push_back(k);
+    }
+    // Only a completion STRICTLY below best makes pruning unsafe, so best is
+    // the cutoff: bestCompletion returns best when nothing beats it.
+    return bestCompletion(arr, nv, mBase, c, cost, remaining, best) >= best;
 }
 
 }  // namespace algosearch

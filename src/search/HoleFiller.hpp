@@ -30,4 +30,15 @@ int evalOnSnapshot(const Expr& e, const std::vector<int>& vars);
 // snapshot. Keeps the first (smallest-index) member of each class.
 std::vector<ExprPtr> dedupeByTruthVector(std::vector<ExprPtr> conditions, const std::vector<std::vector<int>>& snapshots);
 
+// Soundness oracle for the TSP branch-and-bound guard (section 41, labels
+// run). Given the scalars `vars` and the array `arr` at one evaluation of the
+// guard -- in buildTspBranchAndBoundWithGuard's layout and variable order
+// (nv, size, uBase, chBase, pcBase, mBase, best, level, c, w, cost at
+// vars[1..11]) -- returns true iff pruning here is SAFE: no tour completing
+// the partial path path[0..level-1] -> c costs strictly less than `best`.
+// Pruning a subtree that holds a strictly better tour is the unsound kind;
+// this labels each evaluation using nothing but the instance's own weights
+// (exact brute force over the unvisited vertices, fine for V <= ~9).
+bool tspPruneIsSafe(const std::vector<int>& vars, const std::vector<int>& arr);
+
 }  // namespace algosearch

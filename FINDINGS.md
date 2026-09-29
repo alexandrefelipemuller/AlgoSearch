@@ -3114,3 +3114,42 @@ reproducibility); promoting it into the default product is the natural
 next step.
 
 Data: `data/combinator_v2_benchmark_20260929/`.
+
+## 43. TSP guard selection with per-evaluation soundness labels (branch `tsp-guard-soundness`) -- test prepared, not yet run
+
+Section 41 found enumeration REACHES `cost < best` but selection (correct on
+sampled training outputs, then fastest) picks unsound, generator-exploiting
+guards. This supplies the missing soundness signal from the problem's own
+oracle, no learning involved:
+
+- `Interpreter::setConditionTrace` now also hands the array to the
+  callback, so the branch-and-bound state (partial path, `used[]`) is
+  visible at each guard evaluation.
+- `tspPruneIsSafe(vars, arr)` (`search/HoleFiller.{hpp,cpp}`): pruning an
+  evaluation is SAFE iff no tour completing the current partial path
+  through candidate `c` costs strictly less than `best` -- exact brute force
+  over the unvisited vertices (with a running-cost cutoff), the textbook
+  admissibility condition.
+- `--fill-tsp-guard --soundness-labels`: keeps every guard evaluation (not
+  a 1-in-7 sample), labels each one, and rejects any candidate class that
+  would prune at least one unsafe evaluation, before ranking the rest by
+  steps.
+- Tests: the oracle on a hand-built V = 3 state (unsafe when a strictly
+  better tour lies below, safe on a tie or when nothing beats `best`), and
+  the enumeration contains `cost < best`. `make test` 113/113. A V <= 3
+  smoke run confirms the code path and that `cost < best` has 0 unsafe
+  prunes; its numbers are too small to mean anything.
+
+**Predictions, registered before the real run**
+(`scripts/run_tsp_guard_soundness.sh`: seeds 42 and 7, selection on V = 2..6
+and V = 2..8, plain vs. labeled):
+1. With labels, the winner is correct on held-out V = maxN+1, maxN+2 in all
+   four configurations (plain: wrong, as in section 41).
+2. The labeled winner is `cost < best`, an equivalent, or a strictly
+   stronger SOUND bound -- the natural candidate being `cost + 1 < best`
+   (sound with positive integer weights, since at least the closing edge
+   remains) -- and is at least as fast as `cost < best` on held-out V.
+3. Caveat fixed in advance: labels are computed only on the traced
+   training states, so "zero unsafe prunes" is still empirical, not a
+   proof; a guard could be unsafe only on states the training instances
+   never reach. The held-out check measures how much that matters.
