@@ -2159,7 +2159,9 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 //               length-prefixed, or two length-prefixed sequences (the four
 //               encodings this repo's problems actually use);
 //   loop     -- single counting loop, nested (full), nested triangular
-//               (j from i+1), or two converging pointers;
+//               (j from i+1), or two converging pointers; plus, with
+//               --combinator-adjacent (section 40, v2), adjacent pairs
+//               (elem(i-1), elem(i)) in one pass;
 //   relation -- sum, running best, count-if, exists, scoped forall (section
 //               32's piece), xor, conditional swap, swap;
 //   comparator and write-back follow from the relation.
@@ -2171,7 +2173,7 @@ StmtPtr genCompositeBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
-enum class Loop { Single, NestedFull, NestedTriangular, Converging };
+enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
 enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap };
 
 ExprKind drawComparator(Random& rng) {
@@ -2233,7 +2235,11 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         loop = Loop::NestedFull;
     } else {
         int maxLoop = nestedOk ? 3 : 0;
-        loop = static_cast<Loop>(rng.uniformInt(0, maxLoop));
+        // Adjacent (section 40, --combinator-adjacent) is drawn as one more
+        // option only when enabled, so the frozen v1 family is untouched.
+        int options = maxLoop + 1 + (cfg.combinatorAdjacent ? 1 : 0);
+        int pick = rng.uniformInt(0, options - 1);
+        loop = pick <= maxLoop ? static_cast<Loop>(pick) : Loop::Adjacent;
     }
 
     // Relation, restricted to what makes sense for the loop's operand arity:
@@ -2251,8 +2257,14 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         b = elemAt(base2, makeVar(vj));                                        // pattern[j]
     } else {
         posA = makeBinOp(ExprKind::Add, base->clone(), makeVar(vi));
+        if (loop == Loop::Adjacent) {  // operands elem(i-1), elem(i)
+            posA = makeBinOp(ExprKind::Sub, makeBinOp(ExprKind::Add, base->clone(), makeVar(vi)), makeIntConst(1));
+        }
         a = makeArrayAccess(posA->clone());
-        if (loop != Loop::Single) {
+        if (loop == Loop::Adjacent) {
+            posB = makeBinOp(ExprKind::Add, base->clone(), makeVar(vi));
+            b = makeArrayAccess(posB->clone());
+        } else if (loop != Loop::Single) {
             posB = makeBinOp(ExprKind::Add, base->clone(), makeVar(vj));
             b = makeArrayAccess(posB->clone());
         }
@@ -2300,7 +2312,7 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             std::vector<StmtPtr> clear;
             clear.push_back(makeAssign(acc, makeIntConst(0)));
             inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(clear)));
-            if (loop == Loop::Converging) {
+            if (loop == Loop::Converging || loop == Loop::Adjacent) {  // one flat scope: the whole walk
                 accInit = 1;
             } else {
                 perOuterReset.push_back(makeAssign(acc, makeIntConst(1)));
@@ -2365,6 +2377,13 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             });
             break;
         }
+        case Loop::Adjacent:
+            // i from start + 1: every adjacent pair (elem(i-1), elem(i)).
+            root.push_back(makeAssign(vi, makeIntConst(loopStart + 1)));
+            appendCountingWhile(root, vi, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                for (auto& s : inner) body.push_back(std::move(s));
+            });
+            break;
         case Loop::Converging: {
             // lo = start, hi = bound - 1; while (lo < hi) { rel; lo++; hi--; }
             root.push_back(makeAssign(vi, makeIntConst(loopStart)));

@@ -2965,3 +2965,31 @@ Data: `data/post_freeze_benchmark_20260929/`. Code:
 `src/problems/{CycleDetection,Sorting}Problem.{hpp,cpp}` (exhaustive
 inputs), `src/main.cpp`, `tests/exhaustive_verification_tests.cpp`,
 `tests/post_freeze_problems_tests.cpp`.
+
+## 40. Combinator v2: one new axis value (adjacent pairs) -- frozen, predictions registered BEFORE writing its test problems
+
+Section 39 showed the combinator's capability is exactly its product's
+span, so the lever is the axes. This adds ONE loop-axis value under the
+same discipline: `Loop::Adjacent` (`--combinator-adjacent`, opt-in; without
+it the v1 family of commit fb0e539 is byte-identical, verified on a
+combinator run): a single pass `i` from start+1 with operands
+`(elem(i-1), elem(i))`, combined with the existing pair relations
+(count-if, exists, forall with one flat scope like the converging walk,
+conditional swap, swap). No new relation, no negation.
+
+**Frozen in this commit. Predictions, registered before any of the new
+problems below exists:**
+1. `is_sorted` (section 39, unreachable in v1) becomes reachable and
+   solved: adjacent x forall (clear when elem(i-1) > elem(i)).
+2. Three problems to be written after this commit, each predicted solved
+   by v2 and unsolved by v1: `count_descents` (#i with arr[i-1] > arr[i];
+   adjacent x count-if), `strictly_increasing` (adjacent x forall, clear
+   on >=), `has_adjacent_equal` (adjacent x exists(==)).
+3. Negative controls, predicted unsolved by v2 as well: `longest_run`
+   (length of the longest run of equal adjacent values -- needs a counter
+   that resets, not in the relation axis) and `max_adjacent_gap` (max of
+   |arr[i] - arr[i-1]| -- needs "best of a computed difference", not in the
+   relation axis). Plus `cycle`, `lis` unchanged.
+4. Dilution: the 12 problems v1 solves stay solved under v2 at the same
+   budget (each v1 member is drawn ~20% less often; expected cost is time,
+   not success).

@@ -73,6 +73,7 @@ struct CliArgs {
     bool pruneGeneration = false;
     bool roleTypedVars = false;
     double combinatorBias = 0.0;
+    bool combinatorAdjacent = false;
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
     double recursionCallBias = 0.0;
@@ -121,6 +122,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--prune-generation") args.pruneGeneration = true;
         else if (arg == "--role-typed-vars") args.roleTypedVars = true;
         else if (arg == "--combinator-bias") args.combinatorBias = std::stod(next("--combinator-bias"));
+        else if (arg == "--combinator-adjacent") args.combinatorAdjacent = true;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -144,7 +146,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.0] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.0] [--combinator-adjacent] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
@@ -285,6 +287,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.pruneGeneration = args.pruneGeneration;
         config.genConfig.roleTypedVars = args.roleTypedVars;
         config.genConfig.combinatorBias = args.combinatorBias;
+        config.genConfig.combinatorAdjacent = args.combinatorAdjacent;
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
 
@@ -420,6 +423,7 @@ int main(int argc, char** argv) {
     config.genConfig.pruneGeneration = args.pruneGeneration;
     config.genConfig.roleTypedVars = args.roleTypedVars;
     config.genConfig.combinatorBias = args.combinatorBias;
+    config.genConfig.combinatorAdjacent = args.combinatorAdjacent;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;
