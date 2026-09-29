@@ -1680,8 +1680,11 @@ StmtPtr genTspBruteForceSkeletonBlock(Random& rng, const GenConfig& cfg, int& lo
 // reliably learnable but the hole always converges to a vacuous
 // tautology, never real pruning; removed after the experiment concluded,
 // see FINDINGS.md section 18.)
-StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
+// Builds the branch-and-bound program with an arbitrary pruning `guard` in
+// place of `cost < best` (section 41's hole filling enumerates candidates for
+// it), and reports the guard's If node so its evaluations can be traced.
+TspBranchAndBound buildTspBranchAndBoundImpl(const std::vector<int>& vars, ExprPtr guard, int& loopsUsed) {
+    const Stmt* guardSite = nullptr;
     int nv = vars[0], size = vars[1], uBase = vars[2], chBase = vars[3], pcBase = vars[4], mBase = vars[5],
         best = vars[6], level = vars[7], c = vars[8], w = vars[9], cost = vars[10];
 
@@ -1809,8 +1812,9 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
                         notPrunedBranch.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(level), makeVar(size)), std::move(leafBranch),
                                                           std::move(descendBranch)));
                     }
-                    validEdgeBranch.push_back(
-                        makeIf(makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), std::move(notPrunedBranch)));
+                    StmtPtr guardIf = makeIf(std::move(guard), std::move(notPrunedBranch));
+                    guardSite = guardIf.get();
+                    validEdgeBranch.push_back(std::move(guardIf));
                 }
                 notUsedBranch.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(validEdgeBranch)));
             }
@@ -1833,7 +1837,13 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
     root->body.push_back(
         makeIf(makeCompare(ExprKind::Le, makeVar(size), makeIntConst(0)), std::move(trivialBranch), std::move(mainBranch)));
 
-    return root;
+    return {std::move(root), guardSite};
+}
+
+StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
+    int cost = vars[10], best = vars[6];
+    return buildTspBranchAndBoundImpl(vars, makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), loopsUsed).program;
 }
 
 // A self-increment `v = v + 1` for a random variable -- the specific
@@ -2970,6 +2980,11 @@ void collectAllStmts(const Stmt& s, std::vector<const Stmt*>& out) {
 }
 
 }  // namespace
+
+TspBranchAndBound buildTspBranchAndBoundWithGuard(const std::vector<int>& vars, ExprPtr guard) {
+    int loopsUsed = 0;
+    return buildTspBranchAndBoundImpl(vars, std::move(guard), loopsUsed);
+}
 
 Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg) {
     auto root = makeBlock();

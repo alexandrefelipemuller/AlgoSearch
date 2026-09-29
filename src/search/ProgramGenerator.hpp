@@ -252,6 +252,16 @@ struct GenConfig {
 // Generates a brand-new random program (a Block) with approximately
 // `targetSize` AST nodes (generation stops once the size is reached or
 // generation limits are hit, so actual size may be slightly smaller).
+// The TSP branch-and-bound skeleton with an arbitrary pruning guard in place
+// of `cost < best` (FINDINGS.md section 41). `vars` are its 11 scalars in the
+// skeleton's order: nv, size, uBase, chBase, pcBase, mBase, best, level, c,
+// w, cost. `guardSite` is the If node whose condition is the guard.
+struct TspBranchAndBound {
+    StmtPtr program;
+    const Stmt* guardSite = nullptr;
+};
+TspBranchAndBound buildTspBranchAndBoundWithGuard(const std::vector<int>& vars, ExprPtr guard);
+
 Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg);
 
 // Clones `seed` and grows it by inserting freshly generated statements into

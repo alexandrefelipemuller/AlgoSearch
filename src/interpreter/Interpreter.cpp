@@ -1,5 +1,7 @@
 #include "interpreter/Interpreter.hpp"
 
+#include <functional>
+
 #include <algorithm>
 #include <limits>
 
@@ -37,6 +39,9 @@ struct Environment {
     const Stmt* root = nullptr;
     long recursionDepth = 0;
     long maxRecursionDepth = 0;
+    // Interpreter::setConditionTrace; null when unused.
+    const Stmt* traceSite = nullptr;
+    const std::function<void(const std::vector<int>&)>* traceFn = nullptr;
 };
 
 // True once execution must stop unwinding towards run(); every recursive
@@ -230,6 +235,7 @@ void execStmt(const Stmt& s, Environment& env) {
             break;
         }
         case StmtKind::If: {
+            if (&s == env.traceSite) (*env.traceFn)(env.vars);
             int cond = evalExpr(*s.cond, env);
             if (aborted(env)) return;
             if (cond != 0) {
@@ -241,6 +247,7 @@ void execStmt(const Stmt& s, Environment& env) {
         }
         case StmtKind::While: {
             for (;;) {
+                if (&s == env.traceSite) (*env.traceFn)(env.vars);
                 int cond = evalExpr(*s.cond, env);
                 if (aborted(env) || cond == 0) return;
                 tick(env);
@@ -311,6 +318,8 @@ RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, i
     env.root = &program;
     env.recursionDepth = 0;
     env.maxRecursionDepth = maxRecursionDepth_;
+    env.traceSite = traceFn_ ? traceSite_ : nullptr;
+    env.traceFn = &traceFn_;
     if (seedRecursionBounds_ && numVars > 2) {
         env.vars[1] = 0;
         env.vars[2] = static_cast<int>(input.size());

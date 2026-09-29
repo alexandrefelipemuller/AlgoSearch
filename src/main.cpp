@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 #include "problems/AverageProblem.hpp"
@@ -16,6 +17,11 @@
 #include "problems/SingleNumberProblem.hpp"
 #include "problems/CycleDetectionProblem.hpp"
 #include "problems/DominatedWindowProblem.hpp"
+#include "problems/CountDescentsProblem.hpp"
+#include "problems/StrictlyIncreasingProblem.hpp"
+#include "problems/HasAdjacentEqualProblem.hpp"
+#include "problems/LongestRunProblem.hpp"
+#include "problems/MaxAdjacentGapProblem.hpp"
 #include "problems/HasDuplicateProblem.hpp"
 #include "problems/InversionCountProblem.hpp"
 #include "problems/IsSortedProblem.hpp"
@@ -26,6 +32,8 @@
 #include "problems/GraphReachabilityProblem.hpp"
 #include "problems/ShortestPathProblem.hpp"
 #include "problems/TspProblem.hpp"
+#include "search/HoleFiller.hpp"
+#include "search/ProgramGenerator.hpp"
 #include "problems/GcdProblem.hpp"
 #include "problems/ModProblem.hpp"
 #include "problems/IsPrimeProblem.hpp"
@@ -81,6 +89,7 @@ struct CliArgs {
     std::string output = "solutions.json";
     std::string checkpointPath;
     bool benchmark = false;
+    bool fillTspGuard = false;
     int benchmarkSeeds = 5;
 };
 
@@ -130,6 +139,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--output") args.output = next("--output");
         else if (arg == "--checkpoint-path") args.checkpointPath = next("--checkpoint-path");
         else if (arg == "--benchmark") args.benchmark = true;
+        else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -141,7 +151,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -150,7 +160,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -232,6 +242,11 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "inversion_count") return std::make_unique<InversionCountProblem>(numVars, seed);
     if (name == "has_duplicate") return std::make_unique<HasDuplicateProblem>(numVars, seed);
     if (name == "is_sorted") return std::make_unique<IsSortedProblem>(numVars, seed);
+    if (name == "count_descents") return std::make_unique<CountDescentsProblem>(numVars, seed);
+    if (name == "strictly_increasing") return std::make_unique<StrictlyIncreasingProblem>(numVars, seed);
+    if (name == "has_adjacent_equal") return std::make_unique<HasAdjacentEqualProblem>(numVars, seed);
+    if (name == "longest_run") return std::make_unique<LongestRunProblem>(numVars, seed);
+    if (name == "max_adjacent_gap") return std::make_unique<MaxAdjacentGapProblem>(numVars, seed);
     return nullptr;
 }
 
@@ -373,6 +388,103 @@ void runBenchmarkMode(const CliArgs& args) {
 
 }  // namespace
 
+
+// Idea A, FINDINGS.md section 41: fill the pruning guard of the TSP
+// branch-and-bound shape by exhaustive enumeration (search/HoleFiller.hpp)
+// instead of mutation. Training instances are V = 2..--max-n; the winner is
+// then checked on V up to --max-n + 2 (generated and adversarial instances)
+// it never saw. `--threads` evaluates candidate classes in parallel.
+void runFillTspGuardMode(const CliArgs& args) {
+    const std::vector<int> vars = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};  // nv size uBase chBase pcBase mBase best level c w cost
+    const int numVars = 12;
+    const long stepLimit = 50'000'000;
+    TspProblem problem(6, 40, numVars, static_cast<uint64_t>(args.seed));
+    std::vector<Instance> training;
+    for (int v = 2; v <= args.maxN; ++v) {
+        for (auto& inst : problem.generateInstances(v)) training.push_back(std::move(inst));
+    }
+
+    // Snapshots of the scalars at every guard evaluation, with no pruning at
+    // all (guard = 1), capped by uniform subsampling.
+    std::vector<std::vector<int>> snapshots;
+    {
+        TspBranchAndBound open = buildTspBranchAndBoundWithGuard(vars, makeIntConst(1));
+        Interpreter interp(stepLimit);
+        long visits = 0;
+        interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v) {
+            if (visits++ % 7 == 0 && snapshots.size() < 4000) snapshots.push_back(v);
+        });
+        std::vector<int> out;
+        for (const auto& inst : training) interp.run(*open.program, inst.input, numVars, out);
+        std::cout << "[fill] " << training.size() << " training instances (V=2.." << args.maxN << "), " << visits
+                  << " guard evaluations, " << snapshots.size() << " snapshots kept\n";
+    }
+
+    std::vector<ExprPtr> all = enumerateConditions(vars, 3);
+    size_t enumerated = all.size();
+    std::vector<ExprPtr> reps = dedupeByTruthVector(std::move(all), snapshots);
+    std::cout << "[fill] " << enumerated << " conditions enumerated, " << reps.size()
+              << " observationally distinct on the snapshots\n";
+
+    // Evaluate: correct on every training instance, total interpreter steps.
+    auto evaluate = [&](const Expr& guard, const std::vector<Instance>& insts, long& steps) {
+        TspBranchAndBound prog = buildTspBranchAndBoundWithGuard(vars, guard.clone());
+        Interpreter interp(stepLimit);
+        std::vector<int> out;
+        steps = 0;
+        for (const auto& inst : insts) {
+            long s = 0;
+            if (problem.evaluateInto(*prog.program, inst, interp, out, &s) != ExecStatus::SUCCESS) return false;
+            steps += s;
+        }
+        return true;
+    };
+    std::vector<long> steps(reps.size(), -1);
+    unsigned workers = args.threads > 0 ? static_cast<unsigned>(args.threads) : std::max(1u, std::thread::hardware_concurrency());
+    std::vector<std::thread> pool;
+    for (unsigned t = 0; t < workers; ++t) {
+        pool.emplace_back([&, t] {
+            for (size_t i = t; i < reps.size(); i += workers) {
+                long st = 0;
+                if (evaluate(*reps[i], training, st)) steps[i] = st;
+            }
+        });
+    }
+    for (auto& th : pool) th.join();
+
+    long noPrune = 0, handGuard = 0;
+    evaluate(*makeIntConst(1), training, noPrune);
+    evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
+    std::vector<size_t> correct;
+    for (size_t i = 0; i < reps.size(); ++i) {
+        if (steps[i] >= 0) correct.push_back(i);
+    }
+    std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
+    std::cout << "[fill] " << correct.size() << " classes correct on every training instance\n"
+              << "[fill] baselines: no pruning " << noPrune << " steps, hand-written `cost < best` " << handGuard << " steps\n"
+              << "[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):\n";
+    for (size_t k = 0; k < correct.size() && k < 15; ++k) {
+        size_t i = correct[k];
+        std::cout << "  " << std::setw(12) << steps[i] << " steps  x" << std::fixed << std::setprecision(2)
+                  << static_cast<double>(noPrune) / static_cast<double>(steps[i]) << " vs no pruning  " << reps[i]->toString() << "\n";
+    }
+    if (correct.empty()) return;
+
+    // Held-out check of the winner on larger V than it was selected on.
+    const Expr& winner = *reps[correct.front()];
+    for (int v = args.maxN + 1; v <= args.maxN + 2; ++v) {
+        std::vector<Instance> heldOut = problem.generateInstances(v);
+        for (auto& inst : problem.generateAdversarialInstances(v)) heldOut.push_back(std::move(inst));
+        long wSteps = 0, hSteps = 0, nSteps = 0;
+        bool ok = evaluate(winner, heldOut, wSteps);
+        evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), heldOut, hSteps);
+        evaluate(*makeIntConst(1), heldOut, nSteps);
+        std::cout << "[fill] held-out V=" << v << " (" << heldOut.size() << " instances): winner "
+                  << (ok ? "correct" : "WRONG") << ", steps winner " << wSteps << " / hand " << hSteps << " / no pruning " << nSteps
+                  << "\n";
+    }
+}
+
 int main(int argc, char** argv) {
     CliArgs args;
     if (!parseArgs(argc, argv, args)) {
@@ -390,6 +502,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (args.fillTspGuard) {
+        runFillTspGuardMode(args);
+        return 0;
+    }
     if (args.benchmark) {
         runBenchmarkMode(args);
         return 0;

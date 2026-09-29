@@ -2993,3 +2993,35 @@ problems below exists:**
 4. Dilution: the 12 problems v1 solves stay solved under v2 at the same
    budget (each v1 member is drawn ~20% less often; expected cost is time,
    not success).
+
+## 41. Idea A: filling the TSP pruning guard by exhaustive enumeration -- predictions registered before running
+
+Section 18's four attempts to get free search to rediscover `cost < best`
+inside the (hand-given) branch-and-bound shape all failed; its diagnosis was
+that the guard sits at an isolated point of expression space with no
+correct-and-selective neighbor, so mutation has no gradient to climb (every
+non-pruning tautology scores identically). Enumeration needs no gradient.
+
+**Mechanism** (`search/HoleFiller.{hpp,cpp}`, `--fill-tsp-guard` mode): the
+branch-and-bound builder now takes the guard as a parameter
+(`buildTspBranchAndBoundWithGuard`; the skeleton passes `cost < best` and
+is byte-identical to before, checked against a HEAD build). Run the shape
+once with guard = 1 (no pruning) on the training instances, recording the
+11 scalars at every guard evaluation (new opt-in
+`Interpreter::setConditionTrace`); enumerate every `term op atom` over those
+11 variables and literals 0..3 (term = atom or atom +/- atom); collapse
+candidates with identical truth vectors on the snapshots (observational
+equivalence); run one representative per class on every training instance
+(V = 2..6); keep those correct on all; rank by total interpreter steps;
+check the winner on V = 7, 8, which selection never saw.
+
+**Predictions (before running):**
+1. The fastest correct class is `cost < best` or an equivalent (e.g.
+   `best > cost`), or a strictly stronger sound bound -- with fewer steps
+   than no pruning by roughly section 18's measured 2.6-8.6x.
+2. The winner stays correct on held-out V = 7, 8 and keeps its speedup.
+3. Framing, fixed now: the SHAPE is still hand-given (same status as
+   section 18's scaffold test); success means the section 18 wall was a
+   property of mutation-based search, not of the guard -- i.e. A is the
+   right complement to B for "structure from the product, small holes by
+   enumeration".

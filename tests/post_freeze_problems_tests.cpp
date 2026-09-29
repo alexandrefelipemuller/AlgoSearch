@@ -5,7 +5,12 @@
 #include "ast/Expr.hpp"
 #include "ast/Stmt.hpp"
 #include "interpreter/Interpreter.hpp"
+#include "problems/CountDescentsProblem.hpp"
+#include "problems/HasAdjacentEqualProblem.hpp"
 #include "problems/HasDuplicateProblem.hpp"
+#include "problems/LongestRunProblem.hpp"
+#include "problems/MaxAdjacentGapProblem.hpp"
+#include "problems/StrictlyIncreasingProblem.hpp"
 #include "problems/InversionCountProblem.hpp"
 #include "problems/IsSortedProblem.hpp"
 #include "problems/PalindromeProblem.hpp"
@@ -81,6 +86,19 @@ Program isSortedProgram() {
     return p;
 }
 
+// Single pass i = 1..n-1 with `body` statements, result v3 written to arr[0].
+Program adjacentPass(std::vector<StmtPtr> init, std::vector<StmtPtr> body) {
+    auto p = makeBlock();
+    for (auto& st : init) p->body.push_back(std::move(st));
+    body.push_back(makeAssign(1, add(var(1), lit(1))));
+    p->body.push_back(makeAssign(1, lit(1)));
+    p->body.push_back(makeWhile(makeCompare(ExprKind::Lt, var(1), var(0)), std::move(body)));
+    p->body.push_back(makeAssignArray(lit(0), var(3)));
+    return p;
+}
+ExprPtr prev() { return at(sub(var(1), lit(1))); }
+ExprPtr cur() { return at(var(1)); }
+
 void checkProblem(const ScalarFromArrayProblem& problem, const Stmt& reference) {
     Interpreter interp(1000000);
     for (int n = 1; n <= 8; ++n) {
@@ -145,4 +163,57 @@ TEST(post_freeze_problems_exhaustive_check_rejects_a_near_miss) {
     PalindromeProblem problem;
     std::string reason;
     CHECK(!verifyGeneralization(problem, *p, 1000000, reason, false));
+}
+
+TEST(count_descents_problem_labels_and_reference_solution) {
+    CountDescentsProblem problem;
+    CHECK_EQ(problem.answer({3, 1, 2, 0}), 2);
+    std::vector<StmtPtr> body;
+    body.push_back(makeIf(makeCompare(ExprKind::Gt, prev(), cur()), one(makeAssign(3, add(var(3), lit(1))))));
+    checkProblem(problem, *adjacentPass(one(makeAssign(3, lit(0))), std::move(body)));
+}
+
+TEST(strictly_increasing_problem_labels_and_reference_solution) {
+    StrictlyIncreasingProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 3}), 1);
+    CHECK_EQ(problem.answer({1, 2, 2}), 0);
+    std::vector<StmtPtr> body;
+    body.push_back(makeIf(makeCompare(ExprKind::Ge, prev(), cur()), one(makeAssign(3, lit(0)))));
+    checkProblem(problem, *adjacentPass(one(makeAssign(3, lit(1))), std::move(body)));
+}
+
+TEST(has_adjacent_equal_problem_labels_and_reference_solution) {
+    HasAdjacentEqualProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 1}), 0);  // a repeat, but not adjacent
+    CHECK_EQ(problem.answer({1, 2, 2}), 1);
+    std::vector<StmtPtr> body;
+    body.push_back(makeIf(makeCompare(ExprKind::Eq, prev(), cur()), one(makeAssign(3, lit(1)))));
+    checkProblem(problem, *adjacentPass(one(makeAssign(3, lit(0))), std::move(body)));
+}
+
+TEST(longest_run_problem_labels_and_reference_solution) {
+    LongestRunProblem problem;
+    CHECK_EQ(problem.answer({1, 1, 2, 2, 2, 1}), 3);
+    CHECK_EQ(problem.answer({4}), 1);
+    // v3 = best, v4 = current run.
+    std::vector<StmtPtr> init;
+    init.push_back(makeAssign(3, lit(1)));
+    init.push_back(makeAssign(4, lit(1)));
+    std::vector<StmtPtr> body;
+    body.push_back(makeIf(makeCompare(ExprKind::Eq, prev(), cur()), one(makeAssign(4, add(var(4), lit(1)))),
+                          one(makeAssign(4, lit(1)))));
+    body.push_back(makeIf(makeCompare(ExprKind::Gt, var(4), var(3)), one(makeAssign(3, var(4)))));
+    checkProblem(problem, *adjacentPass(std::move(init), std::move(body)));
+}
+
+TEST(max_adjacent_gap_problem_labels_and_reference_solution) {
+    MaxAdjacentGapProblem problem;
+    CHECK_EQ(problem.answer({1, 5, 4}), 4);
+    CHECK_EQ(problem.answer({7}), 0);
+    // v3 = best, v4 = |difference|.
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(4, sub(cur(), prev())));
+    body.push_back(makeIf(makeCompare(ExprKind::Lt, var(4), lit(0)), one(makeAssign(4, sub(lit(0), var(4))))));
+    body.push_back(makeIf(makeCompare(ExprKind::Gt, var(4), var(3)), one(makeAssign(3, var(4)))));
+    checkProblem(problem, *adjacentPass(one(makeAssign(3, lit(0))), std::move(body)));
 }
