@@ -3297,3 +3297,16 @@ enumeration" complement to B, not discovery of branch-and-bound itself.
    If/While evaluation in the interpreter (the condition trace). Prediction:
    ordinary search runs are byte-identical to main's and their wall time is
    within noise (<= 3% slower on a timed battery of 6 runs).
+
+### Pre-merge check results: both predictions held
+
+1. Robustness (`data/tsp_guard_premerge_20260930/`): on all 10 unseen
+   generator seeds (101-110), selection on V <= 8 picks `best > cost`
+   (= `cost < best`), correct on held-out V = 9 at x1 and x7, no sanity
+   failure. Together with section 44: 14/14 generator seeds at V <= 8.
+2. No harm to discovery: 6 ordinary search configurations (default
+   skeleton path on sum/sorting/gcd, isolation reverse, composite substring,
+   crossover + expression mutation on sorting), 3 alternating repetitions
+   each, `--threads 1`: every solutions file byte-identical to main's; total
+   wall +1.4% (64.32 s vs 65.24 s, dominated by the 64 s reverse run at
+   +1.4%), within the registered 3%.
