@@ -3285,3 +3285,15 @@ than noise. None of the three was sufficient alone (sections 41, 43, 44
 attempt 1). The shape is still hand-given (same status as section 18's
 scaffold): this establishes the "structure from the product, holes by
 enumeration" complement to B, not discovery of branch-and-bound itself.
+
+### Pre-merge check, registered before running
+
+1. Robustness: 10 generator seeds never used before (101-110), selection on
+   V <= 8, full pipeline (`--soundness-labels --metamorphic
+   --rank-worst-scale`). Prediction: in at least 9/10 the winner is
+   `cost < best`, an equivalent or a stronger sound bound, correct on
+   held-out V = 9 at x1 and x7.
+2. No harm to discovery: this branch adds a pointer comparison to every
+   If/While evaluation in the interpreter (the condition trace). Prediction:
+   ordinary search runs are byte-identical to main's and their wall time is
+   within noise (<= 3% slower on a timed battery of 6 runs).
