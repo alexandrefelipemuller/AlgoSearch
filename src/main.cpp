@@ -91,6 +91,7 @@ struct CliArgs {
     bool benchmark = false;
     bool fillTspGuard = false;
     bool soundnessLabels = false;
+    bool metamorphic = false;
     int benchmarkSeeds = 5;
 };
 
@@ -142,6 +143,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
         else if (arg == "--soundness-labels") args.soundnessLabels = true;
+        else if (arg == "--metamorphic") args.metamorphic = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -162,7 +164,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels]]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic]]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -391,6 +393,17 @@ void runBenchmarkMode(const CliArgs& args) {
 }  // namespace
 
 
+// Multiplies every edge weight of a TSP instance (the V*V matrix at
+// input[1+4V..], see TspProblem.hpp) by k; 0 stays 0 (no edge). The expected
+// optimum scales by k too (-1 = no tour stays -1).
+Instance scaleTspWeights(const Instance& inst, int k) {
+    Instance out = inst;
+    int v = out.input[0];
+    for (size_t i = static_cast<size_t>(1 + 4 * v); i < out.input.size(); ++i) out.input[i] *= k;
+    if (!out.expectedOutput.empty() && out.expectedOutput[0] > 0) out.expectedOutput[0] *= k;
+    return out;
+}
+
 // Idea A, FINDINGS.md section 41: fill the pruning guard of the TSP
 // branch-and-bound shape by exhaustive enumeration (search/HoleFiller.hpp)
 // instead of mutation. Training instances are V = 2..--max-n; the winner is
@@ -405,6 +418,21 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (int v = 2; v <= args.maxN; ++v) {
         for (auto& inst : problem.generateInstances(v)) training.push_back(std::move(inst));
     }
+    // --metamorphic (section 44): add copies of every training instance with
+    // all edge weights multiplied by 10 and by 100. Scaling preserves every
+    // tour's rank (and 0 = no edge), so a sound cost-based guard prunes the
+    // same subtrees at every scale, while a guard comparing costs to layout
+    // constants or literals changes behavior. Everything downstream --
+    // snapshots, soundness labels, correctness, total steps -- then spans all
+    // scales. k stays <= 100 so tour costs stay below the skeleton's 100000
+    // "infinity" sentinel.
+    if (args.metamorphic) {
+        size_t base = training.size();
+        for (int k : {10, 100}) {
+            for (size_t i = 0; i < base; ++i) training.push_back(scaleTspWeights(training[i], k));
+        }
+        std::cout << "[fill] metamorphic: " << base << " instances x scales {1, 10, 100}\n";
+    }
 
     // Snapshots of the scalars at every guard evaluation, with no pruning at
     // all (guard = 1), capped by uniform subsampling.
@@ -417,7 +445,7 @@ void runFillTspGuardMode(const CliArgs& args) {
         Interpreter interp(stepLimit);
         long visits = 0;
         interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v, const std::vector<int>& arr) {
-            bool keep = args.soundnessLabels ? snapshots.size() < 60000 : (visits % 7 == 0 && snapshots.size() < 4000);
+            bool keep = args.soundnessLabels ? snapshots.size() < 200000 : (visits % 7 == 0 && snapshots.size() < 4000);
             visits++;
             if (!keep) return;
             snapshots.push_back(v);
@@ -476,8 +504,14 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (auto& th : pool) th.join();
 
     long noPrune = 0, handGuard = 0;
-    evaluate(*makeIntConst(1), training, noPrune);
-    evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
+    bool noPruneOk = evaluate(*makeIntConst(1), training, noPrune);
+    bool handOk = evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
+    if (!noPruneOk || !handOk) {
+        // Sanity: both reference guards are sound, so a failure here means the
+        // instance set (e.g. a metamorphic transform) is broken, not the guards.
+        std::cout << "[fill] SANITY FAILURE: reference guard incorrect on the training set (no pruning "
+                  << (noPruneOk ? "ok" : "FAILS") << ", cost < best " << (handOk ? "ok" : "FAILS") << ")\n";
+    }
     std::vector<size_t> correct;
     long rejectedUnsound = 0;
     for (size_t i = 0; i < reps.size(); ++i) {
@@ -516,6 +550,10 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (int v = args.maxN + 1; v <= args.maxN + 2; ++v) {
         std::vector<Instance> heldOut = problem.generateInstances(v);
         for (auto& inst : problem.generateAdversarialInstances(v)) heldOut.push_back(std::move(inst));
+        if (args.metamorphic) {  // held-out at the unseen scale 7 as well
+            size_t n = heldOut.size();
+            for (size_t i = 0; i < n; ++i) heldOut.push_back(scaleTspWeights(heldOut[i], 7));
+        }
         long wSteps = 0, hSteps = 0, nSteps = 0;
         bool ok = evaluate(winner, heldOut, wSteps);
         evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), heldOut, hSteps);

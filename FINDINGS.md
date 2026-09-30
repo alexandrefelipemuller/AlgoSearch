@@ -3187,3 +3187,38 @@ cost-based guard, while guards that compare costs to layout constants or
 small literals flip. Requiring a candidate to make the same decisions (or
 keep zero unsafe prunes) on scaled copies of the training instances should
 eliminate exactly the class that wins today. Not implemented yet.
+
+## 44. Metamorphic weight scaling for TSP guard selection -- predictions registered before running
+
+Section 43 showed the winning unsound guards have zero unsafe prunes at the
+training weight scale: they compare `best` or `cost` with layout constants
+(`mBase = 1 + 4V`, `pcBase = 1 + 3V`) or small literals, which happens to be
+safe while tour costs sit in the same numeric range as those constants.
+`--metamorphic` adds copies of every training instance with all edge
+weights multiplied by 10 and by 100 (0 = no edge is preserved; k <= 100 keeps
+tour costs below the skeleton's 100000 "infinity"). Scaling preserves every
+tour's rank, so a sound cost-vs-cost guard such as `cost < best` behaves
+identically at every scale; a guard tied to a fixed number either starts
+pruning unsafely at some scale (rejected by the section 43 labels, which now
+span all scales) or stops pruning (demoted, since ranking sums steps over
+all scales). Held-out adds an unseen scale x7 at V = maxN+1, maxN+2. A sanity
+line fires if `cost < best` or no pruning is ever incorrect on the scaled
+set (checked clean at V <= 3).
+
+Criterion fixed in advance (section 42's lesson): NOT "identical decisions
+at every scale" -- that would reject legitimately stronger integer bounds
+like `cost + 1 < best` -- but zero unsafe prunes at every scale plus speed
+summed over scales.
+
+**Predictions** (`METAMORPHIC=1 scripts/run_tsp_guard_soundness.sh`, seeds
+42 and 7, selection V <= 6 and V <= 8):
+1. With `--soundness-labels --metamorphic`, the winner is correct on
+   held-out V = maxN+1, maxN+2 (original and x7 scale) in all four
+   configurations.
+2. The winner is `cost < best`, an equivalent (e.g. `best > cost`,
+   `cost + 1 <= best`) or a stronger sound bound, and is at least as fast as
+   `cost < best` on held-out.
+3. Known way this can still fail, stated now: a guard whose unsoundness
+   does not involve weights at all (e.g. comparing `level` with `size` or
+   another V-dependent constant) is invisible to weight scaling; if one
+   wins, the next missing invariant is scale in V, not in weights.
