@@ -3178,3 +3178,198 @@ solves. Candidate next change: make `combinatorBias` part of the default
 configuration (it is still opt-in; that switch would change every default
 run's RNG stream, so it deserves its own commit and a full-battery check
 like this one, which it now has).
+## 43. TSP guard selection with per-evaluation soundness labels (branch `tsp-guard-soundness`) -- test prepared, not yet run
+
+Section 41 found enumeration REACHES `cost < best` but selection (correct on
+sampled training outputs, then fastest) picks unsound, generator-exploiting
+guards. This supplies the missing soundness signal from the problem's own
+oracle, no learning involved:
+
+- `Interpreter::setConditionTrace` now also hands the array to the
+  callback, so the branch-and-bound state (partial path, `used[]`) is
+  visible at each guard evaluation.
+- `tspPruneIsSafe(vars, arr)` (`search/HoleFiller.{hpp,cpp}`): pruning an
+  evaluation is SAFE iff no tour completing the current partial path
+  through candidate `c` costs strictly less than `best` -- exact brute force
+  over the unvisited vertices (with a running-cost cutoff), the textbook
+  admissibility condition.
+- `--fill-tsp-guard --soundness-labels`: keeps every guard evaluation (not
+  a 1-in-7 sample), labels each one, and rejects any candidate class that
+  would prune at least one unsafe evaluation, before ranking the rest by
+  steps.
+- Tests: the oracle on a hand-built V = 3 state (unsafe when a strictly
+  better tour lies below, safe on a tie or when nothing beats `best`), and
+  the enumeration contains `cost < best`. `make test` 113/113. A V <= 3
+  smoke run confirms the code path and that `cost < best` has 0 unsafe
+  prunes; its numbers are too small to mean anything.
+
+**Predictions, registered before the real run**
+(`scripts/run_tsp_guard_soundness.sh`: seeds 42 and 7, selection on V = 2..6
+and V = 2..8, plain vs. labeled):
+1. With labels, the winner is correct on held-out V = maxN+1, maxN+2 in all
+   four configurations (plain: wrong, as in section 41).
+2. The labeled winner is `cost < best`, an equivalent, or a strictly
+   stronger SOUND bound -- the natural candidate being `cost + 1 < best`
+   (sound with positive integer weights, since at least the closing edge
+   remains) -- and is at least as fast as `cost < best` on held-out V.
+3. Caveat fixed in advance: labels are computed only on the traced
+   training states, so "zero unsafe prunes" is still empirical, not a
+   proof; a guard could be unsafe only on states the training instances
+   never reach. The held-out check measures how much that matters.
+
+## 43 (results). Soundness labels do NOT fix selection -- prediction 1 failed, for the reason caveat 3 anticipated
+
+`data/tsp_guard_soundness_20260929/` (`scripts/run_tsp_guard_soundness.sh`,
+30 s total):
+
+| config | plain winner on held-out | labeled: classes rejected as unsafe | labeled winner on held-out |
+|---|---|---|---|
+| seed 42, select V <= 6 | wrong at V=7, 8 | 5 | SAME guard, wrong at V=7, 8 |
+| seed 42, select V <= 8 | wrong at V=9 | 22 | SAME guard, wrong at V=9 |
+| seed 7, select V <= 6 | wrong at V=7 | 7 | wrong at V=7, 8 |
+| seed 7, select V <= 8 | wrong at V=9 | 5 | SAME guard, wrong at V=9 |
+
+(The V=10 rows are uninformative: the hand guard and no-pruning runs hit
+the 50M step limit there, so "hand ... 4319 steps" is an aborted run, not a
+wrong answer.)
+
+The oracle works as designed -- `cost < best` has 0 unsafe prunes in every
+configuration, and 5-22 classes are rejected -- but **the winning unsound
+guards have zero unsafe prunes on the training states too**. They compare
+`best` against layout constants that grow with V (e.g. `(mBase - best) <=
+level` with mBase = 1 + 4V): at the training sizes they happen to prune only
+where it is safe, and the relationship breaks as V grows. Labels computed on
+traced training states are an empirical check over the same distribution,
+exactly caveat 3. The sound guard still ranks mid-pack (#40-#83).
+
+**What this rules in:** the missing signal is invariance across SCALE, not
+more labels at the same scale. The natural next test is metamorphic:
+multiplying every weight by a constant k (or adding k to every edge, which
+shifts every tour by V*k) preserves which pruning decisions are sound for a
+cost-based guard, while guards that compare costs to layout constants or
+small literals flip. Requiring a candidate to make the same decisions (or
+keep zero unsafe prunes) on scaled copies of the training instances should
+eliminate exactly the class that wins today. Not implemented yet.
+
+## 44. Metamorphic weight scaling for TSP guard selection -- predictions registered before running
+
+Section 43 showed the winning unsound guards have zero unsafe prunes at the
+training weight scale: they compare `best` or `cost` with layout constants
+(`mBase = 1 + 4V`, `pcBase = 1 + 3V`) or small literals, which happens to be
+safe while tour costs sit in the same numeric range as those constants.
+`--metamorphic` adds copies of every training instance with all edge
+weights multiplied by 10 and by 100 (0 = no edge is preserved; k <= 100 keeps
+tour costs below the skeleton's 100000 "infinity"). Scaling preserves every
+tour's rank, so a sound cost-vs-cost guard such as `cost < best` behaves
+identically at every scale; a guard tied to a fixed number either starts
+pruning unsafely at some scale (rejected by the section 43 labels, which now
+span all scales) or stops pruning (demoted, since ranking sums steps over
+all scales). Held-out adds an unseen scale x7 at V = maxN+1, maxN+2. A sanity
+line fires if `cost < best` or no pruning is ever incorrect on the scaled
+set (checked clean at V <= 3).
+
+Criterion fixed in advance: NOT "identical decisions
+at every scale" -- that would reject legitimately stronger integer bounds
+like `cost + 1 < best` -- but zero unsafe prunes at every scale plus speed
+summed over scales.
+
+**Predictions** (`METAMORPHIC=1 scripts/run_tsp_guard_soundness.sh`, seeds
+42 and 7, selection V <= 6 and V <= 8):
+1. With `--soundness-labels --metamorphic`, the winner is correct on
+   held-out V = maxN+1, maxN+2 (original and x7 scale) in all four
+   configurations.
+2. The winner is `cost < best`, an equivalent (e.g. `best > cost`,
+   `cost + 1 <= best`) or a stronger sound bound, and is at least as fast as
+   `cost < best` on held-out.
+3. Known way this can still fail, stated now: a guard whose unsoundness
+   does not involve weights at all (e.g. comparing `level` with `size` or
+   another V-dependent constant) is invisible to weight scaling; if one
+   wins, the next missing invariant is scale in V, not in weights.
+
+### Section 44 attempt 1 result: prediction 1 FAILED -- the aggregation, not the transform
+
+`data/tsp_guard_metamorphic_20260929/meta_*.txt`: in 3 of 4 configurations
+the winner is the same unsound guard as without scaling (e.g. `(mBase -
+best) <= level`), wrong on held-out; 3-11 classes rejected as unsafe, `cost
+< best` ranks #40-#76. The transform did what it was designed to do: at x10
+and x100 these guards do not prune UNSAFELY -- they stop pruning at all
+(`best` outgrows the constant, the guard is always true). The ranking undid
+it: summing steps over scales lets a ~2x gain at scale 1 outweigh no-op
+behavior at the other two, while the sound guard's gain is only ~4% at
+every scale.
+
+### Attempt 2, registered before running: rank by the WORST per-scale speedup
+
+`--rank-worst-scale`: among candidates correct and with zero unsafe prunes
+at every scale, rank by min over scales of (steps without pruning / steps
+with the guard). A guard that helps only at one scale then ranks like no
+pruning (worst ~1.0); a scale-invariant one keeps its speedup at every
+scale. This rule was formed AFTER seeing attempt 1's data, so besides
+re-running seeds 42 and 7 it is tested on generator seeds 11 and 23, which
+have not been looked at. **Predictions:** in all 8 configurations (4 seeds x
+select V <= 6, 8) the winner is correct on held-out V = maxN+1, maxN+2 at
+scales x1 and x7, and is `cost < best`, an equivalent, or a stronger sound
+bound. Known remaining failure mode: an unsound guard that never involves
+weights (V-dependent only) -- weight scaling cannot see it.
+
+### Attempt 2 result: `cost < best` rediscovered automatically when selecting on V <= 8 -- 4 of 4 seeds, including 2 unseen; fails at V <= 6
+
+`data/tsp_guard_worstscale_20260929/worst_*.txt` (`--soundness-labels
+--metamorphic --rank-worst-scale`):
+
+| generator seed | select V <= 8: winner | held-out V=9 (x1, x7) | select V <= 6: winner | held-out V=7 / V=8 |
+|---|---|---|---|---|
+| 42 | `best > cost` | correct, same steps as hand | `(best - w) > cost` | wrong / wrong |
+| 7 | `best > cost` | correct, same steps as hand | `(best - cost) != cost` | wrong / correct |
+| 11 (unseen) | `best > cost` | correct, same steps as hand | `(best - cost) != cost` | correct / wrong |
+| 23 (unseen) | `best > cost` | correct, same steps as hand | `(level + 3) != c` | wrong / wrong |
+
+(V = 10 rows are uninformative: the hand guard and no pruning also hit the
+50M step limit there -- "4319 steps" is an aborted run.)
+
+`best > cost` IS `cost < best`. Selecting on V <= 8, the pipeline --
+exhaustive enumeration, observational equivalence, per-evaluation soundness
+labels, weight-scaled copies (x1, x10, x100), rank by worst per-scale
+speedup -- **rediscovers section 18's hand-written guard in all four
+generator seeds, two of them never inspected**, and it matches the hand
+guard's steps exactly on held-out V = 9 at both scales. Selecting on V <= 6
+still fails 4/4, though `cost < best` climbs from rank ~#60 to #2-#6: at
+those sizes sound pruning buys only 1.6-4%, below the noise that
+distribution-specific guards exploit.
+
+**Prediction scorecard:** held for selection on V <= 8 (4/4, including the
+unseen seeds); refuted for V <= 6 (0/4). **Conclusion:** section 18's wall
+is not a property of the guard. Mutation could not reach it (no gradient);
+enumeration reaches it; and it can be SELECTED from the problem's own
+oracle, without learning, once three signals are combined -- soundness on
+traced states, invariance under a rank-preserving transform (weight
+scaling), and training instances large enough that sound pruning pays more
+than noise. None of the three was sufficient alone (sections 41, 43, 44
+attempt 1). The shape is still hand-given (same status as section 18's
+scaffold): this establishes the "structure from the product, holes by
+enumeration" complement to B, not discovery of branch-and-bound itself.
+
+### Pre-merge check, registered before running
+
+1. Robustness: 10 generator seeds never used before (101-110), selection on
+   V <= 8, full pipeline (`--soundness-labels --metamorphic
+   --rank-worst-scale`). Prediction: in at least 9/10 the winner is
+   `cost < best`, an equivalent or a stronger sound bound, correct on
+   held-out V = 9 at x1 and x7.
+2. No harm to discovery: this branch adds a pointer comparison to every
+   If/While evaluation in the interpreter (the condition trace). Prediction:
+   ordinary search runs are byte-identical to main's and their wall time is
+   within noise (<= 3% slower on a timed battery of 6 runs).
+
+### Pre-merge check results: both predictions held
+
+1. Robustness (`data/tsp_guard_premerge_20260930/`): on all 10 unseen
+   generator seeds (101-110), selection on V <= 8 picks `best > cost`
+   (= `cost < best`), correct on held-out V = 9 at x1 and x7, no sanity
+   failure. Together with section 44: 14/14 generator seeds at V <= 8.
+2. No harm to discovery: 6 ordinary search configurations (default
+   skeleton path on sum/sorting/gcd, isolation reverse, composite substring,
+   crossover + expression mutation on sorting), 3 alternating repetitions
+   each, `--threads 1`: every solutions file byte-identical to main's; total
+   wall +1.4% (64.32 s vs 65.24 s, dominated by the 64 s reverse run at
+   +1.4%), within the registered 3%.

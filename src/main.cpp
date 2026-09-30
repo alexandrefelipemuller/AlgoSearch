@@ -90,6 +90,9 @@ struct CliArgs {
     std::string checkpointPath;
     bool benchmark = false;
     bool fillTspGuard = false;
+    bool soundnessLabels = false;
+    bool metamorphic = false;
+    bool rankWorstScale = false;
     int benchmarkSeeds = 5;
 };
 
@@ -141,6 +144,9 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--checkpoint-path") args.checkpointPath = next("--checkpoint-path");
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
+        else if (arg == "--soundness-labels") args.soundnessLabels = true;
+        else if (arg == "--metamorphic") args.metamorphic = true;
+        else if (arg == "--rank-worst-scale") args.rankWorstScale = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -161,7 +167,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -390,6 +396,17 @@ void runBenchmarkMode(const CliArgs& args) {
 }  // namespace
 
 
+// Multiplies every edge weight of a TSP instance (the V*V matrix at
+// input[1+4V..], see TspProblem.hpp) by k; 0 stays 0 (no edge). The expected
+// optimum scales by k too (-1 = no tour stays -1).
+Instance scaleTspWeights(const Instance& inst, int k) {
+    Instance out = inst;
+    int v = out.input[0];
+    for (size_t i = static_cast<size_t>(1 + 4 * v); i < out.input.size(); ++i) out.input[i] *= k;
+    if (!out.expectedOutput.empty() && out.expectedOutput[0] > 0) out.expectedOutput[0] *= k;
+    return out;
+}
+
 // Idea A, FINDINGS.md section 41: fill the pruning guard of the TSP
 // branch-and-bound shape by exhaustive enumeration (search/HoleFiller.hpp)
 // instead of mutation. Training instances are V = 2..--max-n; the winner is
@@ -404,22 +421,62 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (int v = 2; v <= args.maxN; ++v) {
         for (auto& inst : problem.generateInstances(v)) training.push_back(std::move(inst));
     }
+    // --metamorphic (section 44): add copies of every training instance with
+    // all edge weights multiplied by 10 and by 100. Scaling preserves every
+    // tour's rank (and 0 = no edge), so a sound cost-based guard prunes the
+    // same subtrees at every scale, while a guard comparing costs to layout
+    // constants or literals changes behavior. Everything downstream --
+    // snapshots, soundness labels, correctness, total steps -- then spans all
+    // scales. k stays <= 100 so tour costs stay below the skeleton's 100000
+    // "infinity" sentinel.
+    std::vector<std::vector<Instance>> byScale;  // --rank-worst-scale: training split per scale
+    if (args.metamorphic) {
+        size_t base = training.size();
+        for (int k : {10, 100}) {
+            for (size_t i = 0; i < base; ++i) training.push_back(scaleTspWeights(training[i], k));
+        }
+        std::cout << "[fill] metamorphic: " << base << " instances x scales {1, 10, 100}\n";
+        for (size_t sc = 0; sc < 3; ++sc) {
+            byScale.emplace_back(training.begin() + static_cast<long>(sc * base), training.begin() + static_cast<long>((sc + 1) * base));
+        }
+    }
 
     // Snapshots of the scalars at every guard evaluation, with no pruning at
     // all (guard = 1), capped by uniform subsampling.
+    // With --soundness-labels every evaluation is kept (arrays too) and
+    // labeled by tspPruneIsSafe; otherwise a uniform 1-in-7 subsample.
     std::vector<std::vector<int>> snapshots;
+    std::vector<char> safeToPrune;
     {
         TspBranchAndBound open = buildTspBranchAndBoundWithGuard(vars, makeIntConst(1));
         Interpreter interp(stepLimit);
         long visits = 0;
-        interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v) {
-            if (visits++ % 7 == 0 && snapshots.size() < 4000) snapshots.push_back(v);
+        interp.setConditionTrace(open.guardSite, [&](const std::vector<int>& v, const std::vector<int>& arr) {
+            bool keep = args.soundnessLabels ? snapshots.size() < 200000 : (visits % 7 == 0 && snapshots.size() < 4000);
+            visits++;
+            if (!keep) return;
+            snapshots.push_back(v);
+            if (args.soundnessLabels) safeToPrune.push_back(tspPruneIsSafe(v, arr) ? 1 : 0);
         });
         std::vector<int> out;
         for (const auto& inst : training) interp.run(*open.program, inst.input, numVars, out);
         std::cout << "[fill] " << training.size() << " training instances (V=2.." << args.maxN << "), " << visits
                   << " guard evaluations, " << snapshots.size() << " snapshots kept\n";
+        if (args.soundnessLabels) {
+            long safe = std::count(safeToPrune.begin(), safeToPrune.end(), 1);
+            std::cout << "[fill] soundness labels: " << safe << " evaluations where pruning is safe, "
+                      << (static_cast<long>(safeToPrune.size()) - safe) << " where it would cut a strictly better tour\n";
+        }
     }
+    // Unsafe prunes of a guard: evaluations it would prune (value 0) although
+    // a strictly better tour lies below.
+    auto unsafePrunes = [&](const Expr& guard) {
+        long n = 0;
+        for (size_t k = 0; k < safeToPrune.size(); ++k) {
+            if (!safeToPrune[k] && evalOnSnapshot(guard, snapshots[k]) == 0) n++;
+        }
+        return n;
+    };
 
     std::vector<ExprPtr> all = enumerateConditions(vars, 3);
     size_t enumerated = all.size();
@@ -454,14 +511,70 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (auto& th : pool) th.join();
 
     long noPrune = 0, handGuard = 0;
-    evaluate(*makeIntConst(1), training, noPrune);
-    evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
-    std::vector<size_t> correct;
-    for (size_t i = 0; i < reps.size(); ++i) {
-        if (steps[i] >= 0) correct.push_back(i);
+    bool noPruneOk = evaluate(*makeIntConst(1), training, noPrune);
+    bool handOk = evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), training, handGuard);  // cost < best
+    if (!noPruneOk || !handOk) {
+        // Sanity: both reference guards are sound, so a failure here means the
+        // instance set (e.g. a metamorphic transform) is broken, not the guards.
+        std::cout << "[fill] SANITY FAILURE: reference guard incorrect on the training set (no pruning "
+                  << (noPruneOk ? "ok" : "FAILS") << ", cost < best " << (handOk ? "ok" : "FAILS") << ")\n";
     }
-    std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
-    std::cout << "[fill] " << correct.size() << " classes correct on every training instance\n"
+    std::vector<size_t> correct;
+    long rejectedUnsound = 0;
+    for (size_t i = 0; i < reps.size(); ++i) {
+        if (steps[i] < 0) continue;
+        if (args.soundnessLabels && unsafePrunes(*reps[i]) > 0) {
+            rejectedUnsound++;  // correct on the training outputs, but prunes a better tour somewhere
+            continue;
+        }
+        correct.push_back(i);
+    }
+    if (args.soundnessLabels) {
+        std::cout << "[fill] " << rejectedUnsound << " classes correct on training outputs but rejected for unsafe prunes; "
+                  << "hand-written `cost < best` has " << unsafePrunes(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)))
+                  << " unsafe prunes\n";
+    }
+    // --rank-worst-scale (section 44, attempt 2): rank by the WORST speedup
+    // over no pruning across the weight scales instead of total steps -- a
+    // guard that is fast at one scale and a no-op at the others then ranks
+    // like no pruning, while a scale-invariant guard keeps its (smaller)
+    // speedup everywhere. Summing, the first attempt's key, let one scale's
+    // large gain outweigh the others.
+    std::vector<double> worstSpeedup(reps.size(), 0.0);
+    if (args.rankWorstScale && !byScale.empty()) {
+        std::vector<long> noPruneScale(byScale.size(), 0);
+        for (size_t sc = 0; sc < byScale.size(); ++sc) evaluate(*makeIntConst(1), byScale[sc], noPruneScale[sc]);
+        std::vector<std::thread> rankers;
+        for (unsigned t = 0; t < workers; ++t) {
+            rankers.emplace_back([&, t] {
+                for (size_t k = t; k < correct.size(); k += workers) {
+                    size_t i = correct[k];
+                    double worst = 1e18;
+                    for (size_t sc = 0; sc < byScale.size(); ++sc) {
+                        long st = 0;
+                        evaluate(*reps[i], byScale[sc], st);
+                        worst = std::min(worst, static_cast<double>(noPruneScale[sc]) / static_cast<double>(std::max(1L, st)));
+                    }
+                    worstSpeedup[i] = worst;
+                }
+            });
+        }
+        for (auto& th : rankers) th.join();
+        std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) {
+            if (worstSpeedup[a] != worstSpeedup[b]) return worstSpeedup[a] > worstSpeedup[b];
+            return steps[a] < steps[b];
+        });
+        std::cout << "[fill] ranking by worst per-scale speedup; top: ";
+        for (size_t k = 0; k < correct.size() && k < 5; ++k) {
+            std::cout << reps[correct[k]]->toString() << " (worst x" << std::fixed << std::setprecision(3)
+                      << worstSpeedup[correct[k]] << ")  ";
+        }
+        std::cout << "\n";
+    } else {
+        std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
+    }
+    std::cout << "[fill] " << correct.size() << " classes correct on every training instance"
+              << (args.soundnessLabels ? " with zero unsafe prunes" : "") << "\n"
               << "[fill] baselines: no pruning " << noPrune << " steps, hand-written `cost < best` " << handGuard << " steps\n"
               << "[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):\n";
     for (size_t k = 0; k < correct.size() && k < 15; ++k) {
@@ -472,7 +585,20 @@ void runFillTspGuardMode(const CliArgs& args) {
     {
         // Where the hand-written guard's class lands among the correct ones.
         size_t rank = 0;
-        for (size_t i : correct) rank += steps[i] < handGuard ? 1 : 0;
+        if (args.rankWorstScale && !byScale.empty()) {
+            ExprPtr hand = makeCompare(ExprKind::Lt, makeVar(11), makeVar(7));
+            double handWorst = 1e18;
+            for (const auto& set : byScale) {
+                long np = 0, st = 0;
+                evaluate(*makeIntConst(1), set, np);
+                evaluate(*hand, set, st);
+                handWorst = std::min(handWorst, static_cast<double>(np) / static_cast<double>(std::max(1L, st)));
+            }
+            for (size_t i : correct) rank += worstSpeedup[i] > handWorst ? 1 : 0;
+            std::cout << "[fill] `cost < best` worst per-scale speedup x" << std::fixed << std::setprecision(3) << handWorst << "\n";
+        } else {
+            for (size_t i : correct) rank += steps[i] < handGuard ? 1 : 0;
+        }
         std::cout << "[fill] hand-written `cost < best` would rank #" << (rank + 1) << " of " << correct.size() << " by steps\n";
     }
     if (correct.empty()) return;
@@ -482,6 +608,10 @@ void runFillTspGuardMode(const CliArgs& args) {
     for (int v = args.maxN + 1; v <= args.maxN + 2; ++v) {
         std::vector<Instance> heldOut = problem.generateInstances(v);
         for (auto& inst : problem.generateAdversarialInstances(v)) heldOut.push_back(std::move(inst));
+        if (args.metamorphic) {  // held-out at the unseen scale 7 as well
+            size_t n = heldOut.size();
+            for (size_t i = 0; i < n; ++i) heldOut.push_back(scaleTspWeights(heldOut[i], 7));
+        }
         long wSteps = 0, hSteps = 0, nSteps = 0;
         bool ok = evaluate(winner, heldOut, wSteps);
         evaluate(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)), heldOut, hSteps);

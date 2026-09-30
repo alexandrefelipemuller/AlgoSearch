@@ -1,0 +1,26 @@
+[fill] metamorphic: 108 instances x scales {1, 10, 100}
+[fill] 324 training instances (V=2..8), 73953 guard evaluations, 73953 snapshots kept
+[fill] soundness labels: 72960 evaluations where pruning is safe, 993 where it would cut a strictly better tour
+[fill] 38970 conditions enumerated, 1566 observationally distinct on the snapshots
+[fill] 4 classes correct on training outputs but rejected for unsafe prunes; hand-written `cost < best` has 0 unsafe prunes
+[fill] 112 classes correct on every training instance with zero unsafe prunes
+[fill] baselines: no pruning 18152184 steps, hand-written `cost < best` 16607361 steps
+[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):
+      14688417 steps  x1.24 vs no pruning  ((v5 - v7) <= 2)
+      14689196 steps  x1.24 vs no pruning  (v4 < v7)
+      14690483 steps  x1.24 vs no pruning  (v1 < v7)
+      14691032 steps  x1.24 vs no pruning  ((v5 - v7) <= v8)
+      14753210 steps  x1.23 vs no pruning  ((v5 - v7) < v11)
+      14790134 steps  x1.23 vs no pruning  ((v5 - v7) <= v11)
+      14802402 steps  x1.23 vs no pruning  ((v3 + v10) < v7)
+      14802808 steps  x1.23 vs no pruning  ((v1 + v10) < v7)
+      14803634 steps  x1.23 vs no pruning  ((v4 + 3) < v7)
+      14803833 steps  x1.23 vs no pruning  ((v5 - v7) <= 3)
+      14804931 steps  x1.23 vs no pruning  ((v2 + v7) > v5)
+      14806429 steps  x1.23 vs no pruning  ((v2 + v9) <= v7)
+      14807899 steps  x1.23 vs no pruning  ((v2 + v10) != v7)
+      14815795 steps  x1.23 vs no pruning  ((v2 + v8) <= v7)
+      14817529 steps  x1.23 vs no pruning  ((v7 - v9) > v9)
+[fill] hand-written `cost < best` would rank #40 of 112 by steps
+[fill] held-out V=9 (48 instances): winner WRONG, steps winner 5255575 / hand 77151562 / no pruning 92989106
+[fill] held-out V=10 (48 instances): winner WRONG, steps winner 94287394 / hand 4319 / no pruning 4301

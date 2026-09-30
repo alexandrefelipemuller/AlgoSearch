@@ -41,7 +41,7 @@ struct Environment {
     long maxRecursionDepth = 0;
     // Interpreter::setConditionTrace; null when unused.
     const Stmt* traceSite = nullptr;
-    const std::function<void(const std::vector<int>&)>* traceFn = nullptr;
+    const std::function<void(const std::vector<int>&, const std::vector<int>&)>* traceFn = nullptr;
 };
 
 // True once execution must stop unwinding towards run(); every recursive
@@ -235,7 +235,7 @@ void execStmt(const Stmt& s, Environment& env) {
             break;
         }
         case StmtKind::If: {
-            if (&s == env.traceSite) (*env.traceFn)(env.vars);
+            if (&s == env.traceSite) (*env.traceFn)(env.vars, env.arr);
             int cond = evalExpr(*s.cond, env);
             if (aborted(env)) return;
             if (cond != 0) {
@@ -247,7 +247,7 @@ void execStmt(const Stmt& s, Environment& env) {
         }
         case StmtKind::While: {
             for (;;) {
-                if (&s == env.traceSite) (*env.traceFn)(env.vars);
+                if (&s == env.traceSite) (*env.traceFn)(env.vars, env.arr);
                 int cond = evalExpr(*s.cond, env);
                 if (aborted(env) || cond == 0) return;
                 tick(env);
