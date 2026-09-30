@@ -92,6 +92,7 @@ struct CliArgs {
     bool fillTspGuard = false;
     bool soundnessLabels = false;
     bool metamorphic = false;
+    bool rankWorstScale = false;
     int benchmarkSeeds = 5;
 };
 
@@ -144,6 +145,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
         else if (arg == "--soundness-labels") args.soundnessLabels = true;
         else if (arg == "--metamorphic") args.metamorphic = true;
+        else if (arg == "--rank-worst-scale") args.rankWorstScale = true;
         else if (arg == "--benchmark-seeds") args.benchmarkSeeds = std::stoi(next("--benchmark-seeds"));
         else if (arg == "--help" || arg == "-h") return false;
         else {
@@ -164,7 +166,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic]]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -426,12 +428,16 @@ void runFillTspGuardMode(const CliArgs& args) {
     // snapshots, soundness labels, correctness, total steps -- then spans all
     // scales. k stays <= 100 so tour costs stay below the skeleton's 100000
     // "infinity" sentinel.
+    std::vector<std::vector<Instance>> byScale;  // --rank-worst-scale: training split per scale
     if (args.metamorphic) {
         size_t base = training.size();
         for (int k : {10, 100}) {
             for (size_t i = 0; i < base; ++i) training.push_back(scaleTspWeights(training[i], k));
         }
         std::cout << "[fill] metamorphic: " << base << " instances x scales {1, 10, 100}\n";
+        for (size_t sc = 0; sc < 3; ++sc) {
+            byScale.emplace_back(training.begin() + static_cast<long>(sc * base), training.begin() + static_cast<long>((sc + 1) * base));
+        }
     }
 
     // Snapshots of the scalars at every guard evaluation, with no pruning at
@@ -527,7 +533,45 @@ void runFillTspGuardMode(const CliArgs& args) {
                   << "hand-written `cost < best` has " << unsafePrunes(*makeCompare(ExprKind::Lt, makeVar(11), makeVar(7)))
                   << " unsafe prunes\n";
     }
-    std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
+    // --rank-worst-scale (section 44, attempt 2): rank by the WORST speedup
+    // over no pruning across the weight scales instead of total steps -- a
+    // guard that is fast at one scale and a no-op at the others then ranks
+    // like no pruning, while a scale-invariant guard keeps its (smaller)
+    // speedup everywhere. Summing, the first attempt's key, let one scale's
+    // large gain outweigh the others.
+    std::vector<double> worstSpeedup(reps.size(), 0.0);
+    if (args.rankWorstScale && !byScale.empty()) {
+        std::vector<long> noPruneScale(byScale.size(), 0);
+        for (size_t sc = 0; sc < byScale.size(); ++sc) evaluate(*makeIntConst(1), byScale[sc], noPruneScale[sc]);
+        std::vector<std::thread> rankers;
+        for (unsigned t = 0; t < workers; ++t) {
+            rankers.emplace_back([&, t] {
+                for (size_t k = t; k < correct.size(); k += workers) {
+                    size_t i = correct[k];
+                    double worst = 1e18;
+                    for (size_t sc = 0; sc < byScale.size(); ++sc) {
+                        long st = 0;
+                        evaluate(*reps[i], byScale[sc], st);
+                        worst = std::min(worst, static_cast<double>(noPruneScale[sc]) / static_cast<double>(std::max(1L, st)));
+                    }
+                    worstSpeedup[i] = worst;
+                }
+            });
+        }
+        for (auto& th : rankers) th.join();
+        std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) {
+            if (worstSpeedup[a] != worstSpeedup[b]) return worstSpeedup[a] > worstSpeedup[b];
+            return steps[a] < steps[b];
+        });
+        std::cout << "[fill] ranking by worst per-scale speedup; top: ";
+        for (size_t k = 0; k < correct.size() && k < 5; ++k) {
+            std::cout << reps[correct[k]]->toString() << " (worst x" << std::fixed << std::setprecision(3)
+                      << worstSpeedup[correct[k]] << ")  ";
+        }
+        std::cout << "\n";
+    } else {
+        std::sort(correct.begin(), correct.end(), [&](size_t a, size_t b) { return steps[a] < steps[b]; });
+    }
     std::cout << "[fill] " << correct.size() << " classes correct on every training instance"
               << (args.soundnessLabels ? " with zero unsafe prunes" : "") << "\n"
               << "[fill] baselines: no pruning " << noPrune << " steps, hand-written `cost < best` " << handGuard << " steps\n"
@@ -540,7 +584,20 @@ void runFillTspGuardMode(const CliArgs& args) {
     {
         // Where the hand-written guard's class lands among the correct ones.
         size_t rank = 0;
-        for (size_t i : correct) rank += steps[i] < handGuard ? 1 : 0;
+        if (args.rankWorstScale && !byScale.empty()) {
+            ExprPtr hand = makeCompare(ExprKind::Lt, makeVar(11), makeVar(7));
+            double handWorst = 1e18;
+            for (const auto& set : byScale) {
+                long np = 0, st = 0;
+                evaluate(*makeIntConst(1), set, np);
+                evaluate(*hand, set, st);
+                handWorst = std::min(handWorst, static_cast<double>(np) / static_cast<double>(std::max(1L, st)));
+            }
+            for (size_t i : correct) rank += worstSpeedup[i] > handWorst ? 1 : 0;
+            std::cout << "[fill] `cost < best` worst per-scale speedup x" << std::fixed << std::setprecision(3) << handWorst << "\n";
+        } else {
+            for (size_t i : correct) rank += steps[i] < handGuard ? 1 : 0;
+        }
         std::cout << "[fill] hand-written `cost < best` would rank #" << (rank + 1) << " of " << correct.size() << " by steps\n";
     }
     if (correct.empty()) return;

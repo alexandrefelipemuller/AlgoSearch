@@ -3222,3 +3222,29 @@ summed over scales.
    does not involve weights at all (e.g. comparing `level` with `size` or
    another V-dependent constant) is invisible to weight scaling; if one
    wins, the next missing invariant is scale in V, not in weights.
+
+### Section 44 attempt 1 result: prediction 1 FAILED -- the aggregation, not the transform
+
+`data/tsp_guard_metamorphic_20260929/meta_*.txt`: in 3 of 4 configurations
+the winner is the same unsound guard as without scaling (e.g. `(mBase -
+best) <= level`), wrong on held-out; 3-11 classes rejected as unsafe, `cost
+< best` ranks #40-#76. The transform did what it was designed to do: at x10
+and x100 these guards do not prune UNSAFELY -- they stop pruning at all
+(`best` outgrows the constant, the guard is always true). The ranking undid
+it: summing steps over scales lets a ~2x gain at scale 1 outweigh no-op
+behavior at the other two, while the sound guard's gain is only ~4% at
+every scale.
+
+### Attempt 2, registered before running: rank by the WORST per-scale speedup
+
+`--rank-worst-scale`: among candidates correct and with zero unsafe prunes
+at every scale, rank by min over scales of (steps without pruning / steps
+with the guard). A guard that helps only at one scale then ranks like no
+pruning (worst ~1.0); a scale-invariant one keeps its speedup at every
+scale. This rule was formed AFTER seeing attempt 1's data, so besides
+re-running seeds 42 and 7 it is tested on generator seeds 11 and 23, which
+have not been looked at. **Predictions:** in all 8 configurations (4 seeds x
+select V <= 6, 8) the winner is correct on held-out V = maxN+1, maxN+2 at
+scales x1 and x7, and is `cost < best`, an equivalent, or a stronger sound
+bound. Known remaining failure mode: an unsound guard that never involves
+weights (V-dependent only) -- weight scaling cannot see it.
