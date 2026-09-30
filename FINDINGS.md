@@ -3248,3 +3248,40 @@ select V <= 6, 8) the winner is correct on held-out V = maxN+1, maxN+2 at
 scales x1 and x7, and is `cost < best`, an equivalent, or a stronger sound
 bound. Known remaining failure mode: an unsound guard that never involves
 weights (V-dependent only) -- weight scaling cannot see it.
+
+### Attempt 2 result: `cost < best` rediscovered automatically when selecting on V <= 8 -- 4 of 4 seeds, including 2 unseen; fails at V <= 6
+
+`data/tsp_guard_worstscale_20260929/worst_*.txt` (`--soundness-labels
+--metamorphic --rank-worst-scale`):
+
+| generator seed | select V <= 8: winner | held-out V=9 (x1, x7) | select V <= 6: winner | held-out V=7 / V=8 |
+|---|---|---|---|---|
+| 42 | `best > cost` | correct, same steps as hand | `(best - w) > cost` | wrong / wrong |
+| 7 | `best > cost` | correct, same steps as hand | `(best - cost) != cost` | wrong / correct |
+| 11 (unseen) | `best > cost` | correct, same steps as hand | `(best - cost) != cost` | correct / wrong |
+| 23 (unseen) | `best > cost` | correct, same steps as hand | `(level + 3) != c` | wrong / wrong |
+
+(V = 10 rows are uninformative: the hand guard and no pruning also hit the
+50M step limit there -- "4319 steps" is an aborted run.)
+
+`best > cost` IS `cost < best`. Selecting on V <= 8, the pipeline --
+exhaustive enumeration, observational equivalence, per-evaluation soundness
+labels, weight-scaled copies (x1, x10, x100), rank by worst per-scale
+speedup -- **rediscovers section 18's hand-written guard in all four
+generator seeds, two of them never inspected**, and it matches the hand
+guard's steps exactly on held-out V = 9 at both scales. Selecting on V <= 6
+still fails 4/4, though `cost < best` climbs from rank ~#60 to #2-#6: at
+those sizes sound pruning buys only 1.6-4%, below the noise that
+distribution-specific guards exploit.
+
+**Prediction scorecard:** held for selection on V <= 8 (4/4, including the
+unseen seeds); refuted for V <= 6 (0/4). **Conclusion:** section 18's wall
+is not a property of the guard. Mutation could not reach it (no gradient);
+enumeration reaches it; and it can be SELECTED from the problem's own
+oracle, without learning, once three signals are combined -- soundness on
+traced states, invariance under a rank-preserving transform (weight
+scaling), and training instances large enough that sound pruning pays more
+than noise. None of the three was sufficient alone (sections 41, 43, 44
+attempt 1). The shape is still hand-given (same status as section 18's
+scaffold): this establishes the "structure from the product, holes by
+enumeration" complement to B, not discovery of branch-and-bound itself.

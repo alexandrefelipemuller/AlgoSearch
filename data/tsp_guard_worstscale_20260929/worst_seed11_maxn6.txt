@@ -1,0 +1,28 @@
+[fill] metamorphic: 76 instances x scales {1, 10, 100}
+[fill] 228 training instances (V=2..6), 3087 guard evaluations, 3087 snapshots kept
+[fill] soundness labels: 2622 evaluations where pruning is safe, 465 where it would cut a strictly better tour
+[fill] 38970 conditions enumerated, 1460 observationally distinct on the snapshots
+[fill] 12 classes correct on training outputs but rejected for unsafe prunes; hand-written `cost < best` has 0 unsafe prunes
+[fill] ranking by worst per-scale speedup; top: ((v7 - v11) != v11) (worst x1.327)  (v7 > v11) (worst x1.041)  (v7 >= v11) (worst x1.035)  ((v7 - v11) > 3) (worst x1.031)  ((v7 - v11) > 2) (worst x1.031)  
+[fill] 112 classes correct on every training instance with zero unsafe prunes
+[fill] baselines: no pruning 688788 steps, hand-written `cost < best` 661968 steps
+[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):
+        519066 steps  x1.33 vs no pruning  ((v7 - v11) != v11)
+        661968 steps  x1.04 vs no pruning  (v7 > v11)
+        665661 steps  x1.03 vs no pruning  (v7 >= v11)
+        599616 steps  x1.15 vs no pruning  ((v7 - v11) > 3)
+        621746 steps  x1.11 vs no pruning  ((v7 - v11) > 2)
+        660957 steps  x1.04 vs no pruning  ((v7 - v11) > 1)
+        673851 steps  x1.02 vs no pruning  ((v7 - v10) > v10)
+        673243 steps  x1.02 vs no pruning  ((v7 + 1) >= v11)
+        673751 steps  x1.02 vs no pruning  ((v7 + v9) > v11)
+        673804 steps  x1.02 vs no pruning  ((v7 + 2) >= v11)
+        674597 steps  x1.02 vs no pruning  ((v7 + v9) >= v11)
+        674996 steps  x1.02 vs no pruning  ((v7 + v8) > v11)
+        675471 steps  x1.02 vs no pruning  ((v7 + 3) >= v11)
+        676095 steps  x1.02 vs no pruning  ((v7 + v8) >= v11)
+        676325 steps  x1.02 vs no pruning  ((v2 + v7) > v11)
+[fill] `cost < best` worst per-scale speedup x1.041
+[fill] hand-written `cost < best` would rank #2 of 112 by steps
+[fill] held-out V=7 (48 instances): winner correct, steps winner 1938244 / hand 1739128 / no pruning 1924752
+[fill] held-out V=8 (48 instances): winner WRONG, steps winner 972212 / hand 10176018 / no pruning 11955218

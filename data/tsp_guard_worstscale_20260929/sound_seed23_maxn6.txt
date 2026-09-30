@@ -1,0 +1,25 @@
+[fill] 76 training instances (V=2..6), 1057 guard evaluations, 1057 snapshots kept
+[fill] soundness labels: 934 evaluations where pruning is safe, 123 where it would cut a strictly better tour
+[fill] 38970 conditions enumerated, 1258 observationally distinct on the snapshots
+[fill] 17 classes correct on training outputs but rejected for unsafe prunes; hand-written `cost < best` has 0 unsafe prunes
+[fill] 104 classes correct on every training instance with zero unsafe prunes
+[fill] baselines: no pruning 231330 steps, hand-written `cost < best` 222323 steps
+[fill] fastest correct guards (v7 = best, v11 = cost, v10 = w, v8 = level):
+        143404 steps  x1.61 vs no pruning  ((v2 + v11) <= v7)
+        151067 steps  x1.53 vs no pruning  ((v5 + 3) < v7)
+        151572 steps  x1.53 vs no pruning  ((v6 - v7) <= v8)
+        152589 steps  x1.52 vs no pruning  ((v7 - v11) > 3)
+        152717 steps  x1.51 vs no pruning  ((v5 + v9) <= v7)
+        156940 steps  x1.47 vs no pruning  ((v5 + 2) < v7)
+        160322 steps  x1.44 vs no pruning  ((v4 + v10) < v7)
+        161927 steps  x1.43 vs no pruning  (v1 < v7)
+        162185 steps  x1.43 vs no pruning  ((v6 - v7) < v11)
+        162323 steps  x1.43 vs no pruning  ((v8 + v10) >= v9)
+        163293 steps  x1.42 vs no pruning  ((v2 + v9) <= v7)
+        163349 steps  x1.42 vs no pruning  ((v9 - v10) <= v11)
+        163968 steps  x1.41 vs no pruning  ((v7 - v9) > 3)
+        164022 steps  x1.41 vs no pruning  ((v2 + v10) != v7)
+        164511 steps  x1.41 vs no pruning  ((v7 - v9) > v9)
+[fill] hand-written `cost < best` would rank #51 of 104 by steps
+[fill] held-out V=7 (24 instances): winner WRONG, steps winner 224655 / hand 994802 / no pruning 1236844
+[fill] held-out V=8 (24 instances): winner WRONG, steps winner 910003 / hand 5234455 / no pruning 7256090
