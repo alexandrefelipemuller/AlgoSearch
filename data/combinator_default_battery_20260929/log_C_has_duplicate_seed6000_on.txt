@@ -1,0 +1,196 @@
+
+LEVEL 1
+N = 1
+instances = 43
+beam = 500
+  candidates = 1 | best score = 19/43 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+N = 1
+instances = 43
+beam = 500
+  candidates = 1502 | best score = 43/43 | best size = 4 | timeouts = 387 | errors = 26512
+  beam diversity at full solve: 33 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 43/43
+  size 4  held-out 23/23
+  program_id 37d197b845e91862  first_level 1  confirmed_levels 1
+  programa:
+arr[v5] = v3;
+
+
+LEVEL 2
+N = 2
+instances = 67
+beam = 500
+  candidates = 2500 | best score = 67/67 | best size = 27 | timeouts = 2053 | errors = 34824
+  beam diversity at full solve: 58 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 67/67
+  size 27  held-out 33/33
+  program_id a06b53229653d570  first_level 2  confirmed_levels 1
+  programa:
+v2 = arr[0];
+v1 = 0;
+v4 = 1;
+while ((v4 < v0)) {
+  if ((arr[v4] == v2)) {
+    v1 = 1;
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v1;
+
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 81/85 | best size = 43 | timeouts = 4685 | errors = 39897
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 81/85 | best size = 43 | timeouts = 3675 | errors = 38966
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 85/85 | best size = 41 | timeouts = 3946 | errors = 35575
+  beam diversity at full solve: 45 distinct shapes / 500 candidates
+
+N=3
+  score 85/85
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 139/139
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 58/58
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 58/58
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 58/58
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 58/58
+  size 41  held-out 33/33
+  program_id 1e5a2a844fca06fc  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v4 = 0;
+while ((v4 < v0)) {
+  v3 = (v4 + 1);
+  while ((v3 < v0)) {
+    if ((arr[(0 + v4)] == arr[(0 + v3)])) {
+      v7 = 1;
+    }
+    v3 = (v3 + 1);
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v7;
+
+
+Search finished in 0.536662s
+  profile: gen=0.129505s score=0.347425s sort=0.00179672s other=0.0579356s | generated 14773 (27527/s), scored 11503 (21434/s)
+
+Saved 8 solution record(s) to data/combinator_default_battery_20260929/solutions_C_has_duplicate_seed6000_on.json

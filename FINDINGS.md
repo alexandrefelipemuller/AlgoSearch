@@ -3146,3 +3146,35 @@ risk worth watching: the combinator's early stop in
 `generateRandomProgram` also stops after a SKELETON block when the
 combinator is on, which could change how the 17 problems' fresh programs
 look.
+
+## 42 (results). Combinator on top of the skeleton library: every prediction held, no regression, two original problems improve
+
+`data/combinator_default_battery_20260929/`
+(`scripts/run_combinator_default_battery.sh`: loop-bias 0.4, num-vars 8,
+seeds 6000-6004, combinator 0 vs 0.5 run concurrently per seed). Genuine
+SUCCESS = first found below max_level (section 37); `cycle` additionally
+re-verified with `--benchmark`'s exhaustive check.
+
+| suite | problem | off | on | wall s off / on |
+|---|---|---|---|---|
+| A | 15 of the 17 original problems | 5/5 each | 5/5 each | unchanged |
+| A | reverse | 2/5 | **5/5** | 153.5 / 0.2 |
+| A | graph_reachability | 2/5 | 3/5 | 6.0 / 0.5 |
+| C | substring, palindrome, inversion_count, has_duplicate, is_sorted, count_descents, strictly_increasing | 0/5 each | **5/5 each** | 17-50 / 0.2-0.4 |
+| C | has_adjacent_equal | 2/5 | **5/5** | 34.9 / 0.4 |
+| C | longest_run, max_adjacent_gap, lis | 0/5 | 0/5 | -- |
+| C | cycle | 1/5 label | 2/5 label | all 3 REJECTED by the exhaustive check (n = 1-2): 0 genuine in both arms |
+
+Predictions: no loss on any of the 17 -- held (two improve); everything in
+the v2 product goes from 0-2/5 to 5/5 -- held; longest_run,
+max_adjacent_gap, cycle, lis stay unsolved -- held (cycle only after the
+exhaustive re-check; its JSON labels alone would have said otherwise, the
+same lesson as sections 37-38). The flagged risk (the root stop after a
+skeleton block changing the 17 problems) did not show up in any outcome.
+
+**Conclusion:** turning the combinator on alongside the skeleton library
+costs nothing measured and strictly widens what the default configuration
+solves. Candidate next change: make `combinatorBias` part of the default
+configuration (it is still opt-in; that switch would change every default
+run's RNG stream, so it deserves its own commit and a full-battery check
+like this one, which it now has).

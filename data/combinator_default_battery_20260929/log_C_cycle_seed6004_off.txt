@@ -1,0 +1,482 @@
+
+LEVEL 1
+nodes N = 1
+instances = 4
+beam = 500
+  candidates = 1 | best score = 1/4 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+nodes N = 1
+instances = 4
+beam = 500
+  candidates = 1502 | best score = 3/4 | best size = 4 | timeouts = 148 | errors = 1740
+
+LEVEL 1
+nodes N = 1
+instances = 4
+beam = 500
+  candidates = 2500 | best score = 3/4 | best size = 4 | timeouts = 222 | errors = 2279
+
+LEVEL 1
+nodes N = 1
+instances = 4
+beam = 500
+  candidates = 2500 | best score = 4/4 | best size = 52 | timeouts = 204 | errors = 2450
+  beam diversity at full solve: 49 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 4/4
+  size 52  held-out 4/4
+  program_id 6f1887180c4c5db7  first_level 1  confirmed_levels 1
+  programa:
+v6 = 0;
+v1 = 0;
+while ((v6 < v0)) {
+  v3 = (v6 + 1);
+  while ((v3 < v0)) {
+    v6 = v5;
+    while ((v7 < v0)) {
+      if ((((arr[v6] + arr[v3]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v3 = (v3 + 1);
+  }
+  v6 = (v6 + 1);
+}
+arr[0] = v1;
+
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 27 | timeouts = 497 | errors = 2858
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 27 | timeouts = 507 | errors = 3063
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 27 | timeouts = 494 | errors = 3402
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 27 | timeouts = 587 | errors = 3335
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 669 | errors = 3383
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 523 | errors = 3552
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 537 | errors = 3887
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 591 | errors = 3701
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 601 | errors = 3606
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 510 | errors = 3730
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 562 | errors = 3821
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 679 | errors = 3779
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 780 | errors = 3910
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 5/6 | best size = 26 | timeouts = 691 | errors = 3841
+
+LEVEL 2
+nodes N = 2
+instances = 6
+beam = 500
+  candidates = 2500 | best score = 6/6 | best size = 42 | timeouts = 636 | errors = 4116
+  beam diversity at full solve: 14 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 6/6
+  size 42  held-out 6/6
+  program_id addc878d1587f416  first_level 2  confirmed_levels 1
+  programa:
+arr[v5] = v3;
+v7 = v6;
+v1 = 0;
+v4 = 1;
+while ((v4 < v0)) {
+  swap(arr[arr[(1 ^ (3 + v3))]], arr[(v5 + arr[v5])]);
+  if ((arr[v4] == v2)) {
+    v1 = 1;
+  }
+  v4 = (v4 + 1);
+}
+arr[0] = v1;
+v1 = 3;
+
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 1017 | errors = 4059
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 1012 | errors = 3659
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 931 | errors = 4013
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 1116 | errors = 3990
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 994 | errors = 3812
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 1045 | errors = 4036
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 6/7 | best size = 34 | timeouts = 1057 | errors = 4102
+
+LEVEL 3
+nodes N = 3
+instances = 7
+beam = 500
+  candidates = 2500 | best score = 7/7 | best size = 36 | timeouts = 1069 | errors = 4315
+  beam diversity at full solve: 5 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=3 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=3
+  score 7/7
+  size 36  held-out 8/9
+  program_id cab48949a6478df8  first_level 3  confirmed_levels 1
+  programa:
+v4 = 3;
+v3 = 0;
+v1 = 1;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  } else {
+    arr[((0 + (2 + 1)) - arr[3])] = v6;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 61 | timeouts = 1423 | errors = 5453
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 61 | timeouts = 1511 | errors = 5521
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 61 | timeouts = 1729 | errors = 5601
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 61 | timeouts = 1680 | errors = 5979
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 58 | timeouts = 1467 | errors = 5727
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 58 | timeouts = 1339 | errors = 5793
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 58 | timeouts = 1688 | errors = 5728
+
+LEVEL 4
+nodes N = 4
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 9/9 | best size = 98 | timeouts = 1583 | errors = 5743
+  beam diversity at full solve: 35 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=4 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=4
+  score 9/9
+  size 98  held-out 10/10
+  program_id ba0aeee9a491b9eb  first_level 4  confirmed_levels 1
+  programa:
+v4 = arr[0];
+v3 = 1;
+v5 = 0;
+while ((v5 < arr[1])) {
+  v6 = 0;
+  v2 = 0;
+  while ((v2 < v4)) {
+    v6 = (v6 + v3);
+    v2 = (v2 + 1);
+  }
+  v3 = v6;
+  v5 = (v5 + 1);
+}
+arr[0] = v3;
+v2 = 0;
+while ((v2 < v0)) {
+  v3 = (v3 ^ arr[v2]);
+  v2 = (v2 + 1);
+}
+arr[0] = v3;
+v1 = arr[0];
+arr[0] = 1;
+if ((v1 < 2)) {
+  v0 = ((v2 + (v1 - v3)) - 2);
+}
+v7 = 2;
+while (((v7 * v7) <= v1)) {
+  if (((v1 % v7) == 0)) {
+    arr[0] = 0;
+  }
+  v7 = (v7 + 1);
+}
+
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 37 | timeouts = 1833 | errors = 5936
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 37 | timeouts = 1515 | errors = 6071
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 37 | timeouts = 1545 | errors = 5618
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 37 | timeouts = 1614 | errors = 5316
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 37 | timeouts = 1432 | errors = 5886
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 7/9 | best size = 36 | timeouts = 1681 | errors = 5731
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 68 | timeouts = 1638 | errors = 5578
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 68 | timeouts = 1557 | errors = 5193
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 68 | timeouts = 1426 | errors = 5212
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 68 | timeouts = 1795 | errors = 5274
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 68 | timeouts = 1535 | errors = 5445
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 48 | timeouts = 1396 | errors = 5381
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 48 | timeouts = 1800 | errors = 5558
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 48 | timeouts = 1746 | errors = 5440
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 48 | timeouts = 1542 | errors = 5707
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 48 | timeouts = 1602 | errors = 6152
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 36 | timeouts = 1557 | errors = 6553
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 8/9 | best size = 36 | timeouts = 1496 | errors = 6173
+
+LEVEL 5
+nodes N = 5
+instances = 9
+beam = 500
+  candidates = 2500 | best score = 9/9 | best size = 93 | timeouts = 1693 | errors = 6265
+  beam diversity at full solve: 96 distinct shapes / 500 candidates
+  UNCONFIRMED (no lookahead possible): first solves N=5 at the maximum level, so nothing beyond it can confirm the program generalizes
+
+N=5
+  score 9/9
+  size 93  held-out 12/12
+  program_id 122d0e68f4a47064  first_level 5  confirmed_levels 1
+  programa:
+v4 = 3;
+v3 = 0;
+v6 = 0;
+while ((v6 < v0)) {
+  v2 = v6;
+  v5 = (v6 + 1);
+  while ((v5 < v0)) {
+    if ((arr[v5] < arr[v2])) {
+      v2 = v5;
+    }
+    v5 = (v5 + 1);
+  }
+  swap(arr[v6], arr[v2]);
+  v6 = (v6 + 1);
+}
+v1 = 0;
+v6 = 1;
+v2 = 0;
+while ((v2 < arr[0])) {
+  v6 = (v1 + v6);
+  v1 = (v6 - v1);
+  v2 = (v2 + 1);
+}
+arr[0] = v1;
+arr[arr[v7]] = 2;
+while ((v1 < v0)) {
+  if ((arr[v1] == v2)) {
+    v3 = 1;
+  } else {
+    v2 = v1;
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v3;
+
+
+Search finished in 3.63695s
+  profile: gen=2.0979s score=0.620547s sort=0.0166349s other=0.901873s | generated 107407 (29532/s), scored 131503 (36157/s)
+
+Saved 5 solution record(s) to data/combinator_default_battery_20260929/solutions_C_cycle_seed6004_off.json

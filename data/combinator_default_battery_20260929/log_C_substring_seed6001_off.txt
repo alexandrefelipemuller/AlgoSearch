@@ -1,0 +1,972 @@
+
+LEVEL 1
+text N = 1
+instances = 4
+beam = 500
+  candidates = 1 | best score = 2/4 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+text N = 1
+instances = 4
+beam = 500
+  candidates = 1502 | best score = 3/4 | best size = 9 | timeouts = 217 | errors = 910
+
+LEVEL 1
+text N = 1
+instances = 4
+beam = 500
+  candidates = 2500 | best score = 3/4 | best size = 6 | timeouts = 371 | errors = 1281
+
+LEVEL 1
+text N = 1
+instances = 4
+beam = 500
+  candidates = 2500 | best score = 4/4 | best size = 40 | timeouts = 415 | errors = 1417
+  beam diversity at full solve: 10 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 4/4
+  size 40  held-out 9/14
+  program_id ca4453e3a2e98189  first_level 1  confirmed_levels 1
+  programa:
+v5 = 0;
+while ((v5 < v0)) {
+  v1 = v5;
+  v4 = (v5 + 1);
+  while ((v4 < v0)) {
+    if ((arr[v4] < arr[v1])) {
+      swap(arr[v3], arr[(v1 + 1)]);
+    }
+    v4 = (v4 + 1);
+  }
+  swap(arr[v5], arr[v1]);
+  v5 = (v5 + 1);
+}
+
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1332 | errors = 4687
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1158 | errors = 4914
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1161 | errors = 5070
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 908 | errors = 5113
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1066 | errors = 5124
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 977 | errors = 5448
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1201 | errors = 5890
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1341 | errors = 5739
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1335 | errors = 6047
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1242 | errors = 6203
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 6/10 | best size = 4 | timeouts = 1159 | errors = 6874
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1301 | errors = 6852
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1680 | errors = 6808
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1645 | errors = 7442
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1395 | errors = 7230
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1804 | errors = 7480
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1551 | errors = 6952
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1861 | errors = 7011
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1528 | errors = 7267
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1410 | errors = 7963
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1655 | errors = 7604
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1474 | errors = 7848
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1602 | errors = 7415
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1684 | errors = 7679
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1966 | errors = 6882
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1601 | errors = 6733
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1788 | errors = 6816
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1502 | errors = 6906
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1716 | errors = 6959
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 8/10 | best size = 34 | timeouts = 1834 | errors = 6654
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1782 | errors = 7512
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1860 | errors = 8317
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1774 | errors = 7869
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1973 | errors = 7569
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1836 | errors = 7515
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1625 | errors = 7529
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1987 | errors = 8152
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2096 | errors = 7936
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1772 | errors = 7692
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2121 | errors = 7631
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1797 | errors = 8286
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2058 | errors = 7961
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1957 | errors = 8253
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1964 | errors = 8166
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1843 | errors = 7733
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1675 | errors = 7382
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1448 | errors = 6553
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1807 | errors = 6698
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1380 | errors = 6975
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1591 | errors = 6637
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1603 | errors = 7099
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1573 | errors = 6828
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1721 | errors = 7502
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1718 | errors = 7090
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1645 | errors = 7932
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1579 | errors = 8135
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1886 | errors = 8032
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1805 | errors = 8166
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1732 | errors = 8497
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1930 | errors = 8472
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1799 | errors = 8226
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1824 | errors = 8511
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1817 | errors = 8482
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1806 | errors = 8720
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1907 | errors = 9034
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1780 | errors = 8958
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2058 | errors = 8840
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2002 | errors = 8916
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1669 | errors = 8962
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2251 | errors = 9236
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1629 | errors = 9485
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1984 | errors = 9255
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2175 | errors = 9175
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1918 | errors = 9413
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2105 | errors = 9428
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2155 | errors = 9498
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1867 | errors = 9849
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2107 | errors = 10135
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2074 | errors = 9707
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2026 | errors = 9935
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2190 | errors = 10171
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1805 | errors = 10306
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2145 | errors = 10088
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2190 | errors = 10065
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1969 | errors = 10179
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 1818 | errors = 10537
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 9/10 | best size = 39 | timeouts = 2168 | errors = 10692
+
+LEVEL 2
+text N = 2
+instances = 10
+beam = 500
+  candidates = 2500 | best score = 10/10 | best size = 132 | timeouts = 1963 | errors = 10510
+  beam diversity at full solve: 54 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 10/10
+  size 132  held-out 5/23
+  program_id 3311cbe0bad8396a  first_level 2  confirmed_levels 1
+  programa:
+v7 = 0;
+v7 = 0;
+v6 = 0;
+while ((v1 == 1)) {
+  while ((v0 > v2)) {
+    v3 = v2;
+    v0 = 2;
+    arr[v3] = v5;
+  }
+  while ((arr[2] == arr[arr[(v6 % 2)]])) {
+    v7 = (v4 - 3);
+    v0 = 2;
+    v5 = arr[arr[(1 + v4)]];
+    if ((((arr[v0] + 0) - (v1 + 0)) == arr[v2])) {
+      if ((1 != arr[((0 - 0) - v6)])) {
+        v2 = v4;
+        v3 = arr[((v3 - v5) - arr[2])];
+      } else {
+        v5 = ((v3 & v6) + v3);
+        swap(arr[(v3 - 3)], arr[(v1 - v7)]);
+        v7 = 0;
+      }
+    } else {
+      v3 = 0;
+    }
+  }
+}
+while ((v6 < v0)) {
+  v3 = v7;
+  v7 = (v7 ^ arr[v6]);
+  arr[(1 / v7)] = v2;
+  v6 = (v6 + 1);
+}
+swap(arr[((2 + v3) / v6)], arr[0]);
+arr[0] = v7;
+swap(arr[v2], arr[(arr[arr[1]] + (arr[2] & v3))]);
+
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 15/23 | best size = 93 | timeouts = 4452 | errors = 39148
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 15/23 | best size = 67 | timeouts = 5600 | errors = 22878
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 15/23 | best size = 43 | timeouts = 4356 | errors = 20699
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 15/23 | best size = 43 | timeouts = 4571 | errors = 20186
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 15/23 | best size = 42 | timeouts = 4170 | errors = 20340
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 3886 | errors = 20826
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 3942 | errors = 22495
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4450 | errors = 22413
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4059 | errors = 22869
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4025 | errors = 23455
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4078 | errors = 23284
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4686 | errors = 22385
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4181 | errors = 23930
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 3641 | errors = 23530
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4505 | errors = 23459
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4178 | errors = 23813
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4272 | errors = 24335
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 16/23 | best size = 101 | timeouts = 4576 | errors = 24229
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4355 | errors = 25019
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4161 | errors = 25041
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4341 | errors = 23594
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4173 | errors = 23633
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 3739 | errors = 22983
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4407 | errors = 24294
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4280 | errors = 23726
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4529 | errors = 24084
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4627 | errors = 24506
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4061 | errors = 25445
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 111 | timeouts = 4224 | errors = 25606
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 17/23 | best size = 86 | timeouts = 5094 | errors = 25503
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 18/23 | best size = 143 | timeouts = 4422 | errors = 26843
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 18/23 | best size = 143 | timeouts = 4558 | errors = 26041
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 18/23 | best size = 143 | timeouts = 4668 | errors = 25465
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 18/23 | best size = 143 | timeouts = 3751 | errors = 26256
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 18/23 | best size = 124 | timeouts = 4442 | errors = 26173
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 144 | timeouts = 3971 | errors = 27593
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 131 | timeouts = 5091 | errors = 27638
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 130 | timeouts = 4513 | errors = 28175
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 130 | timeouts = 5134 | errors = 28431
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 130 | timeouts = 4899 | errors = 27880
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 128 | timeouts = 4685 | errors = 27571
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 128 | timeouts = 4779 | errors = 27673
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 128 | timeouts = 4783 | errors = 27430
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 128 | timeouts = 4820 | errors = 26060
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 117 | timeouts = 4702 | errors = 25041
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 117 | timeouts = 4078 | errors = 25867
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 97 | timeouts = 3893 | errors = 26641
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 97 | timeouts = 4102 | errors = 26263
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 97 | timeouts = 4327 | errors = 26353
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 97 | timeouts = 4888 | errors = 25485
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 19/23 | best size = 97 | timeouts = 4904 | errors = 26933
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 214 | timeouts = 4465 | errors = 28996
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 214 | timeouts = 4382 | errors = 29337
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 214 | timeouts = 4574 | errors = 29882
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 214 | timeouts = 5122 | errors = 29412
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 214 | timeouts = 4773 | errors = 30046
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 201 | timeouts = 4890 | errors = 29945
+
+LEVEL 3
+text N = 3
+instances = 23
+beam = 500
+  candidates = 2500 | best score = 20/23 | best size = 171 | timeouts = 4353 | errors = 30163
+
+Search finished in 18.6598s
+  profile: gen=9.02212s score=4.89999s sort=0.0487582s other=4.68891s | generated 255301 (13681/s), scored 371503 (19909/s)
+
+Saved 2 solution record(s) to data/combinator_default_battery_20260929/solutions_C_substring_seed6001_off.json

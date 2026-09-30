@@ -1,0 +1,196 @@
+
+LEVEL 1
+N = 1
+instances = 53
+beam = 500
+  candidates = 1 | best score = 36/53 | best size = 1 | timeouts = 0 | errors = 0
+
+LEVEL 1
+N = 1
+instances = 53
+beam = 500
+  candidates = 1502 | best score = 53/53 | best size = 4 | timeouts = 688 | errors = 29500
+  beam diversity at full solve: 31 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 53/53
+  size 4  held-out 33/33
+  program_id 37d197b845e91862  first_level 1  confirmed_levels 1
+  programa:
+arr[v5] = v1;
+
+
+LEVEL 2
+N = 2
+instances = 67
+beam = 500
+  candidates = 2500 | best score = 67/67 | best size = 29 | timeouts = 1709 | errors = 33232
+  beam diversity at full solve: 38 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 67/67
+  size 29  held-out 33/33
+  program_id 427a9ed31ff1b1dd  first_level 2  confirmed_levels 1
+  programa:
+v2 = arr[0];
+v5 = 0;
+v7 = 1;
+while ((v7 < v0)) {
+  if ((arr[(0 + v7)] < v2)) {
+    v5 = 1;
+  }
+  v7 = (v7 + 1);
+}
+arr[0] = v5;
+
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 56/85 | best size = 37 | timeouts = 3160 | errors = 33623
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 56/85 | best size = 37 | timeouts = 3970 | errors = 36865
+
+LEVEL 3
+N = 3
+instances = 85
+beam = 500
+  candidates = 2500 | best score = 85/85 | best size = 43 | timeouts = 4689 | errors = 36224
+  beam diversity at full solve: 29 distinct shapes / 500 candidates
+
+N=3
+  score 85/85
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 139/139
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 58/58
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 58/58
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 58/58
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 58/58
+  size 43  held-out 33/33
+  program_id 2fb8cb6464334cfe  first_level 3  confirmed_levels 6
+  programa:
+v7 = 0;
+v1 = 0;
+while ((v1 < v0)) {
+  v5 = (v1 + 1);
+  while ((v5 < v0)) {
+    if ((arr[(0 + v1)] > arr[(0 + v5)])) {
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v1 = (v1 + 1);
+}
+arr[0] = v7;
+
+
+Search finished in 0.504535s
+  profile: gen=0.126904s score=0.317667s sort=0.00204944s other=0.0579157s | generated 14784 (29302/s), scored 11503 (22799/s)
+
+Saved 8 solution record(s) to data/combinator_default_battery_20260929/solutions_C_inversion_count_seed6004_on.json

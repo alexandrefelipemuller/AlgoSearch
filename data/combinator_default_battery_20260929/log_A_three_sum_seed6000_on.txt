@@ -1,0 +1,192 @@
+
+LEVEL 1
+array N = 1
+instances = 1
+beam = 500
+  candidates = 1 | best score = 1/1 | best size = 1 | timeouts = 0 | errors = 0
+  beam diversity at full solve: 1 distinct shapes / 1 candidates
+  UNCONFIRMED (fails structural invariance): solves N=1 but breaks before N=4 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=1
+  score 1/1
+  size 1
+  program_id 553e93901e462a6e  first_level 1  confirmed_levels 1
+  programa:
+
+
+LEVEL 2
+array N = 2
+instances = 2
+beam = 500
+  candidates = 1502 | best score = 2/2 | best size = 4 | timeouts = 64 | errors = 645
+  beam diversity at full solve: 26 distinct shapes / 500 candidates
+  UNCONFIRMED (fails structural invariance): solves N=2 but breaks before N=5 with the same unmutated program -- likely fit to that N's instances, not a general algorithm
+
+N=2
+  score 2/2
+  size 4
+  program_id abbdd4100d671991  first_level 2  confirmed_levels 1
+  programa:
+arr[v3] = v3;
+
+
+LEVEL 3
+array N = 3
+instances = 56
+beam = 500
+  candidates = 2500 | best score = 56/56 | best size = 54 | timeouts = 2129 | errors = 34187
+  beam diversity at full solve: 36 distinct shapes / 500 candidates
+
+N=3
+  score 56/56
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 4
+
+N=4
+  score 128/128
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 5
+
+N=5
+  score 512/512
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 6
+
+N=6
+  score 2912/2912
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 7
+
+N=7
+  score 192/192
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+ADVANCING TO LEVEL 8
+
+N=8
+  score 192/192
+  size 54  held-out 52/52
+  program_id f51dd16b2d9e0344  first_level 3  confirmed_levels 6
+  programa:
+v3 = 0;
+v1 = 0;
+while ((v3 < v0)) {
+  v5 = (v3 + 1);
+  while ((v5 < v0)) {
+    v7 = (v5 + 1);
+    while ((v7 < v0)) {
+      if ((((arr[v3] + arr[v5]) + arr[v7]) == 0)) {
+        v1 = 1;
+      }
+      v7 = (v7 + 1);
+    }
+    v5 = (v5 + 1);
+  }
+  v3 = (v3 + 1);
+}
+arr[0] = v1;
+
+
+Search finished in 0.147031s
+  profile: gen=0.0472624s score=0.0579205s sort=0.000756979s other=0.0410911s | generated 9371 (63734/s), scored 4003 (27225/s)
+
+Saved 8 solution record(s) to data/combinator_default_battery_20260929/solutions_A_three_sum_seed6000_on.json
