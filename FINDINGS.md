@@ -3421,6 +3421,11 @@ resembling a combine step.
 
 **Conclusion.** Neither many seeds, every diversity lever, nor 16 CPU-hours
 without skeletons yields a sorting algorithm the grammar was not handed.
+**Scope correction (added after section 46):** all four runs had
+`--combinator-bias` at its default 0.0. With the combinator on, the same
+no-skeleton configuration solves sorting in 8/8 seeds (section 46), so
+"no general sort is found" holds only for the skeleton/composite grammar
+without the combinator.
 That is section 5's finding (grammar prior >> population diversity)
 restated for sorting with the skeletons explicitly removed. The gnome sort
 near miss suggests the bottleneck is closing off-by-one edge cases, not
@@ -3438,3 +3443,88 @@ Caveats:
   which texts the 115/153 rejections were.
 - C and D used no `--benchmark` re-verification.
 - In D, only the best program of seed 20005 was inspected in depth.
+
+## 46. Sorting without sort skeletons, combinator on: 8/8 seeds solve, and bubble and gnome sort appear by composition
+
+Follow-up to section 45, whose no-skeleton run D had `--combinator-bias`
+at its default 0.0. Predictions were registered before running in
+`data/sorting_noskeleton_combinator_20261003/PREDICTIONS.md` (run script:
+`run.sh` there). Both arms used
+`ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort
+--combinator-bias 0.5` (v2 axes, adjacent pairs included) and section 45's
+diversity flags:
+
+- **D'**: section 45's run D unchanged (`--max-n 100 --num-vars 10`,
+  recursion + aux) plus the combinator; seeds 20000-20007, 30 min wall
+  each.
+- **E**: `--benchmark` (exhaustive check for sorting, section 39) at
+  `--max-n 6 --num-vars 8 --beam-width 500 --candidates 1500
+  --max-program-size 150`; 200 seeds (30000-30199) in 4 processes.
+
+Before running I read the generator: the `Adjacent` loop is ONE flat pass
+(`elem(i-1)`, `elem(i)`), i.e. a single bubble pass, not bubble sort.
+
+**Results:**
+
+| | D (section 45, combinator off) | D' (combinator on) |
+|---|---|---|
+| seeds with a genuine SUCCESS (first solve below max-level) | 0/8 | **8/8** |
+| max level reached in 30 min (D: 2 h) | 3-23 | 65-70 |
+| distinct genuine programs per seed | 0 | 15-26 |
+
+E: 1227 kept / 13 rejected (all 13: runtime error at n = 1), all
+classified O(n^2) (exponent 1.76-2.22). Family classification by text
+pattern over the union of D' and E (1143 distinct texts, 520 shapes after
+erasing variable names and literals):
+
+| family | texts | seeds (E of 200 / D' of 8) | origin |
+|---|---|---|---|
+| Fung's "I can't believe it can sort" (full nested loop x conditional swap) | 722 | 196 / 8 | one combinator draw (section 38) |
+| exchange sort (triangular loop x conditional swap) | 289 | 92 / 8 | one combinator draw |
+| unclassified | 127 | 52 / 6 | the inspected ones are Fung variants with junk or a reversed operand order |
+| **gnome sort** (adjacent pass + index reset) | 4 | 2-3 / 0 (seed union not computed) | single-pass block + mutation adding `i = 0` after the swap |
+| **bubble sort** (adjacent pass inside an outer loop) | 1 | 1 / 0 | single-pass block + an outer loop around it |
+
+The gnome sort found is the clean, correct version of section 45's near
+miss: `i = 1; while (i < n) { if (arr[i-1] > arr[i]) { swap; i = 0; } i = i + 1; }`.
+The combinator's `elem(i-1)`/`elem(i)` indexing starting at `i = 1` is
+exactly what fixes the two edge cases (pair (0, 1) never re-checked,
+`arr[n]` read) that free search could not fix in section 45. The bubble
+sort is the unoptimized `n` passes:
+`while (k < n) { j = 1; while (j < n) { if (arr[j-1] >= arr[j]) swap; j = j + 1; } k = k + 1; }`.
+I could not tell from the logs which texts the 13 rejections were. So
+the bubble sort and both gnome variants (one resets via an uninitialized
+`v1`, i.e. 0) were re-checked separately, by a Python transcription of the
+printed programs: correct on all ~21.7k arrays with values in [-2, 2] for
+n = 0..6 and [0, 2] for n = 7. None of them can fail at n = 1, where every
+rejection happened, because the loop is not entered.
+
+**Prediction scorecard:**
+1. D' >= 7/8 genuine: **held** (8/8).
+2. Every solution is a nested-loop x conditional-swap product:
+   **refuted, informatively.** 973 of the 1143 texts are, but gnome sort and
+   bubble sort are not single draws: each is the one-pass adjacent block
+   plus a structural addition found by search, which is section 40's "search
+   reaches beyond the product occasionally" again.
+3. Bubble sort in at most 1 in 5 seeds of E: held (1/200; gnome 2-3/200).
+4. Nothing sub-quadratic, no non-inert call/aux: held. All 1227 are
+   O(n^2); the 2 D' programs that call `call(...)` do so with an empty range
+   (`call(v0, j)`, `call(v0, 3)`), a no-op.
+
+**Conclusion.** Section 45's negative result was about the grammar without
+the combinator, not about sorting. With the combinator on and every sort
+skeleton removed, the search finds four distinct correct quadratic
+sorting algorithms, none of them a skeleton: Fung's and exchange sort
+reliably (one draw each), and gnome sort and bubble sort rarely (a draw plus
+a found structural step). What it does not find is anything sub-quadratic:
+merge and heap sort remain skeleton-only (section 45's run C), and
+section 45's divide-and-conquer skeleton still never acquires a combine
+step. The gnome sort result also answers section 45's open question about
+its near miss: the missing ingredient was the correctly offset adjacent
+indexing, which the combinator axis supplies, not more search budget.
+
+Caveats: family classification is by text pattern, with only the rare
+families and the smallest unclassified texts read by hand. The ~21.7k-array
+check of the rare programs used a Python transcription, not the
+interpreter. D' used no `--benchmark` (its count uses section 37's
+first-solve-below-max-level rule).
