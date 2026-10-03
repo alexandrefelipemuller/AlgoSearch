@@ -3562,3 +3562,44 @@ nothing passed in suite C), and the on arm is the same command plus
 
 Decision rule, fixed now: flip the default only if 1, 3 and 5 hold. If 1
 fails on a specific problem, look at why before deciding.
+
+## 47 (results). Combinator vs the true default: no regression, 8 problems 0-4/15 -> 15/15, one registered bound missed
+
+`data/combinator_true_default_ab_20261003/` (2026-10-03, 12:29-14:02),
+summarized with `scripts/summarize_prune_ab.py`. Genuine SUCCESS of 15
+matched seeds per arm, mean wall in seconds:
+
+| suite | problem | off | on | wall off / on |
+|---|---|---|---|---|
+| A | 15 of the 17 | 15/15 each | 15/15 each | all <= 0.3 s except factorial 90.6 / 81.1 |
+| A | reverse | 15/15 | 15/15 | **3.82 / 0.28** |
+| A | graph_reachability | 8/15 | 9/15 | 0.55 / 0.56 |
+| A | sorting (slowest relative change) | 15/15 | 15/15 | 0.049 / 0.086 (1.8x) |
+| C | substring, palindrome, inversion_count, count_descents, strictly_increasing | 0/15 each | **15/15 each** | 23-78 / 0.2-0.7 |
+| C | has_duplicate / is_sorted / has_adjacent_equal | 2 / 4 / 1 of 15 | **15/15 each** | 40-80 / 0.4-0.6 |
+| C | longest_run, max_adjacent_gap, lis | 0/15 | 0/15 | -- |
+| C | cycle | 1/15 label | 10/15 label | **0 genuine in both** after `--benchmark`'s exhaustive check (1 and 10 rejected; wrong output at n = 1-2) |
+
+**Scorecard:**
+1. No regression on the 17: **held.** Every problem is equal or better.
+2. reverse and graph_reachability improve: **partly.** graph_reachability
+   +1 (within noise). reverse does not improve in successes, because the
+   true default (4 vars) already solves it 15/15. Section 42's 2/5 off arm
+   was an artifact of running at 8 vars. It is 13x faster, though.
+3. Off <= 3/15 and on >= 13/15 on the eight v2-product problems: the on side
+   **held** (15/15 all eight); the off bound **missed** on is_sorted (4/15).
+   The miss is about the baseline, not the treatment.
+4. longest_run, max_adjacent_gap, cycle, lis at 0 genuine: **held** (cycle
+   only after the exhaustive check, the same lesson as sections 38 and 42).
+5. No both-15/15 problem more than 2x slower: **held** (worst: sorting
+   1.8x, 0.049 -> 0.086 s; count 1.3x; everything else equal or faster).
+
+**Decision.** The registered rule required 1, 3 and 5 to hold. Prediction 3
+missed only on its baseline bound (is_sorted off was 4/15, not <= 3). Its
+substance, 15/15 on all eight, held. Whether that counts as passing is left
+to an explicit decision, not assumed here; the default is unchanged by this
+entry.
+
+Caveats: suite-C successes other than cycle were counted with section 37's
+rule, not re-checked exhaustively (section 42 re-checked only cycle too).
+Walls ran 4 processes at once with `--threads 2`.
