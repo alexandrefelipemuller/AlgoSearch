@@ -63,37 +63,41 @@ are either "confirmed default" or "opt-in, mixed evidence" per
 
 ## Results: all 17 problems, one modest-budget sweep
 
-The table below is from a single sweep (2026-09-17, `data/modest_battery_20260917_1518/`)
+The table below is from a single sweep (2026-10-03, `data/modest_battery_combinator_default_20261003/`)
 across every problem this project currently supports, at the **same modest
 search budget** for each (`--beam-width 500 --candidates 1500
 --max-program-size 150 --benchmark-seeds 5`, current grammar defaults --
 `loopAccumulatorBias=0.4`, native `Le`/`Ge`/`Ne`, native `Mul`/`Div`/`Mod`/
-bitwise, the 10-skeleton library from `FINDINGS.md` sections 11-17). Every
-row is a solution that survived `--benchmark`'s independent adversarial
+bitwise, the skeleton library from `FINDINGS.md` sections 11-17, and the
+combinator algebra on by default, `--combinator-bias 0.5`, since section 48).
+Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core
 machine -- how long it took to *find* the solution, not how fast the
-discovered algorithm runs.
+discovered algorithm runs. The previous sweep (2026-09-17, combinator off,
+`data/modest_battery_20260917_1518/`) is reproducible with
+`--combinator-bias 0`; the main changes are `reverse` (O(n²), ~16s -> O(n),
+~0.2s) and `graph_reachability` (5 rejections -> 0).
 
 | Problem | Result | Complexity | Time to generate (avg/seed) |
 |---|---|---|---|
-| `sorting` | 5 solutions confirmed | O(n²) | ~0.03s |
-| `min` | 5 solutions confirmed | O(n) | ~0.03s |
-| `max` | 4 solutions confirmed | O(n) | ~0.03s |
-| `sum` | 4 solutions confirmed | O(n) | ~0.04s |
-| `contains` | 2 solutions confirmed | O(n) | ~0.03s |
-| `contains_ordered` | 2 solutions confirmed | O(n) | ~0.04s |
-| `is_prime` | 4 solutions confirmed | **O(√n)** | ~0.03s |
-| `gcd` | 5 solutions confirmed (native-mod Euclidean) | **O(1)** | ~0.05s |
-| `factorial` | 4 solutions confirmed | O(n²) | ~28.5s |
-| `fibonacci` | 4 solutions confirmed | O(n) | ~0.03s |
-| `count` | 4 solutions confirmed | O(n) | ~0.05s |
-| `average` | 5 solutions confirmed | O(n) | ~0.04s |
-| `reverse` | 5 solutions confirmed | O(n²) | ~16.3s |
-| `power` | 5 solutions confirmed | O(n) | ~0.03s |
-| `three_sum` | 5 solutions confirmed | O(n²)\* | ~0.91s |
-| `single_number` | 3 solutions confirmed (XOR reduce) | O(n) | ~0.03s |
-| `graph_reachability` | 1 solution confirmed, 5 rejected | O(n^1.5) | ~0.28s |
+| `sorting` | 5 solutions confirmed | O(n²) | ~0.06s |
+| `min` | 4 solutions confirmed | O(n) | ~0.02s |
+| `max` | 5 solutions confirmed | O(n) | ~0.02s |
+| `sum` | 5 solutions confirmed | O(n) | ~0.02s |
+| `contains` | 5 solutions confirmed | O(n) | ~0.02s |
+| `contains_ordered` | 5 solutions confirmed | O(n) | ~0.03s |
+| `is_prime` | 4 solutions confirmed | **O(√n)** | ~0.02s |
+| `gcd` | 4 solutions confirmed (native-mod Euclidean) | **O(1)** | ~0.04s |
+| `factorial` | 5 solutions confirmed | O(n²) | ~25.7s |
+| `fibonacci` | 5 solutions confirmed | O(n) | ~0.02s |
+| `count` | 5 solutions confirmed | O(n) | ~0.06s |
+| `average` | 5 solutions confirmed | O(n) | ~0.02s |
+| `reverse` | 5 solutions confirmed (two converging pointers) | **O(n)** | ~0.17s |
+| `power` | 5 solutions confirmed | O(n) | ~0.02s |
+| `three_sum` | 5 solutions confirmed | O(n²)\* | ~0.24s |
+| `single_number` | 5 solutions confirmed (XOR reduce) | O(n) | ~0.02s |
+| `graph_reachability` | 3 solutions confirmed, 0 rejected | O(n^1.5) | ~0.18s |
 
 \* the algorithm is a genuine triple-nested O(n³) loop; the curve fit's
 exponent (~2.1, r²=0.91-0.92) is measured over a small `n` range (max-n=8)
@@ -147,12 +151,22 @@ Results worth calling out:
   extension just to make the adjacency-matrix indexing *representable* at
   all, plus a real bug fix in `Benchmark.cpp`'s magnitude-shift check,
   which was corrupting the vertex-count/edge-flag metadata it was
-  shifting). `graph_reachability`'s lower confirmation rate (1/6 SUCCESS
-  candidates survived independent re-verification, vs. 0 rejected
-  everywhere else in the table) reflects it being the newest and least
-  battle-tested skeleton, not a weaker algorithm -- see section 17 for
-  the standalone correctness verification (8/8 hand-built test graphs)
+  shifting). In the 2026-09-17 sweep `graph_reachability` also had a lower
+  confirmation rate (1 of 6 SUCCESS candidates survived independent
+  re-verification); in the current sweep 3 of 3 survive. See section 17
+  for the standalone correctness verification (8/8 hand-built test graphs)
   done before ever trusting the search on it.
+- **The combinator algebra is on by default** (`FINDINGS.md` sections
+  38-48): blocks drawn as a product of input layout x loop shape x
+  relation, instead of whole hand-written algorithms. Against the previous
+  default (section 47, 15 matched seeds per problem) it loses nothing on
+  the 17 problems above, and takes eight newer array problems
+  (`substring`, `palindrome`, `inversion_count`, `has_duplicate`,
+  `is_sorted`, `count_descents`, `strictly_increasing`,
+  `has_adjacent_equal`) from 0-4/15 to 15/15. With every sort skeleton
+  disabled it still sorts, by algorithms no skeleton contains: Fung's "I
+  can't believe it can sort", exchange sort, and occasionally gnome and
+  bubble sort (section 46).
 - **`factorial`**'s remaining "failures" at its hardest training level
   aren't a search failure: `factorial(27)` overflows a 32-bit `int`, so
   the discovered algorithm is actually correct, just bounded by the

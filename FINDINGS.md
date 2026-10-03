@@ -3373,3 +3373,258 @@ enumeration" complement to B, not discovery of branch-and-bound itself.
    each, `--threads 1`: every solutions file byte-identical to main's; total
    wall +1.4% (64.32 s vs 65.24 s, dominated by the 64 s reverse run at
    +1.4%), within the registered 3%.
+
+## 45. Sorting diversity is skeleton diversity: with the three sort skeletons off, no general sort is found
+
+Question: how many genuinely different sorting algorithms does the search
+find when given many seeds and every diversity lever? Four runs, same
+diversity configuration throughout (`--diversity-rate 0.2
+--shape-niche-rate 0.2 --behavior-niche-rate 0.15 --score-band-rate 0.15
+--crossover-rate 0.3 --post-solve-sizes 15 --composite-bias 0.3`,
+`--beam-width 500 --candidates 1500`). Distinct programs were classified by
+text patterns (scripts not committed), not by behavior.
+
+| run | data | config delta | result |
+|---|---|---|---|
+| A | `data/sorting_diversity_seeds_20261001/` | `--max-n 5 --num-vars 4 --max-program-size 150`, `--benchmark`, 300 seeds (10000-10299) | 1549 distinct texts, 482 after variable renaming, 239 shapes; 1607 kept / 115 rejected (all: runtime error at n=1). ONE algorithm: selection sort (+22 texts of an "exchange" variant, same skeleton) |
+| B | `data/sorting_diversity_recursion_20261002/` | A + `--recursion-call-bias 0.1 --second-array-bias 0.05`, same seeds | 1948 texts / 699 renamed / 375 shapes; 2014 kept / 153 rejected. Still only selection sort: every `aux`/`call` occurrence is inert padding (`aux[v7] = 0;`, a dead `call` in an `else`) |
+| C | `data/sorting_big_recursion_20261002/` | B with `--max-n 100 --num-vars 10 --max-program-size 3000 --step-limit 50000`, no `--benchmark`, 60 seeds (10000-10059) | 60/60 seeds reach N=100 in 110-155 s; final champion is merge sort in 60/60, selection appears in 60/60, heap sort in 5/60 |
+| D | `data/sorting_noskeleton_20261002/` (`run.sh` reproduces) | C with `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort`, 8 seeds (20000-20007) x 2 h wall, `--threads 2` | **0 SUCCESS records in 8/8 seeds.** Max level 3-23, all UNCONFIRMED |
+
+**Every sort found in A-C is a hand-written skeleton.** Selection sort is
+`genSelectionSortSkeletonBlock`, merge sort is `genMergeSortSkeletonBlock`
+(copied verbatim, sometimes with junk prepended), heap sort is
+`genHeapSortSkeletonBlock`. Merge sort only appears in C because its gate
+needs `numVars >= 7` and `recursionCallBias > 0`. The rising distinct-program
+counts from A to B to C are variable renaming and inert statements around
+the same injected blocks, the same inflation section 29 reported.
+
+**D, the actual discovery test, is a negative result.** The
+`divideconquer` skeleton (split and recurse, no combine step) stayed
+available. No seed produced a program that generalizes. Seeds that climbed
+furthest (20005: N=23, 20002: N=20) did it by per-level memorization: the
+N=22 champion of 20005 is ~500 nodes of repeated loops, counter increments
+(`v9 = (v9 + 1);` dozens of times) and reassignments of `v0` that tune the
+program to each N. Seed 20004 bloated to a 21486-node champion while stuck
+at N=11 (section 29's growth corruption; `--max-program-size` does not
+bound a single program's size).
+
+**Near miss worth recording.** Inside that 20005 champion the search
+assembled `if (arr[i] > arr[i+1]) { swap(arr[i], arr[i+1]); i = 0; } i = i + 1;`,
+the core of gnome sort (adjacent swap, restart scan). It is subtly wrong:
+after the reset the pair (0, 1) is never re-compared, and the `i < n` bound
+reads `arr[n]`. Hand-checked on `[2, 3, 1]`: fails. Instead of fixing those two
+edge cases, the search patches them per level with junk. `call(...)` does
+appear in D (0 to ~2000 occurrences per seed log), but in the inspected
+program only as a misplaced call with meaningless arguments, nothing
+resembling a combine step.
+
+**Conclusion.** Neither many seeds, every diversity lever, nor 16 CPU-hours
+without skeletons yields a sorting algorithm the grammar was not handed.
+**Scope correction (added after section 46):** all four runs had
+`--combinator-bias` at its default 0.0. With the combinator on, the same
+no-skeleton configuration solves sorting in 8/8 seeds (section 46), so
+"no general sort is found" holds only for the skeleton/composite grammar
+without the combinator.
+That is section 5's finding (grammar prior >> population diversity)
+restated for sorting with the skeletons explicitly removed. The gnome sort
+near miss suggests the bottleneck is closing off-by-one edge cases, not
+finding the idea. A repair or simplification step aimed at those (cf.
+section 29's missing simplification pass) is the obvious next lever, not
+more diversity.
+
+Infrastructure change for D: `ALGOSEARCH_DISABLE_SKELETON` now accepts a
+comma-separated list (`ProgramGenerator.cpp`); a single name behaves as
+before. `make test` 115/115.
+
+Caveats:
+- A and B counts sum over 6 parallel `--benchmark` processes, so a text
+  found in two processes is counted twice in kept/rejected; it is not known
+  which texts the 115/153 rejections were.
+- C and D used no `--benchmark` re-verification.
+- In D, only the best program of seed 20005 was inspected in depth.
+
+## 46. Sorting without sort skeletons, combinator on: 8/8 seeds solve, and bubble and gnome sort appear by composition
+
+Follow-up to section 45, whose no-skeleton run D had `--combinator-bias`
+at its default 0.0. Predictions were registered before running in
+`data/sorting_noskeleton_combinator_20261003/PREDICTIONS.md` (run script:
+`run.sh` there). Both arms used
+`ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort
+--combinator-bias 0.5` (v2 axes, adjacent pairs included) and section 45's
+diversity flags:
+
+- **D'**: section 45's run D unchanged (`--max-n 100 --num-vars 10`,
+  recursion + aux) plus the combinator; seeds 20000-20007, 30 min wall
+  each.
+- **E**: `--benchmark` (exhaustive check for sorting, section 39) at
+  `--max-n 6 --num-vars 8 --beam-width 500 --candidates 1500
+  --max-program-size 150`; 200 seeds (30000-30199) in 4 processes.
+
+Before running I read the generator: the `Adjacent` loop is ONE flat pass
+(`elem(i-1)`, `elem(i)`), i.e. a single bubble pass, not bubble sort.
+
+**Results:**
+
+| | D (section 45, combinator off) | D' (combinator on) |
+|---|---|---|
+| seeds with a genuine SUCCESS (first solve below max-level) | 0/8 | **8/8** |
+| max level reached in 30 min (D: 2 h) | 3-23 | 65-70 |
+| distinct genuine programs per seed | 0 | 15-26 |
+
+E: 1227 kept / 13 rejected (all 13: runtime error at n = 1), all
+classified O(n^2) (exponent 1.76-2.22). Family classification by text
+pattern over the union of D' and E (1143 distinct texts, 520 shapes after
+erasing variable names and literals):
+
+| family | texts | seeds (E of 200 / D' of 8) | origin |
+|---|---|---|---|
+| Fung's "I can't believe it can sort" (full nested loop x conditional swap) | 722 | 196 / 8 | one combinator draw (section 38) |
+| exchange sort (triangular loop x conditional swap) | 289 | 92 / 8 | one combinator draw |
+| unclassified | 127 | 52 / 6 | the inspected ones are Fung variants with junk or a reversed operand order |
+| **gnome sort** (adjacent pass + index reset) | 4 | 2-3 / 0 (seed union not computed) | single-pass block + mutation adding `i = 0` after the swap |
+| **bubble sort** (adjacent pass inside an outer loop) | 1 | 1 / 0 | single-pass block + an outer loop around it |
+
+The gnome sort found is the clean, correct version of section 45's near
+miss: `i = 1; while (i < n) { if (arr[i-1] > arr[i]) { swap; i = 0; } i = i + 1; }`.
+The combinator's `elem(i-1)`/`elem(i)` indexing starting at `i = 1` is
+exactly what fixes the two edge cases (pair (0, 1) never re-checked,
+`arr[n]` read) that free search could not fix in section 45. The bubble
+sort is the unoptimized `n` passes:
+`while (k < n) { j = 1; while (j < n) { if (arr[j-1] >= arr[j]) swap; j = j + 1; } k = k + 1; }`.
+I could not tell from the logs which texts the 13 rejections were. So
+the bubble sort and both gnome variants (one resets via an uninitialized
+`v1`, i.e. 0) were re-checked separately, by a Python transcription of the
+printed programs: correct on all ~21.7k arrays with values in [-2, 2] for
+n = 0..6 and [0, 2] for n = 7. None of them can fail at n = 1, where every
+rejection happened, because the loop is not entered.
+
+**Prediction scorecard:**
+1. D' >= 7/8 genuine: **held** (8/8).
+2. Every solution is a nested-loop x conditional-swap product:
+   **refuted, informatively.** 973 of the 1143 texts are, but gnome sort and
+   bubble sort are not single draws: each is the one-pass adjacent block
+   plus a structural addition found by search, which is section 40's "search
+   reaches beyond the product occasionally" again.
+3. Bubble sort in at most 1 in 5 seeds of E: held (1/200; gnome 2-3/200).
+4. Nothing sub-quadratic, no non-inert call/aux: held. All 1227 are
+   O(n^2); the 2 D' programs that call `call(...)` do so with an empty range
+   (`call(v0, j)`, `call(v0, 3)`), a no-op.
+
+**Conclusion.** Section 45's negative result was about the grammar without
+the combinator, not about sorting. With the combinator on and every sort
+skeleton removed, the search finds four distinct correct quadratic
+sorting algorithms, none of them a skeleton: Fung's and exchange sort
+reliably (one draw each), and gnome sort and bubble sort rarely (a draw plus
+a found structural step). What it does not find is anything sub-quadratic:
+merge and heap sort remain skeleton-only (section 45's run C), and
+section 45's divide-and-conquer skeleton still never acquires a combine
+step. The gnome sort result also answers section 45's open question about
+its near miss: the missing ingredient was the correctly offset adjacent
+indexing, which the combinator axis supplies, not more search budget.
+
+Caveats: family classification is by text pattern, with only the rare
+families and the smallest unclassified texts read by hand. The ~21.7k-array
+check of the rare programs used a Python transcription, not the
+interpreter. D' used no `--benchmark` (its count uses section 37's
+first-solve-below-max-level rule).
+
+## 47. Combinator as the default, against the TRUE current default -- predictions registered before running
+
+Section 42 compared combinator 0 vs 0.5 with both arms at `--num-vars 8`,
+but the real default runs most problems with 4-6 variables, and the
+combinator only fires at >= 8 (`resolveNumVars` raises it, even when
+`--num-vars` is passed explicitly). So section 42 never measured what
+flipping the default would actually change. Here the off arm is the
+modest battery's exact command (its per-problem `--num-vars` in suite A;
+nothing passed in suite C), and the on arm is the same command plus
+`--combinator-bias 0.5`. Both arms use 15 fresh matched seeds (7000-7014),
+`--beam-width 500 --candidates 1500 --max-program-size 150 --step-limit 5000`,
+`--threads 2`, and walls of 240 s (A) / 180 s (C). Script:
+`scripts/run_combinator_true_default_ab.sh`. Genuine SUCCESS uses section
+37's rule (first solve below max-level). Any suite-C success on `cycle`,
+`lis`, `longest_run` or `max_adjacent_gap` is re-checked with
+`--benchmark`'s exhaustive check before being counted.
+
+**Predictions:**
+1. No regression on the 17 original problems: for each one, on-arm genuine
+   successes >= off-arm - 1 (of 15), and the pooled suite-A total is not
+   lower.
+2. `reverse` and `graph_reachability` improve (on > off), as in section 42.
+3. Suite C, the eight problems in the v2 product (`substring`, `palindrome`,
+   `inversion_count`, `has_duplicate`, `is_sorted`, `count_descents`,
+   `strictly_increasing`, `has_adjacent_equal`): off <= 3/15 each, on >= 13/15
+   each.
+4. `longest_run`, `max_adjacent_gap`, `cycle`, `lis`: 0/15 genuine in both
+   arms (`cycle` after the exhaustive re-check).
+5. Cost: no suite-A problem whose two arms both reach 15/15 becomes more
+   than 2x slower in mean wall on the on arm.
+
+Decision rule, fixed now: flip the default only if 1, 3 and 5 hold. If 1
+fails on a specific problem, look at why before deciding.
+
+## 47 (results). Combinator vs the true default: no regression, 8 problems 0-4/15 -> 15/15, one registered bound missed
+
+`data/combinator_true_default_ab_20261003/` (2026-10-03, 12:29-14:02),
+summarized with `scripts/summarize_prune_ab.py`. Genuine SUCCESS of 15
+matched seeds per arm, mean wall in seconds:
+
+| suite | problem | off | on | wall off / on |
+|---|---|---|---|---|
+| A | 15 of the 17 | 15/15 each | 15/15 each | all <= 0.3 s except factorial 90.6 / 81.1 |
+| A | reverse | 15/15 | 15/15 | **3.82 / 0.28** |
+| A | graph_reachability | 8/15 | 9/15 | 0.55 / 0.56 |
+| A | sorting (slowest relative change) | 15/15 | 15/15 | 0.049 / 0.086 (1.8x) |
+| C | substring, palindrome, inversion_count, count_descents, strictly_increasing | 0/15 each | **15/15 each** | 23-78 / 0.2-0.7 |
+| C | has_duplicate / is_sorted / has_adjacent_equal | 2 / 4 / 1 of 15 | **15/15 each** | 40-80 / 0.4-0.6 |
+| C | longest_run, max_adjacent_gap, lis | 0/15 | 0/15 | -- |
+| C | cycle | 1/15 label | 10/15 label | **0 genuine in both** after `--benchmark`'s exhaustive check (1 and 10 rejected; wrong output at n = 1-2) |
+
+**Scorecard:**
+1. No regression on the 17: **held.** Every problem is equal or better.
+2. reverse and graph_reachability improve: **partly.** graph_reachability
+   +1 (within noise). reverse does not improve in successes, because the
+   true default (4 vars) already solves it 15/15. Section 42's 2/5 off arm
+   was an artifact of running at 8 vars. It is 13x faster, though.
+3. Off <= 3/15 and on >= 13/15 on the eight v2-product problems: the on side
+   **held** (15/15 all eight); the off bound **missed** on is_sorted (4/15).
+   The miss is about the baseline, not the treatment.
+4. longest_run, max_adjacent_gap, cycle, lis at 0 genuine: **held** (cycle
+   only after the exhaustive check, the same lesson as sections 38 and 42).
+5. No both-15/15 problem more than 2x slower: **held** (worst: sorting
+   1.8x, 0.049 -> 0.086 s; count 1.3x; everything else equal or faster).
+
+**Decision.** The registered rule required 1, 3 and 5 to hold. Prediction 3
+missed only on its baseline bound (is_sorted off was 4/15, not <= 3). Its
+substance, 15/15 on all eight, held. Whether that counts as passing is left
+to an explicit decision, not assumed here; the default is unchanged by this
+entry.
+
+Caveats: suite-C successes other than cycle were counted with section 37's
+rule, not re-checked exhaustively (section 42 re-checked only cycle too).
+Walls ran 4 processes at once with `--threads 2`.
+
+## 48. Combinator on by default
+
+Decision on section 47: the CLI default of `--combinator-bias` is now 0.5
+(`src/main.cpp`). Prediction 3's missed baseline bound was judged
+irrelevant to its purpose; the treatment side (15/15 on all eight) held.
+`GenConfig::combinatorBias` stays 0.0, so library users and unit tests are
+unchanged (`make test` 115/115). Through `resolveNumVars`, every default
+run now searches with at least 8 variables, even when `--num-vars` is
+passed lower (a note is printed). `--combinator-bias 0` restores the
+previous default exactly.
+
+**Reproducibility break, stated plainly:** any earlier default-command
+number (the README table of 2026-09-17, sections up to 47 that ran without
+`--combinator-bias`) now needs `--combinator-bias 0` to reproduce.
+
+Re-run of the modest battery with the new default
+(`data/modest_battery_combinator_default_20261003/`, same script and
+seeds as the README's sweep): all 17 problems confirmed, 0 rejections
+anywhere (2026-09-17: 5 rejected on graph_reachability). Two changes stand
+out. `reverse` drops from O(n²) at ~16 s/seed to **O(n)** at ~0.17 s/seed,
+via the combinator's two-converging-pointers x swap block (the
+quadratic solution was a skeleton detour). `graph_reachability` goes from
+1 kept / 5 rejected to 3 kept / 0 rejected. Every other complexity class
+is unchanged. The README table is regenerated from this run.
