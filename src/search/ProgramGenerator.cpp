@@ -2678,10 +2678,24 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // without it (see data/skeleton_middle_ground_experiments.md,
         // Test 1). Mutually exclusive in practice with FORCE (setting both
         // to the same name yields zero options, same as any other
-        // budget-incompatible name).
+        // budget-incompatible name). Accepts a comma-separated list, so a
+        // whole family (e.g. "selectionsort,heapsort,mergesort") can be
+        // excluded at once.
         const char* disabledSkeletonEnv = std::getenv("ALGOSEARCH_DISABLE_SKELETON");
+        auto isDisabled = [&](const char* name) {
+            if (disabledSkeletonEnv == nullptr) return false;
+            const size_t len = std::strlen(name);
+            for (const char* p = disabledSkeletonEnv; *p != '\0';) {
+                const char* end = std::strchr(p, ',');
+                const size_t tokenLen = end != nullptr ? static_cast<size_t>(end - p) : std::strlen(p);
+                if (tokenLen == len && std::strncmp(p, name, len) == 0) return true;
+                if (end == nullptr) break;
+                p = end + 1;
+            }
+            return false;
+        };
         auto allowed = [&](const char* name) {
-            if (disabledSkeletonEnv != nullptr && std::strcmp(disabledSkeletonEnv, name) == 0) return false;
+            if (isDisabled(name)) return false;
             return forcedSkeletonEnv == nullptr || std::strcmp(forcedSkeletonEnv, name) == 0;
         };
 

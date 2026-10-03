@@ -3373,3 +3373,68 @@ enumeration" complement to B, not discovery of branch-and-bound itself.
    each, `--threads 1`: every solutions file byte-identical to main's; total
    wall +1.4% (64.32 s vs 65.24 s, dominated by the 64 s reverse run at
    +1.4%), within the registered 3%.
+
+## 45. Sorting diversity is skeleton diversity: with the three sort skeletons off, no general sort is found
+
+Question: how many genuinely different sorting algorithms does the search
+find when given many seeds and every diversity lever? Four runs, same
+diversity configuration throughout (`--diversity-rate 0.2
+--shape-niche-rate 0.2 --behavior-niche-rate 0.15 --score-band-rate 0.15
+--crossover-rate 0.3 --post-solve-sizes 15 --composite-bias 0.3`,
+`--beam-width 500 --candidates 1500`). Distinct programs were classified by
+text patterns (scripts not committed), not by behavior.
+
+| run | data | config delta | result |
+|---|---|---|---|
+| A | `data/sorting_diversity_seeds_20261001/` | `--max-n 5 --num-vars 4 --max-program-size 150`, `--benchmark`, 300 seeds (10000-10299) | 1549 distinct texts, 482 after variable renaming, 239 shapes; 1607 kept / 115 rejected (all: runtime error at n=1). ONE algorithm: selection sort (+22 texts of an "exchange" variant, same skeleton) |
+| B | `data/sorting_diversity_recursion_20261002/` | A + `--recursion-call-bias 0.1 --second-array-bias 0.05`, same seeds | 1948 texts / 699 renamed / 375 shapes; 2014 kept / 153 rejected. Still only selection sort: every `aux`/`call` occurrence is inert padding (`aux[v7] = 0;`, a dead `call` in an `else`) |
+| C | `data/sorting_big_recursion_20261002/` | B with `--max-n 100 --num-vars 10 --max-program-size 3000 --step-limit 50000`, no `--benchmark`, 60 seeds (10000-10059) | 60/60 seeds reach N=100 in 110-155 s; final champion is merge sort in 60/60, selection appears in 60/60, heap sort in 5/60 |
+| D | `data/sorting_noskeleton_20261002/` (`run.sh` reproduces) | C with `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort`, 8 seeds (20000-20007) x 2 h wall, `--threads 2` | **0 SUCCESS records in 8/8 seeds.** Max level 3-23, all UNCONFIRMED |
+
+**Every sort found in A-C is a hand-written skeleton.** Selection sort is
+`genSelectionSortSkeletonBlock`, merge sort is `genMergeSortSkeletonBlock`
+(copied verbatim, sometimes with junk prepended), heap sort is
+`genHeapSortSkeletonBlock`. Merge sort only appears in C because its gate
+needs `numVars >= 7` and `recursionCallBias > 0`. The rising distinct-program
+counts from A to B to C are variable renaming and inert statements around
+the same injected blocks, the same inflation section 29 reported.
+
+**D, the actual discovery test, is a negative result.** The
+`divideconquer` skeleton (split and recurse, no combine step) stayed
+available. No seed produced a program that generalizes. Seeds that climbed
+furthest (20005: N=23, 20002: N=20) did it by per-level memorization: the
+N=22 champion of 20005 is ~500 nodes of repeated loops, counter increments
+(`v9 = (v9 + 1);` dozens of times) and reassignments of `v0` that tune the
+program to each N. Seed 20004 bloated to a 21486-node champion while stuck
+at N=11 (section 29's growth corruption; `--max-program-size` does not
+bound a single program's size).
+
+**Near miss worth recording.** Inside that 20005 champion the search
+assembled `if (arr[i] > arr[i+1]) { swap(arr[i], arr[i+1]); i = 0; } i = i + 1;`,
+the core of gnome sort (adjacent swap, restart scan). It is subtly wrong:
+after the reset the pair (0, 1) is never re-compared, and the `i < n` bound
+reads `arr[n]`. Hand-checked on `[2, 3, 1]`: fails. Instead of fixing those two
+edge cases, the search patches them per level with junk. `call(...)` does
+appear in D (0 to ~2000 occurrences per seed log), but in the inspected
+program only as a misplaced call with meaningless arguments, nothing
+resembling a combine step.
+
+**Conclusion.** Neither many seeds, every diversity lever, nor 16 CPU-hours
+without skeletons yields a sorting algorithm the grammar was not handed.
+That is section 5's finding (grammar prior >> population diversity)
+restated for sorting with the skeletons explicitly removed. The gnome sort
+near miss suggests the bottleneck is closing off-by-one edge cases, not
+finding the idea. A repair or simplification step aimed at those (cf.
+section 29's missing simplification pass) is the obvious next lever, not
+more diversity.
+
+Infrastructure change for D: `ALGOSEARCH_DISABLE_SKELETON` now accepts a
+comma-separated list (`ProgramGenerator.cpp`); a single name behaves as
+before. `make test` 115/115.
+
+Caveats:
+- A and B counts sum over 6 parallel `--benchmark` processes, so a text
+  found in two processes is counted twice in kept/rejected; it is not known
+  which texts the 115/153 rejections were.
+- C and D used no `--benchmark` re-verification.
+- In D, only the best program of seed 20005 was inspected in depth.
