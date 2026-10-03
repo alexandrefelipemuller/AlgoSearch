@@ -3528,3 +3528,37 @@ families and the smallest unclassified texts read by hand. The ~21.7k-array
 check of the rare programs used a Python transcription, not the
 interpreter. D' used no `--benchmark` (its count uses section 37's
 first-solve-below-max-level rule).
+
+## 47. Combinator as the default, against the TRUE current default -- predictions registered before running
+
+Section 42 compared combinator 0 vs 0.5 with both arms at `--num-vars 8`,
+but the real default runs most problems with 4-6 variables, and the
+combinator only fires at >= 8 (`resolveNumVars` raises it, even when
+`--num-vars` is passed explicitly). So section 42 never measured what
+flipping the default would actually change. Here the off arm is the
+modest battery's exact command (its per-problem `--num-vars` in suite A;
+nothing passed in suite C), and the on arm is the same command plus
+`--combinator-bias 0.5`. Both arms use 15 fresh matched seeds (7000-7014),
+`--beam-width 500 --candidates 1500 --max-program-size 150 --step-limit 5000`,
+`--threads 2`, and walls of 240 s (A) / 180 s (C). Script:
+`scripts/run_combinator_true_default_ab.sh`. Genuine SUCCESS uses section
+37's rule (first solve below max-level). Any suite-C success on `cycle`,
+`lis`, `longest_run` or `max_adjacent_gap` is re-checked with
+`--benchmark`'s exhaustive check before being counted.
+
+**Predictions:**
+1. No regression on the 17 original problems: for each one, on-arm genuine
+   successes >= off-arm - 1 (of 15), and the pooled suite-A total is not
+   lower.
+2. `reverse` and `graph_reachability` improve (on > off), as in section 42.
+3. Suite C, the eight problems in the v2 product (`substring`, `palindrome`,
+   `inversion_count`, `has_duplicate`, `is_sorted`, `count_descents`,
+   `strictly_increasing`, `has_adjacent_equal`): off <= 3/15 each, on >= 13/15
+   each.
+4. `longest_run`, `max_adjacent_gap`, `cycle`, `lis`: 0/15 genuine in both
+   arms (`cycle` after the exhaustive re-check).
+5. Cost: no suite-A problem whose two arms both reach 15/15 becomes more
+   than 2x slower in mean wall on the on arm.
+
+Decision rule, fixed now: flip the default only if 1, 3 and 5 hold. If 1
+fails on a specific problem, look at why before deciding.
