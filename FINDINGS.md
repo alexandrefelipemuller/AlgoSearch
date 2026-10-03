@@ -3389,7 +3389,7 @@ text patterns (scripts not committed), not by behavior.
 | A | `data/sorting_diversity_seeds_20261001/` | `--max-n 5 --num-vars 4 --max-program-size 150`, `--benchmark`, 300 seeds (10000-10299) | 1549 distinct texts, 482 after variable renaming, 239 shapes; 1607 kept / 115 rejected (all: runtime error at n=1). ONE algorithm: selection sort (+22 texts of an "exchange" variant, same skeleton) |
 | B | `data/sorting_diversity_recursion_20261002/` | A + `--recursion-call-bias 0.1 --second-array-bias 0.05`, same seeds | 1948 texts / 699 renamed / 375 shapes; 2014 kept / 153 rejected. Still only selection sort: every `aux`/`call` occurrence is inert padding (`aux[v7] = 0;`, a dead `call` in an `else`) |
 | C | `data/sorting_big_recursion_20261002/` | B with `--max-n 100 --num-vars 10 --max-program-size 3000 --step-limit 50000`, no `--benchmark`, 60 seeds (10000-10059) | 60/60 seeds reach N=100 in 110-155 s; final champion is merge sort in 60/60, selection appears in 60/60, heap sort in 5/60 |
-| D | `data/sorting_noskeleton_20261002/` (`run.sh` reproduces) | C with `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort`, 8 seeds (20000-20007) x 2 h wall, `--threads 2` | **0 SUCCESS records in 8/8 seeds.** Max level 3-23, all UNCONFIRMED |
+| D | `data/sorting_noskeleton_20261002/` (`scripts/run_sorting_noskeleton.sh`) | C with `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort`, 8 seeds (20000-20007) x 2 h wall, `--threads 2` | **0 SUCCESS records in 8/8 seeds.** Max level 3-23, all UNCONFIRMED |
 
 **Every sort found in A-C is a hand-written skeleton.** Selection sort is
 `genSelectionSortSkeletonBlock`, merge sort is `genMergeSortSkeletonBlock`
@@ -3447,9 +3447,9 @@ Caveats:
 ## 46. Sorting without sort skeletons, combinator on: 8/8 seeds solve, and bubble and gnome sort appear by composition
 
 Follow-up to section 45, whose no-skeleton run D had `--combinator-bias`
-at its default 0.0. Predictions were registered before running in
-`data/sorting_noskeleton_combinator_20261003/PREDICTIONS.md` (run script:
-`run.sh` there). Both arms used
+at its default 0.0. Predictions were registered before running (in the uncommitted run
+directory; restated verbatim in the scorecard below). Run script:
+`scripts/run_sorting_noskeleton_combinator.sh`. Both arms used
 `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort
 --combinator-bias 0.5` (v2 axes, adjacent pairs included) and section 45's
 diversity flags:
