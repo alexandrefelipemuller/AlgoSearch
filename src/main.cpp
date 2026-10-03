@@ -80,7 +80,7 @@ struct CliArgs {
     double exprMutationRate = 0.0;
     bool pruneGeneration = false;
     bool roleTypedVars = false;
-    double combinatorBias = 0.0;
+    double combinatorBias = 0.5;  // default since FINDINGS.md section 48 (A/B in section 47); --combinator-bias 0 restores the old default
     bool combinatorAdjacent = true;  // v2 axes by default; --combinator-v1 restores the frozen v1 family
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
@@ -163,7 +163,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.0] [--combinator-v1] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "

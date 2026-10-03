@@ -3603,3 +3603,28 @@ entry.
 Caveats: suite-C successes other than cycle were counted with section 37's
 rule, not re-checked exhaustively (section 42 re-checked only cycle too).
 Walls ran 4 processes at once with `--threads 2`.
+
+## 48. Combinator on by default
+
+Decision on section 47: the CLI default of `--combinator-bias` is now 0.5
+(`src/main.cpp`). Prediction 3's missed baseline bound was judged
+irrelevant to its purpose; the treatment side (15/15 on all eight) held.
+`GenConfig::combinatorBias` stays 0.0, so library users and unit tests are
+unchanged (`make test` 115/115). Through `resolveNumVars`, every default
+run now searches with at least 8 variables, even when `--num-vars` is
+passed lower (a note is printed). `--combinator-bias 0` restores the
+previous default exactly.
+
+**Reproducibility break, stated plainly:** any earlier default-command
+number (the README table of 2026-09-17, sections up to 47 that ran without
+`--combinator-bias`) now needs `--combinator-bias 0` to reproduce.
+
+Re-run of the modest battery with the new default
+(`data/modest_battery_combinator_default_20261003/`, same script and
+seeds as the README's sweep): all 17 problems confirmed, 0 rejections
+anywhere (2026-09-17: 5 rejected on graph_reachability). Two changes stand
+out. `reverse` drops from O(n²) at ~16 s/seed to **O(n)** at ~0.17 s/seed,
+via the combinator's two-converging-pointers x swap block (the
+quadratic solution was a skeleton detour). `graph_reachability` goes from
+1 kept / 5 rejected to 3 kept / 0 rejected. Every other complexity class
+is unchanged. The README table is regenerated from this run.
