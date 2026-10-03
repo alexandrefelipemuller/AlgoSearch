@@ -3628,3 +3628,42 @@ via the combinator's two-converging-pointers x swap block (the
 quadratic solution was a skeleton detour). `graph_reachability` goes from
 1 kept / 5 rejected to 3 kept / 0 rejected. Every other complexity class
 is unchanged. The README table is regenerated from this run.
+
+## 49. three_sum with high diversity and many seeds: only the skeleton, nothing without it
+
+`scripts/run_three_sum_diversity.sh` (`data/three_sum_diversity_20261003/`,
+not versioned). The question was whether high diversity, many seeds and a
+large budget surface any 3SUM solution other than the hand-written
+triple-loop skeleton (section 15). The configuration was `--max-n 8
+--num-vars 10 --beam-width 1000 --candidates 3000 --max-program-size 300
+--step-limit 20000`, section 45's diversity flags, and the combinator on (the
+default since section 48). Each seed ran as its own `--benchmark
+--benchmark-seeds 1` process with a 15 min wall, 48 seeds (40000-40047) per
+arm. One process per seed is needed because `--benchmark` prints nothing
+until the end, so a stalled seed would lose every seed batched with it; in
+a 2-seed pilot at `--max-n 10`, both arms hit the 15 min wall.
+
+| arm | finished / walled | benchmark kept / rejected | distinct loop structures |
+|---|---|---|---|
+| skel (default grammar) | 32 / 16 | 130 / 3, all fit O(n^2) | **1**: the ThreeSum skeleton's triple loop, in all 48 seeds; 263 texts differ only in inert code |
+| noskel (`ALGOSEARCH_DISABLE_SKELETON=threesum`) | 0 / 48 | -- | -- |
+
+The O(n^2) fit is the same small-range artifact the README footnote
+describes; the program is the triple loop, O(n^3).
+
+Without the skeleton, no seed produced a program that generalizes. 38
+seeds stopped at N=4 and 10 at N=5, typically at 127/128 or 510-512/512,
+with UNCONFIRMED per-level fits. The inspected N=5 champion counts
+negatives in one loop and writes a flag; it is a statistical shortcut
+on the instance distribution, not a relational search. The combinator
+cannot express 3SUM in one block: no axis relates three elements, and
+"sort + two converging pointers" would need two coordinated blocks plus a
+two-sided pointer update the converging axis does not have. So this is
+the expected outcome of section 39's rule (capability = the product's
+span), now measured.
+
+Conclusion: no interesting 3SUM solutions. Turning diversity and budget up
+reproduces the skeleton; turning the skeleton off leaves nothing. An O(n^2)
+3SUM is out of reach for the current grammar by construction. It would need
+a new axis value (e.g. a two-sided converging update driven by a sum
+comparison), under the freeze-predict-test discipline of sections 39-40.
