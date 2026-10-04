@@ -4307,3 +4307,29 @@ section 57) vs **ST** = base + `--combinator-state`, per-seed
 **Decision rule, fixed now:** if it holds, `--combinator-state` becomes the
 default (section 56's gain and cost predictions already held). If it
 fails on either problem, it stays opt-in.
+
+## 58 (results). Not noise: `--combinator-state` halves graph_reachability, stays opt-in
+
+`data/state_retest_ab_20261004/` (not versioned; 19:23-19:31, 120 runs).
+Verified successes of 30 matched seeds:
+
+| problem | base | ST |
+|---|---|---|
+| graph_reachability | 16 | **8** |
+| second_smallest | 30 | 27 (3 rejected) |
+
+**Prediction (ST >= base - 3 on both): failed** on graph_reachability by 8.
+second_smallest is within the bound. Unlike section 53's tail-enumeration
+misses, which disappeared at 30 seeds, this one grew from -2/10 to -8/30:
+a real cost. **Decision: `--combinator-state` stays opt-in.**
+
+Likely mechanism, not yet tested: graph_reachability is only reachable
+through its skeleton (section 56: 0/10 without skeletons), and the
+skeleton is assembled over several size steps. The stateful pieces take a
+quarter of every combinator draw, adding a family of large, fully scoring
+blocks on the early levels that compete for beam slots with the
+partially built skeleton. Candidate fixes for a follow-up, each needing
+its own matched A/B: a smaller state share (e.g. 1/8 instead of 1/4), or
+drawing the stateful pieces only on problems whose layout is a plain
+sequence. graph_reachability's flat adjacency layout is not one, but
+nothing in a problem-agnostic generator knows that.
