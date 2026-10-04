@@ -4073,3 +4073,52 @@ failures were small-sample effects: with 30 seeds count_ascending_runs is
 30/30 in both arms, and second_smallest's gain is +13. The 17 original
 problems are equal in both arms, so the README table still describes the
 default.
+
+## 55. Stateful combinator pieces (Kadane, rain water, LIS) -- frozen, post-freeze problems written, predictions registered before running
+
+**Pieces** (commit b30674a, frozen before any test problem was written).
+`--combinator-state` (opt-in, byte-identical off) draws a quarter of
+combinator blocks from four pieces whose state carries across iterations.
+Each works on the whole-array or the length-prefixed layout.
+- **RunBest**: adjacent pass; `run = cmp(prev, cur) ? run + 1 : 1`; best
+  run.
+- **ResetSum**: single pass; `cur = (cur < 0) ? a : cur + a` (or the
+  mirror for a min); best cur, i.e. Kadane's restart.
+- **EarlierCellsBest**: `aux[i] = w + best aux[j]` over `j < i` with
+  `cmp(a[j], a[i])`, with w = 1 or a[i]; best aux[i]. This is the "read
+  several already-computed cells" primitive section 24 predicted DP needs.
+- **PrefixSuffix**: prefix best in aux, then a right-to-left pass with a
+  running suffix best r, adding `combine(aux[i], r) - a[i]` or its
+  negation, with combine = min or max. It is the most problem-shaped
+  piece: trapping rain water is one draw of it.
+
+**Design targets** (looked at while designing, so not evidence of
+generality): longest_run, longest_increasing_run, max_subarray_sum, lis,
+trapping_rain_water. **Post-freeze problems** (written after b30674a,
+references in `tests/composition_problems_tests.cpp`):
+- `longest_non_increasing_run` (RunBest with >=);
+- `min_subarray_sum` (ResetSum, min);
+- `longest_decreasing_subsequence` (EarlierCellsBest, >);
+- `max_sum_increasing_subsequence` (EarlierCellsBest with w = a[i]);
+- `ceiling_water` (upside-down rain water: PrefixSuffix with min-prefix,
+  max-combine, a[i] minus it).
+
+**Phase-1 reachability** (20,000 blocks, every generated, adversarial and
+exhaustive instance for n = 1..6), off / on:
+- design targets: longest_run 0 / 94, longest_increasing_run 0 / 114,
+  max_subarray_sum 0 / 322, trapping_rain_water 0 / 71, lis 0 / 57;
+- post-freeze: longest_non_increasing_run 0 / 98, min_subarray_sum 0 / 318,
+  longest_decreasing_subsequence 0 / 47,
+  max_sum_increasing_subsequence 0 / 63, ceiling_water 0 / 76.
+
+**Arms:** base (current default) vs base + `--combinator-state`. Both use 15
+fresh matched seeds (12000-12014), the modest budget, per-seed
+`--benchmark`, `--max-n 8` (lis 5, sorting 5). Script:
+`scripts/run_state_pieces_ab.sh`.
+
+**Predictions:**
+1. The five post-freeze problems: on >= 12/15 each, base <= 2/15 each.
+2. The five design targets: on >= 12/15 each (base 0 in sections 53-54).
+3. No dilution on is_sorted, count_descents, max_rise, count_runs, median,
+   second_smallest, max_gap_sorted, sum, max, sorting: on >= base - 2 each.
+4. Cost: on problems both arms solve 15/15, mean search wall <= 2x base.

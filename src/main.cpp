@@ -21,6 +21,11 @@
 #include "problems/StrictlyIncreasingProblem.hpp"
 #include "problems/HasAdjacentEqualProblem.hpp"
 #include "problems/LongestRunProblem.hpp"
+#include "problems/LongestNonIncreasingRunProblem.hpp"
+#include "problems/MinSubarraySumProblem.hpp"
+#include "problems/LongestDecreasingSubsequenceProblem.hpp"
+#include "problems/MaxSumIncreasingSubsequenceProblem.hpp"
+#include "problems/CeilingWaterProblem.hpp"
 #include "problems/MaxRiseProblem.hpp"
 #include "problems/MinStepProblem.hpp"
 #include "problems/CountRunsProblem.hpp"
@@ -180,7 +185,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -276,6 +281,11 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "has_adjacent_equal") return std::make_unique<HasAdjacentEqualProblem>(numVars, seed);
     if (name == "longest_run") return std::make_unique<LongestRunProblem>(numVars, seed);
     if (name == "max_adjacent_gap") return std::make_unique<MaxAdjacentGapProblem>(numVars, seed);
+    if (name == "longest_non_increasing_run") return std::make_unique<LongestNonIncreasingRunProblem>(numVars, seed);
+    if (name == "min_subarray_sum") return std::make_unique<MinSubarraySumProblem>(numVars, seed);
+    if (name == "longest_decreasing_subsequence") return std::make_unique<LongestDecreasingSubsequenceProblem>(numVars, seed);
+    if (name == "max_sum_increasing_subsequence") return std::make_unique<MaxSumIncreasingSubsequenceProblem>(numVars, seed);
+    if (name == "ceiling_water") return std::make_unique<CeilingWaterProblem>(numVars, seed);
     if (name == "max_rise") return std::make_unique<MaxRiseProblem>(numVars, seed);
     if (name == "min_step") return std::make_unique<MinStepProblem>(numVars, seed);
     if (name == "count_runs") return std::make_unique<CountRunsProblem>(numVars, seed);

@@ -20,6 +20,11 @@
 #include "problems/MinStepProblem.hpp"
 #include "problems/SecondSmallestProblem.hpp"
 #include "problems/TrappingRainWaterProblem.hpp"
+#include "problems/CeilingWaterProblem.hpp"
+#include "problems/LongestDecreasingSubsequenceProblem.hpp"
+#include "problems/LongestNonIncreasingRunProblem.hpp"
+#include "problems/MaxSumIncreasingSubsequenceProblem.hpp"
+#include "problems/MinSubarraySumProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -311,4 +316,86 @@ TEST(count_ascending_runs_problem_labels_and_reference_solution) {
     CHECK_EQ(problem.answer({1, 2, 2, 3, 1}), 3);  // [1 2] [2 3] [1]
     CHECK_EQ(problem.answer({4}), 1);
     checkProblem(problem, *segmentPass(ExprKind::Ge));
+}
+
+// Section 55's post-freeze problems.
+
+namespace {
+
+ExprPtr auxAt(ExprPtr i) { return makeAuxAccess(std::move(i)); }
+
+// aux[i] = weight + best aux[j] over j < i with keep(arr[j], arr[i]); v3 = best aux[i].
+Program earlierCells(ExprKind keep, bool unitWeight) {
+    auto inner = stmts(makeIf(cmp(keep, at(var(2)), at(var(1))),
+                              stmts(makeIf(cmp(ExprKind::Gt, auxAt(var(2)), var(5)), stmts(makeAssign(5, auxAt(var(2))))))),
+                       inc(2));
+    auto outer = stmts(makeAssign(5, lit(0)), makeAssign(2, lit(0)),
+                       makeWhile(cmp(ExprKind::Lt, var(2), var(1)), std::move(inner)),
+                       makeAssignAux(var(1), add(var(5), unitWeight ? lit(1) : at(var(1)))),
+                       makeIf(cmp(ExprKind::Gt, auxAt(var(1)), var(3)), stmts(makeAssign(3, auxAt(var(1))))), inc(1));
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeAssign(1, lit(0)));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(outer)));
+    return finish(std::move(p));
+}
+
+}  // namespace
+
+TEST(longest_non_increasing_run_problem_labels_and_reference_solution) {
+    LongestNonIncreasingRunProblem problem;
+    CHECK_EQ(problem.answer({3, 3, 1, 2, 2, 0}), 3);
+    CHECK_EQ(problem.answer({4}), 1);
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(1)));
+    p->body.push_back(makeAssign(4, lit(1)));
+    appendAdjacentPass(*p, stmts(makeIf(cmp(ExprKind::Ge, prev(), cur()), stmts(inc(4)), stmts(makeAssign(4, lit(1)))),
+                                 makeIf(cmp(ExprKind::Gt, var(4), var(3)), stmts(makeAssign(3, var(4))))));
+    checkProblem(problem, *finish(std::move(p)));
+}
+
+TEST(min_subarray_sum_problem_labels_and_reference_solution) {
+    MinSubarraySumProblem problem;
+    CHECK_EQ(problem.answer({3, -4, 2, -3, -1, 7, -5}), -6);
+    CHECK_EQ(problem.answer({2, 1, 3}), 1);
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, at(lit(0))));
+    p->body.push_back(makeAssign(4, at(lit(0))));
+    appendAdjacentPass(*p, stmts(makeIf(cmp(ExprKind::Gt, var(4), lit(0)), stmts(makeAssign(4, cur())),
+                                        stmts(makeAssign(4, add(var(4), cur())))),
+                                 makeIf(cmp(ExprKind::Lt, var(4), var(3)), stmts(makeAssign(3, var(4))))));
+    checkProblem(problem, *finish(std::move(p)));
+}
+
+TEST(longest_decreasing_subsequence_problem_labels_and_reference_solution) {
+    LongestDecreasingSubsequenceProblem problem;
+    CHECK_EQ(problem.answer({5, 1, 4, 3, 2}), 4);
+    CHECK_EQ(problem.answer({1, 1}), 1);
+    checkProblem(problem, *earlierCells(ExprKind::Gt, /*unitWeight=*/true));
+}
+
+TEST(max_sum_increasing_subsequence_problem_labels_and_reference_solution) {
+    MaxSumIncreasingSubsequenceProblem problem;
+    CHECK_EQ(problem.answer({1, 101, 2, 3, 100, 4, 5}), 106);
+    CHECK_EQ(problem.answer({-3, -1}), 0);  // empty subsequence
+    checkProblem(problem, *earlierCells(ExprKind::Lt, /*unitWeight=*/false));
+}
+
+TEST(ceiling_water_problem_labels_and_reference_solution) {
+    CeilingWaterProblem problem;
+    CHECK_EQ(problem.answer({0, 3, 1, 4, 0}), 8);  // 3 + 1 + 4 hang below the ceiling at 0
+    CHECK_EQ(problem.answer({3, 2, 1}), 0);
+    // For each i: v4 = min of arr[0..i], v5 = min of arr[i..n), add arr[i] - max(v4, v5).
+    auto left = stmts(makeIf(cmp(ExprKind::Lt, at(var(2)), var(4)), stmts(makeAssign(4, at(var(2))))), inc(2));
+    auto right = stmts(makeIf(cmp(ExprKind::Lt, at(var(2)), var(5)), stmts(makeAssign(5, at(var(2))))), inc(2));
+    auto outer = stmts(makeAssign(4, at(var(1))), makeAssign(2, lit(0)),
+                       makeWhile(cmp(ExprKind::Le, var(2), var(1)), std::move(left)), makeAssign(5, at(var(1))),
+                       makeAssign(2, var(1)), makeWhile(cmp(ExprKind::Lt, var(2), var(0)), std::move(right)),
+                       makeIf(cmp(ExprKind::Gt, var(5), var(4)), stmts(makeAssign(4, var(5)))),
+                       makeAssign(3, add(var(3), sub(at(var(1)), var(4)))), inc(1));
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeAssign(1, lit(0)));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(outer)));
+    checkProblem(problem, *finish(std::move(p)), /*minVariedN=*/3);
 }
