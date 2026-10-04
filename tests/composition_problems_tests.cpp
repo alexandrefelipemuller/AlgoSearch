@@ -5,15 +5,19 @@
 #include "ast/Expr.hpp"
 #include "ast/Stmt.hpp"
 #include "interpreter/Interpreter.hpp"
+#include "problems/CountAscendingRunsProblem.hpp"
 #include "problems/CountDistinctProblem.hpp"
+#include "problems/CountRunsProblem.hpp"
 #include "problems/CountLeadersProblem.hpp"
 #include "problems/HasMajorityProblem.hpp"
 #include "problems/LongestIncreasingRunProblem.hpp"
 #include "problems/MaxGapSortedProblem.hpp"
 #include "problems/MaxProfitProblem.hpp"
+#include "problems/MaxRiseProblem.hpp"
 #include "problems/MaxSubarraySumProblem.hpp"
 #include "problems/MedianProblem.hpp"
 #include "problems/MinGapProblem.hpp"
+#include "problems/MinStepProblem.hpp"
 #include "problems/SecondSmallestProblem.hpp"
 #include "problems/TrappingRainWaterProblem.hpp"
 #include "search/Benchmark.hpp"
@@ -254,4 +258,57 @@ TEST(trapping_rain_water_problem_labels_and_reference_solution) {
     p->body.push_back(makeAssign(1, lit(0)));
     p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(outer)));
     checkProblem(problem, *finish(std::move(p)), /*minVariedN=*/3);
+}
+
+// Section 52's post-freeze problems: one adjacent pass each.
+
+namespace {
+
+// v3 = first step (0 when n < 2), then the running best of the steps.
+Program stepPass(ExprKind keep) {
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeIf(cmp(ExprKind::Lt, lit(1), var(0)), stmts(makeAssign(3, sub(at(lit(1)), at(lit(0)))))));
+    appendAdjacentPass(*p, stmts(makeAssign(5, sub(cur(), prev())),
+                                 makeIf(cmp(keep, var(5), var(3)), stmts(makeAssign(3, var(5))))));
+    return finish(std::move(p));
+}
+
+// v3 = 1 + the number of adjacent pairs with `boundary(prev, cur)`.
+Program segmentPass(ExprKind boundary) {
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(1)));
+    appendAdjacentPass(*p, stmts(makeIf(cmp(boundary, prev(), cur()), stmts(inc(3)))));
+    return finish(std::move(p));
+}
+
+}  // namespace
+
+TEST(max_rise_problem_labels_and_reference_solution) {
+    MaxRiseProblem problem;
+    CHECK_EQ(problem.answer({1, 4, 2, 3}), 3);
+    CHECK_EQ(problem.answer({5, 3, 0}), -2);  // only falls
+    CHECK_EQ(problem.answer({7}), 0);
+    checkProblem(problem, *stepPass(ExprKind::Gt));
+}
+
+TEST(min_step_problem_labels_and_reference_solution) {
+    MinStepProblem problem;
+    CHECK_EQ(problem.answer({1, 4, 2, 3}), -2);
+    CHECK_EQ(problem.answer({7}), 0);
+    checkProblem(problem, *stepPass(ExprKind::Lt));
+}
+
+TEST(count_runs_problem_labels_and_reference_solution) {
+    CountRunsProblem problem;
+    CHECK_EQ(problem.answer({1, 1, 2, 2, 1}), 3);
+    CHECK_EQ(problem.answer({4}), 1);
+    checkProblem(problem, *segmentPass(ExprKind::Ne));
+}
+
+TEST(count_ascending_runs_problem_labels_and_reference_solution) {
+    CountAscendingRunsProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 1}), 3);  // [1 2] [2 3] [1]
+    CHECK_EQ(problem.answer({4}), 1);
+    checkProblem(problem, *segmentPass(ExprKind::Ge));
 }

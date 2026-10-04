@@ -3861,3 +3861,44 @@ does), now on general array problems and inside the ordinary search. The
 three problems that need a second LOOP after the sort stay at 0, which is
 option (a)'s target. `--tail-enum` stays opt-in until an A/B on the
 original problems shows it costs nothing.
+
+## 52. Option (a): step axes in the combinator -- frozen, post-freeze problems written, predictions registered before running
+
+**Axes** (commit e592de3, frozen before any test problem was written):
+`--combinator-step` (opt-in, byte-identical off) adds two relation values on
+the adjacent-pair loop, drawn as 2 of 7 relations there:
+- **BestStep**: running min or max of `elem(i) - elem(i-1)`, initialized
+  from the first pair when there is one, else 0.
+- **CountSegments**: 1 + the number of adjacent pairs satisfying a drawn
+  comparison.
+
+They were designed by looking at section 50's `count_distinct`, `min_gap`
+and `max_gap_sorted`, so those three are **design targets**: a success on
+them is not evidence of generality.
+
+**Post-freeze problems** (written after e592de3, reference programs in
+`tests/composition_problems_tests.cpp`, exhaustive check n <= 6):
+`max_rise` (largest adjacent step, may be negative), `min_step` (smallest
+step), `count_runs` (maximal runs of equal values), `count_ascending_runs`
+(maximal strictly increasing runs).
+
+**Phase-1 reachability** (20,000 sampled combinator blocks, correct on
+every exhaustive input for n = 1..6), step axes off / on: max_rise 0 / 55,
+min_step 0 / 74, count_runs 0 / 27, count_ascending_runs 0 / 35. The three
+design targets are 0 / 0: each needs TWO blocks, a sort and then a step
+pass. The controls max_subarray_sum and longest_increasing_run are 0 / 0.
+
+**Arms:** S0 = default, S1 = default + `--combinator-step`. Both use 15
+seeds (8000-8014), the modest budget, per-seed `--benchmark` with the
+exhaustive check, and `--max-n 8` (5 for sorting).
+
+**Predictions:**
+1. The four post-freeze problems: S1 >= 13/15 each, S0 <= 2/15 each.
+2. Design targets: S1 >= 5/15 each, S0 0/15. This needs search to compose
+   a sort block and a step block, which no single draw provides, so it is
+   the harder claim.
+3. Controls (max_subarray_sum, longest_increasing_run, trapping_rain_water):
+   0/15 in both arms.
+4. No dilution on the adjacent-pass problems the step relations compete
+   with (is_sorted, count_descents, strictly_increasing, has_adjacent_equal)
+   or on sorting: S1 >= S0 - 1 on each.
