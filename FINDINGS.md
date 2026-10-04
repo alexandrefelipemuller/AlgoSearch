@@ -3902,3 +3902,51 @@ exhaustive check, and `--max-n 8` (5 for sorting).
 4. No dilution on the adjacent-pass problems the step relations compete
    with (is_sorted, count_descents, strictly_increasing, has_adjacent_equal)
    or on sorting: S1 >= S0 - 1 on each.
+
+## 52 (results). Step axes: post-freeze problems 15/15, design targets reached by composing two blocks, no dilution
+
+`scripts/run_step_axes_ab.sh` (`data/step_axes_ab_20261004/`, not versioned;
+00:50-01:37, 450 runs). Seeds with an exhaustively verified program:
+
+| group | problem | S0 (default) | S1 (+ step axes) |
+|---|---|---|---|
+| post-freeze | max_rise, min_step, count_runs | 0/15 each | **15/15 each** |
+| post-freeze | count_ascending_runs | 4/15 | **15/15** |
+| design target | count_distinct | 0/15 | 4/15 |
+| design target | min_gap | 0/15 | 5/15 |
+| design target | max_gap_sorted | 0/15 | **10/15** |
+| control | max_subarray_sum, longest_increasing_run, trapping_rain_water | 0/15 | 0/15 |
+| dilution | is_sorted, count_descents, strictly_increasing, has_adjacent_equal, sorting | 15/15 each | 15/15 each |
+
+**The design targets are solved by composition across two blocks**, which
+no single draw contains (phase-1 reachability 0). A typical `max_gap_sorted`
+winner is the selection-sort skeleton followed by a BestStep block. One
+mutation dropped its `acc = 0` init, which is harmless because an unset
+scalar is 0. `count_distinct`'s winner is the sort followed by a
+CountSegments block with `!=`. These are the stepping-stone compositions
+section 50 asked about, now reachable because the second block exists as
+a drawable unit.
+
+S0's 4/15 on `count_ascending_runs` comes from bloated nested-loop programs
+that happen to be exhaustively correct (e.g. counting pairs with a
+mutated swap), not from an adjacent pass.
+
+**Scorecard:**
+1. Post-freeze S1 >= 13/15: **held** (15/15 x 4). The S0 <= 2/15 bound
+   **missed** on count_ascending_runs (4/15), a baseline miss, like
+   section 47's is_sorted.
+2. Design targets S1 >= 5/15: **held** on min_gap (5) and max_gap_sorted
+   (10); **missed** on count_distinct (4/15).
+3. Controls 0 in both arms: **held**.
+4. No dilution: **held** (15/15 in both arms on all five).
+
+**Conclusion.** Option (a) works and generalizes to problems written after
+its axes were frozen, with no measured cost on the problems it competes
+with. With (b) (section 51), section 50's question is answered positively
+for this grammar. A solution needing "block + step" is reachable when the
+step is either a loop-free tail (enumeration, b) or a drawable block (an
+axis value, a), and search composes it with a sort block it did not get
+together with it. Still out of reach: state that resets mid-loop (Kadane,
+longest increasing run), and prefix/suffix maxima (rain water).
+`--combinator-step` and `--tail-enum` stay opt-in until a matched battery
+on the full problem set (section 47's protocol) decides about defaults.
