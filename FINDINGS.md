@@ -3828,3 +3828,36 @@ section 50; D and N reused from section 50):
    computes them.
 5. NT: `second_smallest` and `median` >= 8/15 each (the combinator's sort
    block is the prefix there, since no skeleton is available).
+
+## 51 (results). Tail enumeration turns section 50's near misses into solutions: 0/15 -> 13/15, every prediction held
+
+`scripts/run_tail_enum_ab.sh` (`data/tail_enum_ab_20261004/`, not versioned;
+23:30-00:47). Seeds with at least one exhaustively verified program:
+
+| problem | D (s.50) | **DT** | N (s.50) | **NT** |
+|---|---|---|---|---|
+| second_smallest | 0/15 | **13/15** | 1/15 | **10/15** |
+| median | 0/15 | **13/15** | 0/15 | **10/15** |
+| count_distinct, min_gap, max_gap_sorted | 0/15 | 0/15 | 0/15 | 0/15 |
+| the six controls | 0/15 | 0/15 | 0/15 | 0/15 |
+
+Typical winners: the sort skeleton followed by an enumerated tail.
+- `second_smallest`: `if (n < 2) arr[0] = arr[0]; else arr[0] = arr[1];`, the
+  small-n guard section 50's 14 near misses lacked, selected because the
+  tail is chosen on every level seen.
+- `median`: `arr[0] = arr[(n - 1) / 2];`, exactly the definition.
+
+In NT the prefix is the combinator's sort (no skeleton), at 10/15.
+
+**Scorecard:** 1 (second_smallest DT >= 10): held, 13. 2 (median DT >= 8):
+held, 13. 3 (the three loop-needing problems <= 2): held, 0. 4 (controls
+<= 2): held, 0. 5 (NT >= 8 on both): held, 10 and 10.
+
+**Conclusion.** Section 50's falsifier was right about where the gap was:
+composition after a block, not the block. Enumerating the small appended
+step closes it whenever that step is loop-free. This is the same pattern as
+section 41 (mutation could not reach an isolated point; enumeration
+does), now on general array problems and inside the ordinary search. The
+three problems that need a second LOOP after the sort stay at 0, which is
+option (a)'s target. `--tail-enum` stays opt-in until an A/B on the
+original problems shows it costs nothing.
