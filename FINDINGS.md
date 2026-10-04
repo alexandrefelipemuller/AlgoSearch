@@ -3667,3 +3667,66 @@ reproduces the skeleton; turning the skeleton off leaves nothing. An O(n^2)
 3SUM is out of reach for the current grammar by construction. It would need
 a new axis value (e.g. a two-sided converging update driven by a sum
 comparison), under the freeze-predict-test discipline of sections 39-40.
+
+## 50. Do solutions found on one problem become stepping stones for others? -- library frozen, 11 new problems, predictions registered before running
+
+Question: does a "skeleton jump" between problems exist? In section 46 the
+search built gnome and bubble sort from the combinator's single adjacent
+pass plus one step found by mutation. The hypothesis tested here: if such
+verified compositions are promoted automatically into the drawable
+library, problems written later that need "that block + one more step"
+become reachable. The promotion mechanism is NOT built yet; this entry
+freezes the library and the test set and registers the predictions first.
+
+**Freeze.** The library (hand-written skeletons + combinator axes) is the
+state of this commit. No skeleton or axis is edited by hand until this
+experiment closes.
+
+**New problems** (all `ScalarFromArrayProblem`, whole array in, answer in
+`output[0]`, exhaustive check over [-1, 2] for n <= 6). Each has a
+hand-written Mini-C reference program in `tests/composition_problems_tests.cpp`
+passing every generated, adversarial and exhaustive instance, so none is
+out of the language's reach.
+
+| type | problem | definition | natural solution |
+|---|---|---|---|
+| 1, sequential composition | `median` | lower median, sorted[(n-1)/2] | sort, then read |
+| 1 | `second_smallest` | sorted[1] (duplicates count) | sort, then read |
+| 1 | `count_distinct` | number of distinct values | sort, then count adjacent changes |
+| 1 | `min_gap` | min difference between two values | sort, then adjacent min of differences |
+| 1 | `max_gap_sorted` | max adjacent difference after sorting | sort, then adjacent max of differences |
+| 2, state that resets | `max_subarray_sum` | max non-empty contiguous sum | Kadane |
+| 2 | `longest_increasing_run` | longest strictly increasing contiguous run | adjacent pass with a resetting counter |
+| classic | `max_profit` | max(0, max over i<j of a[j] - a[i]) | running minimum |
+| classic | `count_leaders` | elements greater than everything to their right | right-to-left running maximum |
+| classic | `has_majority` | some value occurs > n/2 times | count per element, or Boyer-Moore |
+| classic | `trapping_rain_water` | water held between bars | prefix/suffix maxima |
+
+**Arms** (15 matched seeds, the modest budget of section 47, `--benchmark`
+exhaustive check for every claimed success):
+- **D**: frozen default (selection-sort skeleton drawable, combinator on).
+- **N**: D with `ALGOSEARCH_DISABLE_SKELETON=selectionsort,heapsort,mergesort`.
+- **P**: N plus the promoted blocks. Training = section 46's runs, i.e.
+  sorting with skeletons off plus the combinator. Promoted = verified,
+  reduced solutions that are not a single existing block (gnome and bubble
+  sort qualify; Fung's and exchange sort are single combinator draws and
+  do not).
+
+**Predictions:**
+1. Baseline D. `second_smallest` >= 8/15: sort skeleton + one appended
+   `arr[0] = arr[1]`, which growth can insert after the block. `median`
+   <= 5/15 (needs a computed middle index). `count_distinct`, `min_gap`,
+   `max_gap_sorted` <= 3/15 each: they need a sort followed by a second loop,
+   and the combinator has no difference-of-adjacent relation.
+2. Types 2 and classic, all arms: <= 2/15 each, 0/15 for `max_subarray_sum`
+   and `trapping_rain_water`. Nothing in the library or in the promoted
+   blocks carries a resetting accumulator, a right-to-left scan, or
+   prefix/suffix maxima. These are the negative controls for P.
+3. N <= D on every type-1 problem (it loses the only sort block).
+4. **The hypothesis:** P > N on at least 3 of the 5 type-1 problems (by >= 5
+   seeds each), with prediction 2's controls unchanged (+/- 2).
+5. **The falsifier, stated now:** if D is <= 3/15 on most type-1 problems
+   even though it already has a sort block, the bottleneck is composing
+   AFTER a block, not having the block. In that case P is predicted to
+   fail too, and the next lever is a composition mechanism (e.g. a
+   "block then adjacent pass" combinator axis), not promotion.
