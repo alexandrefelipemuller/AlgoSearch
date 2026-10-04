@@ -302,7 +302,7 @@ void execBlock(const std::vector<std::unique_ptr<Stmt>>& stmts, Environment& env
 }  // namespace
 
 RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, int numVars, std::vector<int>& output,
-                            long* stepsOut) const {
+                            long* stepsOut, std::vector<int>* varsOut) const {
     // One environment per thread, reused across the millions of runs a search
     // performs: the vars/arr buffers keep their capacity, so a run costs no
     // heap allocation at all once warm. Safe because run() is reentrancy-free
@@ -344,6 +344,7 @@ RunStatus Interpreter::run(const Stmt& program, const std::vector<int>& input, i
             break;
     }
 
+    if (varsOut) *varsOut = env.vars;
     // Hand the array over instead of copying it; env.arr inherits output's
     // old storage and is refilled by the assign() above on the next run.
     output.swap(env.arr);

@@ -199,6 +199,11 @@ struct SearchConfig {
     // "keep looking for smaller/faster/different correct programs".
     int postSolveSizes = 0;
 
+    // Section 51: enumerate a small output-writing tail (TailFiller) after
+    // the top `tailEnumTop` beam survivors at every size step. 0 = off,
+    // byte-identical to before.
+    int tailEnumTop = 0;
+
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
     // when non-empty AND genConfig.adaptiveSkeletonBiasRate > 0.0 -- pure

@@ -41,8 +41,11 @@ public:
     // null, zero cost/behavior change for every existing caller) so a
     // caller that wants a speed signal (see SearchConfig::speedBonusWeight)
     // can have one without every other call site needing to change.
+    // `varsOut`, when given, receives the final scalar variables of a run
+    // that COMPLETED (left untouched otherwise) -- used by TailFiller to
+    // evaluate many candidate tails on one execution of a shared prefix.
     RunStatus run(const Stmt& program, const std::vector<int>& input, int numVars, std::vector<int>& output,
-                  long* stepsOut = nullptr) const;
+                  long* stepsOut = nullptr, std::vector<int>* varsOut = nullptr) const;
 
     // Diagnostic/synthesis hook (section 41's hole filling): every time the
     // condition of `site` (an If or While node of the program being run) is

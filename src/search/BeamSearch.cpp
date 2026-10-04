@@ -18,6 +18,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "search/Dedup.hpp"
 #include "search/Logger.hpp"
+#include "search/TailFiller.hpp"
 
 namespace algosearch {
 
@@ -349,6 +350,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     std::map<int, std::array<BehaviorTally, 3>> behaviorTallies;
     std::unordered_set<std::string> frozenChampions;
     std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
+    std::map<int, std::vector<Instance>> seenInstancesByLevel;  // tail enumeration (section 51)
 
     for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
         postSolveWindowOpenedThisSize = false;
@@ -373,6 +375,30 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         for (auto& b : beam) {
             grownPool.push_back(b.program->clone());
             grownPool.push_back(growProgram(*b.program, size, rng, config_.genConfig));
+        }
+
+        // Section 51: for the top beam survivors, cut the program after each
+        // of its last top-level statements and append the best enumerated
+        // tail (search/TailFiller.hpp). The tail is chosen on the instances of
+        // EVERY level seen so far, not just this one: a small-n guard
+        // (e.g. n = 1) only earns its keep on the early levels.
+        if (config_.tailEnumTop > 0 && !beam.empty()) {
+            std::vector<Instance> seen;
+            for (int l = config_.startLevel; l <= currentLevel; l = problem_.nextLevel(l)) {
+                auto it = seenInstancesByLevel.find(l);
+                if (it == seenInstancesByLevel.end()) it = seenInstancesByLevel.emplace(l, problem_.generateInstances(l)).first;
+                seen.insert(seen.end(), it->second.begin(), it->second.end());
+            }
+            int top = std::min(config_.tailEnumTop, static_cast<int>(beam.size()));
+            for (int b = 0; b < top; ++b) {
+                const Stmt& program = *beam[static_cast<size_t>(b)].program;
+                int statements = static_cast<int>(program.body.size());
+                for (int cut = std::max(0, statements - 2); cut <= statements; ++cut) {
+                    auto prefix = makeBlock();
+                    for (int k = 0; k < cut; ++k) prefix->body.push_back(program.body[static_cast<size_t>(k)]->clone());
+                    if (auto filled = fillTail(*prefix, seen, problem_, interp)) grownPool.push_back(std::move(filled));
+                }
+            }
         }
 
         std::vector<Program> freshPool;

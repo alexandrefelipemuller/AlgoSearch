@@ -3790,3 +3790,41 @@ relation, under the freeze-predict-test discipline of sections 39-40; or
 (b) enumeration of the small appended step, as section 41 did for the TSP
 guard (`v3 = arr[k]` with a small-n guard is a tiny hole). Promotion
 remains untested and is deprioritized.
+
+## 51. Option (b): enumerating the small tail after a block -- predictions registered before running
+
+Section 50's near misses were "sort, then read" programs that fail only on
+an edge case (n = 1), and its registered falsifier pointed at composition
+rather than promotion. Option (b) applies section 41's move to that tail:
+enumerate it instead of waiting for mutation to find it.
+
+**Mechanism** (`search/TailFiller.{hpp,cpp}`, `--tail-enum K`, opt-in, default
+0). At every size step, each of the top K beam survivors is cut after
+each of its last top-level statements (3 cut points), and the best tail
+is appended. A tail is `arr[0] = E` or `if (n op k) arr[0] = E1 else
+arr[0] = E2` (op in < <= == >= >, k in 1..3). E is a literal 0..2, a
+scalar, or `arr[I]` with I in {0, 1, 2, n-1, n-2, n/2, (n-1)/2}. The
+prefix runs once per instance (`Interpreter::run` gained an optional
+final-scalars output), and every tail is evaluated on those end states.
+The best tail is chosen on the instances of EVERY level seen so far, so a
+small-n guard is selected for on the early levels. The results join the
+grown pool and are scored like any other candidate. Off, the search is
+byte-identical (checked on `second_smallest` and `median`, seed 8001,
+against section 50's D logs). Unit tests: from a selection-sort prefix,
+`fillTail` alone produces exhaustively correct `second_smallest` and
+`median` programs. `make test` 129/129.
+
+**Arms** (same 15 seeds 8000-8014, budget and per-seed `--benchmark` as
+section 50; D and N reused from section 50):
+- **DT** = D + `--tail-enum 10`
+- **NT** = N + `--tail-enum 10`
+
+**Predictions:**
+1. `second_smallest`: DT >= 10/15 (D: 0/15).
+2. `median`: DT >= 8/15 (D: 0/15).
+3. `count_distinct`, `min_gap`, `max_gap_sorted`: <= 2/15 in DT and NT. A
+   tail cannot contain a loop; these need option (a).
+4. The six controls: <= 2/15 in DT and NT. No tail in the grammar
+   computes them.
+5. NT: `second_smallest` and `median` >= 8/15 each (the combinator's sort
+   block is the prefix there, since no skeleton is available).
