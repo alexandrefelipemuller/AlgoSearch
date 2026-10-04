@@ -4204,3 +4204,64 @@ whose O(log n) contains_ordered result is a speed property this
 success-only battery cannot see. When a dropping problem maps to more
 than one skeleton, all the candidates are kept until a per-skeleton
 follow-up.
+
+## 56 (results). Isolation: 8 problems need their skeletons, 4 skeletons are removable; stateful default narrowly fails its rule
+
+`data/state_isolation_ab_20261004/` (not versioned; 16:59-18:56, 1470
+runs). Verified successes of 10 matched seeds, base / ST / STX:
+
+| problem(s) | base | ST | STX |
+|---|---|---|---|
+| sorting, min, max, sum, contains, contains_ordered, count, reverse, single_number, and the 8 v2-product problems | 10 each | 10 each | 10 each |
+| is_prime, gcd, factorial, fibonacci, average, power | 10 each | 10 each | **0 each** |
+| three_sum / graph_reachability | 8 / 6 | 8 / **4** | **0 / 0** |
+| median / second_smallest | 8 / 8 | 7 / **6** | 10 / 10 |
+| count_distinct / min_gap / max_gap_sorted | 0 / 4 / 6 | 7 / 6 / 8 | **1 / 3 / 6** |
+| the ten stateful problems (section 55) | 0 each | 10 each | 10 each |
+| step problems (max_rise, min_step, count_runs, count_ascending_runs) | 10 each | 10 each | 10 each |
+| max_adjacent_gap, cycle, max_profit, count_leaders, has_majority | 0 | 0 | 0 (count_leaders 1) |
+
+**Question A (stateful pieces as default).** Prediction 2 held (+10 on all
+ten stateful problems, lis included) and prediction 3 held (worst cost
+1.84x, count, 0.2 s). **Prediction 1 failed** on two problems by exactly 2:
+graph_reachability 6 -> 4 and second_smallest 8 -> 6. Both look like the
+sample noise section 54 exposed in section 53 (second_smallest is 10/10 in
+STX), but the rule was fixed in advance. `--combinator-state` stays
+opt-in pending a 30-seed retest of those two problems, as section 54 did
+for tail enumeration.
+
+**Question B (indispensable skeletons).**
+- **Prediction 4 held exactly.** All eight predicted problems drop to 0
+  without skeletons: is_prime, gcd, factorial, fibonacci, average, power,
+  three_sum, graph_reachability.
+- **Prediction 5 failed on three problems.** count_distinct (7 -> 1),
+  min_gap (6 -> 3) and max_gap_sorted (8 -> 6) drop. Section 52's winners
+  for them are the selection-sort skeleton followed by a step block, and
+  without the skeleton the combinator's own sorts compose with the step
+  pass much less often. So selectionsort is a composition stepping stone,
+  not just a sorting solution.
+- Everything else, all 32 newer problems included, stays within -1.
+
+Applying section 56's rule:
+- **Kept (a problem they serve drops >= 2):**
+  - recurrence (gcd, fibonacci);
+  - nesteddivisor and nesteddivisornative (is_prime; ambiguous between
+    the two, so both kept);
+  - repeatedmultiply (factorial, power);
+  - average;
+  - threesum;
+  - graphreachability;
+  - selectionsort (count_distinct, min_gap, max_gap_sorted).
+- **Kept as untested:** dtw, shortestpath, tspbruteforce,
+  tspbranchandbound, binarysearch.
+- **Removable (every problem they serve stays within -1):**
+  - counting (sum, min, max, count, contains, single_number);
+  - heapsort (sorting);
+  - mergesort and divideconquer (both need `--recursion-call-bias`, so
+    they never fire in the default).
+
+Caveat on the removable set, noticed after the run: heapsort and
+mergesort are the project's only O(n log n) sorts (sections 14 and 25).
+That is the same speed-not-success argument that exempted binarysearch,
+but the rule as registered did not exempt them. Whether to remove them
+is left as an explicit decision.
