@@ -3979,3 +3979,50 @@ survives the independent (exhaustive where defined) re-check. Script:
 **Decision rule, fixed now:** a flag becomes default if 1 and 5 hold for
 its arm and its gain prediction (2 for T, 3 for S) holds. Both become
 default if TS also satisfies 1, 4 and 5.
+
+## 53 (results). `--combinator-step` becomes the default; `--tail-enum` does not (yet)
+
+`data/default_candidates_ab_20261004/` (not versioned; 07:44-10:27, 1760
+runs). Verified successes of 10 matched seeds:
+
+| problem(s) | base | T | S | TS |
+|---|---|---|---|---|
+| 15 of the 17 originals; substring, palindrome, inversion_count, has_duplicate, is_sorted, count_descents, strictly_increasing, has_adjacent_equal | 10 each | 10 each | 10 each | 10 each |
+| three_sum / graph_reachability | 8 / 6 | 8 / 6 | 8 / 6 | 8 / 6 |
+| median | 0 | **8** | 0 | **7** |
+| second_smallest | 2 | 4 | 1 | **8** |
+| count_distinct / min_gap / max_gap_sorted | 0 / 0 / 0 | 0 / 0 / 0 | 2 / 3 / **5** | 1 / 4 / **5** |
+| max_rise / min_step / count_runs | 0 each | 0 each | **10 each** | **10 each** |
+| count_ascending_runs | 4 | **1** | **10** | **10** |
+| longest_run, max_adjacent_gap, cycle, lis, max_subarray_sum, longest_increasing_run, max_profit, count_leaders, has_majority, trapping_rain_water | 0 each | 0 each | 0 each | 0 each |
+
+Cost on problems all four arms solve 10/10: the worst mean-search-wall
+ratio vs base is S 1.42x (is_sorted, 0.81 -> 1.15 s), T 1.10x and TS 1.10x
+(factorial, 131 -> 145 s); TS 1.29x on count_descents. Everything else is
+within +/- 0.05 s.
+
+**Scorecard:**
+1. No regression: S held (worst: second_smallest 2 -> 1, within the
+   allowed 1). TS held. **T failed** on count_ascending_runs (4 -> 1).
+   Base's 4 are the bloated, accidentally correct nested-loop programs of
+   section 52, so this is plausibly noise, but the rule was fixed in
+   advance.
+2. T gains on second_smallest and median >= 5: median held (+8);
+   **second_smallest failed** (+2). It is +6 in TS, where the step axes
+   give the tail more prefixes to work on.
+3. S gains: held on all four step problems (+10, +10, +10, +6) and on
+   max_gap_sorted (+5).
+4. TS >= max(T, S) - 1: held everywhere.
+5. Cost <= 2x: held for every arm.
+
+**Decision (by the rule registered in section 53):** `--combinator-step`
+is now the default (`--no-combinator-step` restores the previous one).
+`--tail-enum` stays opt-in: its own arm failed predictions 1 and 2,
+although TS, the arm that matters once S is default, satisfies 1, 4 and 5
+and is the best arm on median/second_smallest. The natural follow-up is
+section 47's protocol again with S as the new base: base vs base +
+`--tail-enum`, more seeds (the second_smallest and count_ascending_runs
+differences here are 2-3 of 10).
+
+The 17 original problems are unchanged by S (all equal to base), so the
+README table of section 48 still describes the default.
