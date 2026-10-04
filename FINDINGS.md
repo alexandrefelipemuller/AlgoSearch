@@ -3730,3 +3730,63 @@ exhaustive check for every claimed success):
    AFTER a block, not having the block. In that case P is predicted to
    fail too, and the next lever is a composition mechanism (e.g. a
    "block then adjacent pass" combinator axis), not promotion.
+
+## 50 (results, arms D and N). The falsifier fires: almost nothing solves even with a sort block, though composition after a block does happen
+
+`scripts/run_stepping_stone_baseline.sh` (`data/stepping_stone_baseline_20261003/`,
+not versioned; 330 runs, 22:02-23:15). A success is a seed with at least one
+program surviving `--benchmark`'s exhaustive re-check.
+
+| problem | D (sort skeleton on) | N (sort skeletons off) | notes |
+|---|---|---|---|
+| median | 0/15 | 0/15 | 2 / 1 rejected |
+| second_smallest | 0/15 | **1/15** | D: 14 rejected, all a runtime error at n = 1 |
+| count_distinct | 0/15 | 0/15 | |
+| min_gap | 0/15 | 0/15 | stuck at N=2 (53/62) until the size budget ran out |
+| max_gap_sorted | 0/15 | 0/15 | same |
+| the six controls | 0/15 each | 0/15 each | |
+
+**Composition after a block does happen.** D's 14 rejected `second_smallest`
+programs are a sort block (the combinator's Fung sort) followed by
+`v7 = arr[1]; ...; arr[0] = v7`. They are correct for every n >= 2 and crash
+at n = 1 reading `arr[1]`. Their one flaw is section 50's n = 1 convention
+(answer `sorted[0]`), a definition choice of mine that turned 14
+near-correct compositions into failures. N's single genuine solution
+composes two combinator blocks, neither a skeleton:
+
+```
+<Fung sort>
+v6 = 1; while (v6 < n) { swap(arr[v6 - 1], arr[v6]); v6 = v6 + 1; }
+```
+
+An unconditional adjacent-swap pass rotates the sorted array left by one,
+so `arr[0]` ends as `sorted[1]`, and for n = 1 the pass does nothing. It is
+correct by exhaustive check and was found by search, not written.
+
+**Scorecard:**
+1. `second_smallest` D >= 8/15: **refuted** (0/15 genuine; 14/15 one edge case
+   away). `median` <= 5 and the other three <= 3: held (all 0).
+2. Controls <= 2 and Kadane / rain water at 0: held (all 0/15 in both arms).
+3. N <= D on type 1: refuted on `second_smallest` (1 vs 0), held elsewhere
+   (0 = 0).
+5. **Falsifier: fires.** D is <= 3/15 on all five type-1 problems even
+   though it has a sort block. By the rule registered before running, arm P
+   (promotion) is predicted to fail too, and promotion is not built.
+
+**Reading.** The obstacle is not having a sort block. Both arms have one
+(D the skeleton, N the combinator's Fung sort), and in `second_smallest` the
+search does append to it. It splits into two different gaps:
+- **Edge cases of the appended step** (`second_smallest`, probably
+  `median`): the read is right for n >= 2 and the search does not find the
+  guard for small n. This is section 45's gnome-sort near miss again.
+- **A missing relation** (`min_gap`, `max_gap_sorted`, `count_distinct`):
+  none of these gets past N=2-4. The combinator has no "difference of
+  adjacent elements" relation and no "count changes + 1", so the second
+  block cannot be drawn whole, and mutation does not assemble it.
+
+The next lever is therefore composition, as prediction 5 anticipated, and
+specifically one of: (a) an axis value for the missing adjacent-difference
+relation, under the freeze-predict-test discipline of sections 39-40; or
+(b) enumeration of the small appended step, as section 41 did for the TSP
+guard (`v3 = arr[k]` with a small-n guard is a tiny hole). Promotion
+remains untested and is deprioritized.
