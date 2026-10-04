@@ -4026,3 +4026,22 @@ differences here are 2-3 of 10).
 
 The 17 original problems are unchanged by S (all equal to base), so the
 README table of section 48 still describes the default.
+
+## 54. `--tail-enum` on top of the new default -- predictions registered before running
+
+Section 53 kept `--tail-enum` opt-in on its own arm's numbers. With the
+step axes now default, the relevant comparison is the new **base** vs
+**T** = base + `--tail-enum 10`. Both arms use 30 fresh matched seeds
+(11000-11029), section 53's budget and per-seed `--benchmark`, and the 34
+problems some arm of section 53 solved. The 10 problems every arm left at
+0 are excluded: they cannot regress and no gain is predicted for them.
+Script: `scripts/run_tail_enum_default_ab.sh`.
+
+**Predictions:**
+1. No regression: T >= base - 3 (of 30) on every problem.
+2. Gains: median T >= base + 15; second_smallest T >= base + 10.
+3. Cost: on problems both arms solve 30/30, T's mean search wall <= 2x
+   base.
+
+**Decision rule, fixed now:** `--tail-enum 10` becomes the default if 1, 2
+and 3 all hold.
