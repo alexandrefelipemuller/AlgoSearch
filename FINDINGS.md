@@ -4122,3 +4122,41 @@ fresh matched seeds (12000-12014), the modest budget, per-seed
 3. No dilution on is_sorted, count_descents, max_rise, count_runs, median,
    second_smallest, max_gap_sorted, sum, max, sorting: on >= base - 2 each.
 4. Cost: on problems both arms solve 15/15, mean search wall <= 2x base.
+
+## 55 (results). Stateful pieces: every post-freeze problem and every design target solved, no dilution
+
+`scripts/run_state_pieces_ab.sh` (`data/state_pieces_ab_20261004/`, not
+versioned; 14:26-15:15, 600 runs). Verified successes of 15 seeds:
+
+| group | problem | base | + state |
+|---|---|---|---|
+| post-freeze | longest_non_increasing_run | 0 | **14** |
+| post-freeze | min_subarray_sum, longest_decreasing_subsequence, max_sum_increasing_subsequence, ceiling_water | 0 each | **15 each** |
+| design target | longest_run, longest_increasing_run, max_subarray_sum, trapping_rain_water | 0 each | **15 each** |
+| design target | lis | 0 | **13** |
+| dilution | is_sorted, count_descents, max_rise, count_runs, sum, max, sorting | 15 each | 15 each |
+| dilution | median / second_smallest / max_gap_sorted | 12 / 9 / 6 | 10 / 10 / **13** |
+
+Cost on the both-15/15 problems: 0.89x-1.19x, except count_runs at 1.78x
+(0.43 -> 0.77 s).
+
+The `lis` winners are the textbook DP, drawn whole by EarlierCellsBest on
+the length-prefixed layout:
+`aux[i] = 1 + max{aux[j] : j < i, a[j] < a[i]}`, answer the max aux[i]. This
+is the "sixth primitive" section 24 predicted no skeleton provides, and
+`lis` had been the held-out ruler since section 25, at 0 in every
+configuration until now.
+
+**Scorecard:** 1 (post-freeze on >= 12, base <= 2): held (14, 15, 15, 15,
+15 vs 0). 2 (design targets on >= 12): held (15, 15, 15, 15, 13). 3 (no
+dilution, >= base - 2): held (worst median 12 -> 10). 4 (cost <= 2x): held
+(worst 1.78x).
+
+**Reading.** Each piece generalized past the problem it was designed
+from. That includes PrefixSuffix, the most problem-shaped of the four: the
+upside-down `ceiling_water` (min prefix, max combine, sign flipped) is
+15/15. As with sections 52-54, the new vocabulary is small and
+hand-written, and the search composes and parametrizes it.
+`--combinator-state` stays opt-in until a full-battery default decision.
+Section 47's protocol is the next step, together with the skeleton
+isolation battery planned for after this work.
