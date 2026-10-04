@@ -4291,3 +4291,19 @@ The skeleton library is now 15: recurrence, nesteddivisor,
 nesteddivisornative, selectionsort, repeatedmultiply, average, heapsort,
 threesum, graphreachability, shortestpath, tspbruteforce,
 tspbranchandbound, dtw, binarysearch, mergesort.
+
+## 58. `--combinator-state` retest on its two near misses -- predictions registered before running
+
+In section 56, `--combinator-state` met its gain and cost predictions but
+missed no-regression by exactly 2 of 10 on graph_reachability (6 -> 4) and
+second_smallest (8 -> 6). As section 54 did for tail enumeration, those
+two problems are retested with 30 fresh matched seeds (14000-14029),
+**base** (the current default, now without `counting`/`divideconquer`,
+section 57) vs **ST** = base + `--combinator-state`, per-seed
+`--benchmark`. Script: `scripts/run_state_retest_ab.sh`.
+
+**Prediction:** ST >= base - 3 (of 30) on both problems.
+
+**Decision rule, fixed now:** if it holds, `--combinator-state` becomes the
+default (section 56's gain and cost predictions already held). If it
+fails on either problem, it stays opt-in.
