@@ -98,3 +98,27 @@ TEST(combinator_v1_family_does_not_reach_is_sorted) {
     // ...and --combinator-v1 still reproduces the frozen family without it.
     CHECK(!familyReaches(IsSortedProblem(8), 11, /*adjacent=*/false));
 }
+
+TEST(combinator_step_axes_are_byte_identical_when_off) {
+    // Section 52: the flag only adds draws on an adjacent pass when it is on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    b.combinatorStep = false;
+    Random ra(77), rb(77);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(combinator_step_axes_emit_step_and_segment_blocks) {
+    // With the flag on, some blocks compute a step (elem(i) - elem(i-1)) and
+    // some count segments (an accumulator initialized to 1 on an adjacent pass).
+    Random rng(5);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorStep = true;
+    int steps = 0;
+    for (int i = 0; i < 2000; ++i) {
+        std::string text = generateRandomProgram(rng, 2, cfg)->toString();
+        if (text.find("] - arr[") != std::string::npos) steps++;
+    }
+    CHECK(steps > 0);
+}

@@ -2184,7 +2184,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2258,6 +2258,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     static const Relation pairRel[] = {Relation::CountIf, Relation::Exists, Relation::Forall, Relation::SwapIf, Relation::Swap};
     Relation rel = loop == Loop::Single ? singleRel[rng.uniformInt(0, 4)] : pairRel[rng.uniformInt(0, 4)];
     if (layout == Layout::Pair && (rel == Relation::SwapIf || rel == Relation::Swap)) rel = Relation::Forall;
+    // Section 52: on an adjacent pass, the two step relations join the five
+    // pair relations as equals (2 of 7). Drawn only with the flag on, so the
+    // RNG stream is unchanged without it.
+    if (cfg.combinatorStep && loop == Loop::Adjacent && rng.uniformInt(0, 6) >= 5) {
+        rel = rng.chance(0.5) ? Relation::BestStep : Relation::CountSegments;
+    }
     ExprKind cmp = drawComparator(rng);
 
     // Operands for this loop shape.
@@ -2344,11 +2350,37 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             inner.push_back(makeSwap(posA->clone(), posB->clone()));
             writeBack = false;
             break;
+        case Relation::BestStep: {
+            // acc = min or max of elem(i) - elem(i-1); `found` holds the step.
+            inner.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeVar(found)));
+            inner.push_back(makeIf(makeCompare(rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt, makeVar(found), makeVar(acc)),
+                                   std::move(then)));
+            accInit = -2;  // sentinel: first step if there is one, else 0 (below)
+            break;
+        }
+        case Relation::CountSegments: {
+            std::vector<StmtPtr> then;
+            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
+            accInit = 1;
+            break;
+        }
     }
 
     if (writeBack) {
         if (accInit == -1) {
             root.push_back(makeAssign(acc, makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart)))));
+        } else if (accInit == -2) {
+            // acc = 0; if (start + 1 < bound) acc = elem(start + 1) - elem(start);
+            root.push_back(makeAssign(acc, makeIntConst(0)));
+            std::vector<StmtPtr> first;
+            first.push_back(makeAssign(
+                acc, makeBinOp(ExprKind::Sub,
+                               makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart + 1))),
+                               makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart))))));
+            root.push_back(makeIf(makeCompare(ExprKind::Lt, makeIntConst(loopStart + 1), bound->clone()), std::move(first)));
         } else {
             root.push_back(makeAssign(acc, makeIntConst(accInit)));
         }

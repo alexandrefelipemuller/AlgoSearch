@@ -173,6 +173,13 @@ struct GenConfig {
     // combinatorBias > 0.
     bool combinatorAdjacent = true;
 
+    // Section 52, option (a) of section 50: two relation values for the
+    // adjacent-pair loop -- BestStep (running min/max of elem(i) - elem(i-1),
+    // initialized from the first pair when there is one, else 0) and
+    // CountSegments (1 + the number of adjacent pairs satisfying a drawn
+    // comparison). Opt-in (`--combinator-step`); false is byte-identical.
+    bool combinatorStep = false;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current
