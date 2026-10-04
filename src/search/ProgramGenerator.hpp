@@ -180,6 +180,11 @@ struct GenConfig {
     // comparison). Opt-in (`--combinator-step`); false is byte-identical.
     bool combinatorStep = false;
 
+    // Section 55: stateful pieces (RunBest, ResetSum, EarlierCellsBest,
+    // PrefixSuffix -- see genStatefulBlock), a quarter of combinator blocks
+    // when on. Opt-in (`--combinator-state`); false is byte-identical.
+    bool combinatorState = false;
+
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let
     // BeamSearch nudge it each round toward the fraction of the current

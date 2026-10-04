@@ -2196,8 +2196,131 @@ ExprPtr elemAt(const ExprPtr& base, ExprPtr x) { return makeArrayAccess(makeBinO
 
 }  // namespace combinator
 
+// Section 55: stateful pieces -- relations whose state carries across
+// iterations in a way the section 38/52 relations cannot express. Drawn as
+// a quarter of combinator blocks when GenConfig::combinatorState is on, on
+// the whole-array or length-prefixed layout.
+//   RunBest         adjacent pass; run = cmp(prev, cur) ? run + 1 : 1;
+//                   result = the best run.
+//   ResetSum        single pass; cur = (cur < 0) ? a : cur + a (Kadane's
+//                   restart); result = the best (max or min) cur.
+//   EarlierCellsBest  aux[i] = w + best aux[j] over j < i with cmp(a[j], a[i])
+//                   (0 when none), w = 1 or a[i]; result = the best aux[i].
+//                   The "read several already computed cells" primitive
+//                   section 24 predicted DP problems need.
+//   PrefixSuffix    aux[i] = best(aux[i-1], a[i]) left to right, then right to
+//                   left with a running suffix best r: acc += combine(aux[i], r)
+//                   - a[i] or a[i] - combine(...), combine = min or max. The
+//                   most problem-shaped piece here (trapping rain water is one
+//                   draw of it), parametrized so a post-freeze variant can test
+//                   whether it is more than that.
+StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> v = pickDistinctVars(rng, cfg, 6);
+    int vi = v[0], vj = v[1], acc = v[2], cur = v[3], tmp = v[4], capA = v[5];
+    auto var = [](int x) { return makeVar(x); };
+    auto lit = [](int c) { return makeIntConst(c); };
+    auto aux = [](ExprPtr i) { return makeAuxAccess(std::move(i)); };
+    auto sub = [](ExprPtr a, ExprPtr b) { return makeBinOp(ExprKind::Sub, std::move(a), std::move(b)); };
+    auto add = [](ExprPtr a, ExprPtr b) { return makeBinOp(ExprKind::Add, std::move(a), std::move(b)); };
+    auto one = [](StmtPtr st) {
+        std::vector<StmtPtr> out;
+        out.push_back(std::move(st));
+        return out;
+    };
+    // if (x keep target) target = x;
+    auto keepBest = [&](ExprKind keep, int target, ExprPtr x) {
+        ExprPtr copy = x->clone();
+        return makeIf(makeCompare(keep, std::move(x), var(target)), one(makeAssign(target, std::move(copy))));
+    };
+    std::vector<StmtPtr> root;
+    // Layout: the whole array (elements arr[0..n)), or length-prefixed
+    // (count in arr[0], elements arr[1..count]) -- section 38's two
+    // single-sequence encodings. elem(i) = arr[base + i]; aux is indexed by i.
+    bool lengthPrefixed = rng.chance(0.5);
+    ExprPtr base = lit(lengthPrefixed ? 1 : 0);
+    if (lengthPrefixed) root.push_back(makeAssign(capA, makeArrayAccess(lit(0))));
+    auto bound = [&] { return var(lengthPrefixed ? capA : 0); };
+    auto elem = [&](ExprPtr i) { return makeArrayAccess(add(base->clone(), std::move(i))); };
+
+    bool nestedOk = (cfg.maxLoops - loopsUsed) >= 2;
+    int piece = rng.uniformInt(0, nestedOk ? 3 : 1);
+    ExprKind keep = rng.chance(0.5) ? ExprKind::Gt : ExprKind::Lt;
+    switch (piece) {
+        case 0: {  // RunBest
+            ExprKind cmp = combinator::drawComparator(rng);
+            root.push_back(makeAssign(acc, lit(0)));
+            root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(acc, lit(1)))));
+            root.push_back(makeAssign(cur, lit(1)));
+            root.push_back(makeAssign(vi, lit(1)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                body.push_back(makeIf(makeCompare(cmp, elem(sub(var(vi), lit(1))), elem(var(vi))),
+                                      one(makeAssign(cur, add(var(cur), lit(1)))), one(makeAssign(cur, lit(1)))));
+                body.push_back(keepBest(ExprKind::Gt, acc, var(cur)));
+            });
+            break;
+        }
+        case 1: {  // ResetSum
+            root.push_back(makeAssign(acc, elem(lit(0))));
+            root.push_back(makeAssign(cur, lit(0)));
+            root.push_back(makeAssign(vi, lit(0)));
+            ExprKind restart = keep == ExprKind::Gt ? ExprKind::Lt : ExprKind::Gt;  // max: restart below 0
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                body.push_back(makeIf(makeCompare(restart, var(cur), lit(0)), one(makeAssign(cur, elem(var(vi)))),
+                                      one(makeAssign(cur, add(var(cur), elem(var(vi)))))));
+                body.push_back(keepBest(keep, acc, var(cur)));
+            });
+            break;
+        }
+        case 2: {  // EarlierCellsBest
+            ExprKind cmp = combinator::drawComparator(rng);
+            bool unitWeight = rng.chance(0.5);
+            root.push_back(makeAssign(acc, lit(0)));
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
+                outer.push_back(makeAssign(tmp, lit(0)));
+                outer.push_back(makeAssign(vj, lit(0)));
+                appendCountingWhile(outer, vj, var(vi), loopsUsed, [&](std::vector<StmtPtr>& inner) {
+                    inner.push_back(makeIf(makeCompare(cmp, elem(var(vj)), elem(var(vi))),
+                                           one(keepBest(ExprKind::Gt, tmp, aux(var(vj))))));
+                });
+                outer.push_back(makeAssignAux(var(vi), add(var(tmp), unitWeight ? lit(1) : elem(var(vi)))));
+                outer.push_back(keepBest(ExprKind::Gt, acc, aux(var(vi))));
+            });
+            break;
+        }
+        default: {  // PrefixSuffix
+            bool combineMin = rng.chance(0.5);
+            bool waterAbove = rng.chance(0.5);  // combine - a[i] (above) or a[i] - combine (below)
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                body.push_back(makeAssign(tmp, elem(var(vi))));
+                body.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), var(vi)),
+                                      one(keepBest(keep, tmp, aux(sub(var(vi), lit(1)))))));
+                body.push_back(makeAssignAux(var(vi), var(tmp)));
+            });
+            root.push_back(makeAssign(acc, lit(0)));
+            root.push_back(makeAssign(vi, sub(bound(), lit(1))));
+            root.push_back(makeIf(makeCompare(ExprKind::Le, lit(0), var(vi)), one(makeAssign(cur, elem(var(vi))))));
+            std::vector<StmtPtr> body;
+            body.push_back(keepBest(keep, cur, elem(var(vi))));
+            body.push_back(makeAssign(tmp, aux(var(vi))));
+            body.push_back(keepBest(combineMin ? ExprKind::Lt : ExprKind::Gt, tmp, var(cur)));
+            body.push_back(makeAssign(acc, add(var(acc), waterAbove ? sub(var(tmp), elem(var(vi))) : sub(elem(var(vi)), var(tmp)))));
+            body.push_back(makeAssign(vi, sub(var(vi), lit(1))));
+            loopsUsed++;
+            root.push_back(makeWhile(makeCompare(ExprKind::Le, lit(0), var(vi)), std::move(body)));
+            break;
+        }
+    }
+    root.push_back(makeAssignArray(lit(0), var(acc)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
+    if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
     std::vector<int> v = pickDistinctVars(rng, cfg, 6);
     int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
 

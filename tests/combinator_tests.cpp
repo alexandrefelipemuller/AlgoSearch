@@ -122,3 +122,25 @@ TEST(combinator_step_axes_emit_step_and_segment_blocks) {
     }
     CHECK(steps > 0);
 }
+
+TEST(combinator_state_pieces_are_byte_identical_when_off) {
+    // Section 55: the flag adds a draw only when it is on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    b.combinatorState = false;
+    Random ra(91), rb(91);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(combinator_state_pieces_emit_aux_dp_blocks) {
+    // With the flag on, some blocks write aux (EarlierCellsBest / PrefixSuffix).
+    Random rng(6);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorState = true;
+    int auxWrites = 0;
+    for (int i = 0; i < 2000; ++i) {
+        if (generateRandomProgram(rng, 2, cfg)->toString().find("aux[") != std::string::npos) auxWrites++;
+    }
+    CHECK(auxWrites > 0);
+}
