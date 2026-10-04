@@ -335,7 +335,6 @@ void runBenchmarkMode(const CliArgs& args) {
         config.scoreBandRate = args.scoreBandRate;
         config.speedBonusWeight = args.speedBonusWeight;
         config.postSolveSizes = args.postSolveSizes;
-    config.tailEnumTop = args.tailEnumTop;
         config.tailEnumTop = args.tailEnumTop;
         config.genConfig.loopAccumulatorBias = args.loopBias;
         config.genConfig.indexIncrementBias = args.indexIncrementBias;
