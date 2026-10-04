@@ -4160,3 +4160,47 @@ hand-written, and the search composes and parametrizes it.
 `--combinator-state` stays opt-in until a full-battery default decision.
 Section 47's protocol is the next step, together with the skeleton
 isolation battery planned for after this work.
+
+## 56. Stateful pieces as default + which hand-written skeletons are indispensable -- predictions registered before running
+
+One battery, two questions. It covers all 49 registered array/scalar
+problems at section 53's max-n, walls and modest budget, with 10 fresh
+matched seeds (13000-13009) and per-seed `--benchmark`. Script:
+`scripts/run_state_isolation_ab.sh`. Arms:
+- **base**: current default.
+- **ST**: base + `--combinator-state`.
+- **STX**: ST with every hand-written skeleton disabled via
+  `ALGOSEARCH_DISABLE_SKELETON` (all 17: average, binarysearch, counting,
+  divideconquer, dtw, graphreachability, heapsort, mergesort,
+  nesteddivisor, nesteddivisornative, recurrence, repeatedmultiply,
+  selectionsort, shortestpath, threesum, tspbranchandbound,
+  tspbruteforce).
+
+**Question A, stateful pieces as default (ST vs base).**
+1. No regression: ST >= base - 1 (of 10) on every problem.
+2. Gains: the ten stateful problems of section 55 >= base + 7 each.
+3. Cost: on problems both solve 10/10, ST's mean search wall <= 2x base.
+Decision rule: `--combinator-state` becomes default if 1, 2 and 3 hold.
+
+**Question B, indispensable skeletons (STX vs ST).**
+4. Predicted to drop by >= 3 of 10 without skeletons:
+   - gcd, factorial, fibonacci (recurrence);
+   - is_prime (nested divisor);
+   - power (repeated multiply);
+   - average;
+   - three_sum;
+   - graph_reachability.
+5. Predicted to stay within -1: every other problem, i.e. the combinator
+   (with step and state pieces) and tail enumeration cover sum, min, max,
+   count, contains, contains_ordered, reverse, single_number, sorting and
+   all 32 newer problems.
+
+Decision rule for B, fixed now. A skeleton is **removed** if every problem
+in this battery that it serves stays within -1 in STX. A skeleton serving
+a problem that drops by >= 2 is **kept**. Skeletons whose problems are not
+in this battery are kept as untested: dtw, shortestpath, tspbruteforce,
+tspbranchandbound (problems with their own layouts), and binarysearch,
+whose O(log n) contains_ordered result is a speed property this
+success-only battery cannot see. When a dropping problem maps to more
+than one skeleton, all the candidates are kept until a per-skeleton
+follow-up.
