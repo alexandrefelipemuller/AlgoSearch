@@ -4045,3 +4045,31 @@ Script: `scripts/run_tail_enum_default_ab.sh`.
 
 **Decision rule, fixed now:** `--tail-enum 10` becomes the default if 1, 2
 and 3 all hold.
+
+## 54 (results). `--tail-enum 10` becomes the default: median 0 -> 23/30, second_smallest 2 -> 15/30, no regression
+
+`data/tail_enum_default_ab_20261004/` (not versioned; 11:11-12:41, 2040
+runs). Verified successes of 30 matched seeds:
+
+| problem(s) | base | T |
+|---|---|---|
+| 27 problems | 30/30 each | 30/30 each |
+| three_sum / graph_reachability | 27 / 13 | 27 / 12 |
+| count_distinct / min_gap / max_gap_sorted | 7 / 10 / 10 | 7 / 10 / 11 |
+| **median** | 0 | **23** |
+| **second_smallest** | 2 | **15** |
+
+Cost on the 27 problems both arms solve 30/30: mean search wall ratio
+T/base between 0.88x and 1.27x (worst has_adjacent_equal 1.04 -> 1.32 s;
+factorial 136 -> 148 s, 1.09x).
+
+**Scorecard:** 1 (T >= base - 3 everywhere): held, worst graph_reachability
+13 -> 12. 2 (median >= +15, second_smallest >= +10): held, +23 and +13. 3
+(cost <= 2x): held, worst 1.27x.
+
+**Decision:** by the rule fixed in section 54, `--tail-enum 10` is now the
+default (`--tail-enum 0` restores the previous one). Section 53's arm-T
+failures were small-sample effects: with 30 seeds count_ascending_runs is
+30/30 in both arms, and second_smallest's gain is +13. The 17 original
+problems are equal in both arms, so the README table still describes the
+default.

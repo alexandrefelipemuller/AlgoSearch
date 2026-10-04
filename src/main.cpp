@@ -87,7 +87,7 @@ struct CliArgs {
     double scoreBandRate = 0.0;
     double speedBonusWeight = 0.0;
     int postSolveSizes = 0;
-    int tailEnumTop = 0;
+    int tailEnumTop = 10;  // default since FINDINGS.md section 54; --tail-enum 0 restores the old default
     double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
     double indexIncrementBias = 0.0;
     double bareSwapPenalty = 0.0;
@@ -182,7 +182,7 @@ void printUsage() {
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
-                 "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 0] [--loop-bias 0.4] "
+                 "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
