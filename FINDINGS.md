@@ -3950,3 +3950,32 @@ together with it. Still out of reach: state that resets mid-loop (Kadane,
 longest increasing run), and prefix/suffix maxima (rain water).
 `--combinator-step` and `--tail-enum` stay opt-in until a matched battery
 on the full problem set (section 47's protocol) decides about defaults.
+
+## 53. Should `--tail-enum` and/or `--combinator-step` become defaults? -- predictions registered before running
+
+The protocol is section 47's, extended to four arms so each flag is
+decided on its own: **base** (current default), **T** (+ `--tail-enum 10`),
+**S** (+ `--combinator-step`) and **TS** (both). The runs cover all 44
+registered array/scalar problems: the 17 originals at the modest
+battery's max-n / num-vars with a 240 s wall, and the 27 newer ones at
+max-n 8 (substring 6, cycle and lis 5) with a 180 s wall. Each arm gets
+10 fresh matched seeds (9000-9009), the modest budget, and one `--benchmark
+--benchmark-seeds 1` process per run, so a success is a seed whose program
+survives the independent (exhaustive where defined) re-check. Script:
+`scripts/run_default_candidates_ab.sh`.
+
+**Predictions:**
+1. No regression: on every problem base solves, T, S and TS each score
+   >= base - 1 (of 10).
+2. T gains on second_smallest and median (>= base + 5 each) and nowhere
+   else by more than 2.
+3. S gains on max_rise, min_step, count_runs, count_ascending_runs (>= base
+   + 5 each) and on max_gap_sorted (>= base + 3).
+4. TS >= max(T, S) - 1 on every problem: the two do not interfere.
+5. Cost: on problems where both arms solve 10/10, no flag makes mean
+   search wall more than 2x base (tail enumeration adds work every size
+   step, so T and TS are the ones at risk).
+
+**Decision rule, fixed now:** a flag becomes default if 1 and 5 hold for
+its arm and its gain prediction (2 for T, 3 for S) holds. Both become
+default if TS also satisfies 1, 4 and 5.
