@@ -31,35 +31,6 @@ TEST(generator_respects_max_loops) {
     }
 }
 
-TEST(loop_accumulator_bias_produces_a_counting_loop_when_forced) {
-    Random rng(11);
-    GenConfig cfg;
-    cfg.numVars = 4;
-    cfg.loopAccumulatorBias = 1.0;  // always trigger when a loop is chosen
-    cfg.maxLoops = 1;
-
-    bool foundCountingLoop = false;
-    for (int attempt = 0; attempt < 20 && !foundCountingLoop; ++attempt) {
-        Program p = generateRandomProgram(rng, 8, cfg);
-        // With bias=1.0, ANY While in the tree must be the canonical
-        // skeleton: cond is (var < var0), and the body's last statement
-        // increments that same var by 1.
-        std::function<void(const Stmt&)> check = [&](const Stmt& s) {
-            if (s.kind == StmtKind::While) {
-                bool condIsIndexVsN = s.cond->kind == ExprKind::Lt && s.cond->lhs->kind == ExprKind::Var &&
-                                       s.cond->rhs->kind == ExprKind::Var && s.cond->rhs->varIndex == 0;
-                bool hasIncrement = !s.body.empty() && s.body.back()->kind == StmtKind::Assign &&
-                                     s.body.back()->valueExpr->kind == ExprKind::Add;
-                if (condIsIndexVsN && hasIncrement) foundCountingLoop = true;
-            }
-            for (const auto& c : s.body) check(*c);
-            for (const auto& c : s.elseBody) check(*c);
-        };
-        check(*p);
-    }
-    CHECK(foundCountingLoop);
-}
-
 TEST(loop_accumulator_bias_zero_disables_the_skeleton_bias) {
     // GenConfig's default (0.4) is the best value found by experiment
     // (see the comment on GenConfig::loopAccumulatorBias) -- it stays

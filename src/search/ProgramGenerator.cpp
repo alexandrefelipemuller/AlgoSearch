@@ -230,89 +230,6 @@ ExprPtr genCondExpr(Random& rng, int depthBudget, const GenConfig& cfg) {
 std::vector<StmtPtr> genBlockStmts(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, int maxStmts,
                                     bool insideIf = false, bool insideWhile = false);
 
-// Which of the five accumulator shapes a genAccumulatorBodyStmtOfKind call
-// produced. Sum/Min/Max/Membership accumulate into the scalar `acc`
-// variable and need a write-back into arr[0] after the loop (the
-// interpreter's output is the array, not scalars -- see
-// genCountingLoopBlock); Swap already writes its result straight into the
-// array inside the loop body and must NOT get an extra write-back (it
-// would silently clobber a correct result with acc's stale/unrelated
-// value).
-enum class AccumKind { Sum, Min, Max, Membership, Swap, CountIf, Xor };
-
-bool accumKindNeedsWriteBack(AccumKind k) {
-    return k == AccumKind::Sum || k == AccumKind::Min || k == AccumKind::Max || k == AccumKind::Membership ||
-           k == AccumKind::CountIf || k == AccumKind::Xor;
-}
-
-// One canonical accumulation body for the counting-loop skeleton below.
-// `vi` is the loop index variable, `acc` a second variable seeded before
-// the loop. `targetVar` is only used by Membership (see below); pass -1
-// for every other kind. All five shapes touch arr[vi] -- the one thing
-// every array algorithm (min/max/sum/contains/sort) actually needs a loop
-// for.
-StmtPtr genAccumulatorBodyStmtOfKind(int vi, int acc, AccumKind kind, int targetVar, const GenConfig& cfg) {
-    switch (kind) {
-        case AccumKind::Sum:  // running sum: acc = acc + arr[vi]
-            return makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeArrayAccess(makeVar(vi))));
-        case AccumKind::Min:  // running min: if (arr[vi] < acc) acc = arr[vi]
-        {
-            std::vector<StmtPtr> then;
-            then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
-            return makeIf(makeCompare(ExprKind::Lt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
-        }
-        case AccumKind::Max:  // running max: if (arr[vi] > acc) acc = arr[vi]
-        {
-            std::vector<StmtPtr> then;
-            then.push_back(makeAssign(acc, makeArrayAccess(makeVar(vi))));
-            return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(acc)), std::move(then));
-        }
-        case AccumKind::Membership:  // if (arr[vi] == target) acc = 1
-        {
-            // Compares against a scalar `target` (captured from arr[0]
-            // BEFORE the loop starts, by genCountingLoopBlock) rather than
-            // arr[0] directly, and writes the found-flag into `acc`
-            // (write-back to arr[0] happens once, after the loop) --
-            // comparing directly against arr[0] here would be comparing
-            // against a slot the loop itself scans over and that a match
-            // immediately overwrites, self-corrupting on the very first
-            // iteration regardless of the real answer. See the long
-            // comment in genCountingLoopBlock for the full story.
-            std::vector<StmtPtr> then;
-            then.push_back(makeAssign(acc, makeIntConst(1)));
-            return makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
-        }
-        case AccumKind::CountIf:  // counter under a condition: if (arr[vi] > threshold) acc = acc + 1
-        {
-            // Same captured-scalar convention as Membership (threshold in
-            // `targetVar`, captured from arr[0] before the loop, vi
-            // starting at 1 to skip that slot) -- the piece missing for
-            // CountProblem before this: every other AccumKind either sets
-            // a flag (Membership) or tracks a running aggregate of the
-            // ELEMENT itself (Sum/Min/Max), none of them increment a
-            // counter gated by a comparison against something else.
-            std::vector<StmtPtr> then;
-            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
-            return makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeVar(targetVar)), std::move(then));
-        }
-        case AccumKind::Xor:  // running xor: acc = acc ^ arr[vi] -- the "Single Number" bit trick
-                              // (see SingleNumberProblem): every value that appears an even
-                              // number of times XORs away to 0, leaving only the odd one out.
-                              // Needs the BitXor primitive (GenConfig arithmetic/bitwise
-                              // extension, FINDINGS.md section 16) -- unreachable before it.
-            return makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), makeArrayAccess(makeVar(vi))));
-        default:  // adjacent compare-and-swap: if (arr[vi] > arr[vi+1]) swap(arr[vi], arr[vi+1])
-        {
-            auto next = makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1));
-            auto cond = makeCompare(ExprKind::Gt, makeArrayAccess(makeVar(vi)), makeArrayAccess(next->clone()));
-            std::vector<StmtPtr> then;
-            then.push_back(makeSwap(makeVar(vi), next->clone()));
-            (void)cfg;
-            return makeIf(std::move(cond), std::move(then));
-        }
-    }
-}
-
 // Picks `n` distinct scratch-variable indices from [1, cfg.numVars-1]
 // (var 0 is reserved -- the interpreter auto-seeds it with the array
 // length, see Interpreter::run). Every multi-variable dedicated skeleton
@@ -394,111 +311,6 @@ void appendSubtractiveDivideWhile(std::vector<StmtPtr>& out, int r, ExprPtr boun
     buildExtra(body);
     loopsUsed++;
     out.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), std::move(bound)), std::move(body)));
-}
-
-// The canonical "counting loop" skeleton every array algorithm needs:
-// an index that starts at 0, is bounds-checked against n (var 0, by
-// interpreter convention initialized to the array length), and
-// increments exactly once per iteration -- wrapped as a single Block so
-// it can be generated/inserted anywhere a single statement is expected.
-StmtPtr genCountingLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    // Reserve var 0 (the array length) and pick two distinct scalar
-    // variables for the index and accumulator from the rest.
-    int vi = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    int acc = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    if (acc == vi) acc = 1 + (vi % (cfg.numVars - 1));
-
-    // Kind is decided up front (not per-call) so init, body, and write-back
-    // all agree on what's being computed -- bugs, found by investigating
-    // why SumArrayProblem sometimes never converged even with
-    // loopAccumulatorBias saturated at 1.0 and 20000 sampled programs,
-    // fixed together here:
-    //  1. Init was a random 50/50 coin flip between acc=0 and acc=arr[0]
-    //     regardless of kind, but that choice is only ever correct for ONE
-    //     of Sum (needs 0) vs Min/Max (needs arr[0] -- 0 is not a valid
-    //     sentinel unless every array value happens to be >=0/<=0) --
-    //     halving the correctness rate even when everything else was
-    //     right.
-    //  2. Sum/Min/Max accumulate into the scalar `acc`, but the
-    //     interpreter's output is the ARRAY (output[0]), not scalars --
-    //     the loop itself never copied acc back into arr[0]. It only ever
-    //     "worked" when a LATER, structurally unrelated random statement
-    //     happened to also emit `arr[0] = acc` by coincidence (confirmed:
-    //     MinArrayProblem's actual discovered solution has exactly that
-    //     extra line, tacked on after the loop by luck, not by design).
-    //     A direct probe generating 20000 programs with
-    //     loopAccumulatorBias=1.0 found zero -- not rare, never -- correct
-    //     standalone sum programs before this fix.
-    //  3. Membership originally compared `arr[vi] == arr[0]` with `vi`
-    //     starting at 0, same as every other kind -- but a target-style
-    //     problem (ContainsProblem's convention: arr[0] = target,
-    //     arr[1..] = haystack) treats index 0 as special, not ordinary
-    //     data. On the very first iteration (vi=0) that compared arr[0] to
-    //     itself, always true, and immediately overwrote arr[0]=1 --
-    //     corrupting the target and reporting "found" unconditionally,
-    //     regardless of whether it actually was. Membership now captures
-    //     `target = arr[0]` into its own scalar before the loop and starts
-    //     `vi` at 1 (skipping the target slot) instead of 0, exactly the
-    //     kind of ordinary-data-vs-special-slot distinction only this one
-    //     kind needs -- every other kind still starts at 0 as before.
-    //     Needs one more scratch variable (target) than the other kinds,
-    //     so Membership is only chosen when numVars leaves room for it.
-    //     CountIf (counter under a condition -- the piece CountProblem
-    //     needs, see genAccumulatorBodyStmtOfKind) reuses the exact same
-    //     captured-target/vi-starts-at-1 convention as Membership, for the
-    //     same reason: it also compares against a query slot at arr[0],
-    //     not ordinary haystack data.
-    bool canTargetKind = cfg.numVars >= 4;  // Membership and CountIf both need the extra captured-target scalar
-    int kindCount = canTargetKind ? 7 : 5;  // + Membership, CountIf when there's room for the target scalar
-    int draw = rng.uniformInt(0, kindCount - 1);
-    AccumKind kind;
-    switch (draw) {
-        case 0: kind = AccumKind::Sum; break;
-        case 1: kind = AccumKind::Min; break;
-        case 2: kind = AccumKind::Max; break;
-        case 3: kind = AccumKind::Swap; break;
-        case 4: kind = AccumKind::Xor; break;
-        case 5: kind = AccumKind::Membership; break;
-        default: kind = AccumKind::CountIf; break;
-    }
-    bool needsArr0Init = (kind == AccumKind::Min || kind == AccumKind::Max);
-    bool needsTarget = (kind == AccumKind::Membership || kind == AccumKind::CountIf);
-
-    int targetVar = -1;
-    auto root = makeBlock();
-    if (needsTarget) {
-        for (int cand = 1; cand < cfg.numVars; ++cand) {
-            if (cand != vi && cand != acc) {
-                targetVar = cand;
-                break;
-            }
-        }
-        // Membership captures the query as an EQUALITY target; CountIf
-        // reuses the same slot as a comparison THRESHOLD instead --
-        // different semantics, same "one scalar captured from arr[0]
-        // before the loop starts" mechanism.
-        root->body.push_back(makeAssign(targetVar, makeArrayAccess(makeIntConst(0))));  // target = arr[0]
-    }
-    root->body.push_back(makeAssign(acc, needsArr0Init ? makeArrayAccess(makeIntConst(0)) : makeIntConst(0)));
-    root->body.push_back(makeAssign(vi, makeIntConst(needsTarget ? 1 : 0)));
-
-    std::vector<StmtPtr> body;
-    body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, targetVar, cfg));
-    // A second statement of the SAME kind is redundant but harmless
-    // (idempotent for min/max/membership, and correct-but-pointless for
-    // sum, since subsequent statements at least stay consistent with the
-    // first); mixing a different kind in the same loop body would corrupt
-    // whichever one runs second, so kind is never re-rolled here.
-    if (rng.chance(0.3)) body.push_back(genAccumulatorBodyStmtOfKind(vi, acc, kind, targetVar, cfg));
-    body.push_back(makeAssign(vi, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
-
-    loopsUsed++;
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(vi), makeVar(0)), std::move(body)));
-
-    if (accumKindNeedsWriteBack(kind)) {
-        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
-    }
-    return root;
 }
 
 // Dedicated nested skeleton for trial-division-by-subtraction primality
@@ -1846,56 +1658,6 @@ StmtPtr genTspBranchAndBoundSkeletonBlock(Random& rng, const GenConfig& cfg, int
     return buildTspBranchAndBoundImpl(vars, makeCompare(ExprKind::Lt, makeVar(cost), makeVar(best)), loopsUsed).program;
 }
 
-// A self-increment `v = v + 1` for a random variable -- the specific
-// idiom the forensic analysis found in 94.5% of generalizing programs
-// (100% for min/max/sum) vs. 37.7% of non-generalizers.
-// Divide-and-conquer extension (opt-in: requires GenConfig::recursionCallBias
-// > 0.0, see StmtKind::Call/ExprKind::AuxAccess in ast/Stmt.hpp and
-// ast/Expr.hpp). Hands the generator the one atomic shape a merge-sort/
-// quicksort-like algorithm needs -- split [lo,hi) at its midpoint and
-// recurse on each half -- same "give the coordinated unit, leave the
-// content free" principle as genCountingLoopBlock (finding #7 of
-// FINDINGS.md established that a marginal per-statement nudge toward a
-// single ingredient, without the atomic pairing that makes it cohere,
-// doesn't compose into anything on its own; an earlier raw-primitive-only
-// test of recursionCallBias with no skeleton at all, run before this
-// function existed, found no coherent recursive sort in the free search
-// either). The combine step -- what would make this an actual merge or
-// partition, rather than just a shape that recurses and does nothing --
-// is left to the ordinary free grammar to fill in.
-//
-// v1/v2 are the reserved "lo"/"hi" scalars every Call frame receives (see
-// Interpreter.cpp's seedRecursionBounds); meaningless without it, which is
-// exactly why this skeleton requires recursionCallBias > 0.0 itself.
-StmtPtr genDivideConquerSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    const int lo = 1;
-    const int hi = 2;
-    int mid = 3 + rng.uniformInt(0, cfg.numVars - 4);
-
-    std::vector<StmtPtr> thenBody;
-    thenBody.push_back(makeAssign(
-        mid, makeBinOp(ExprKind::Add, makeVar(lo),
-                        makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
-    thenBody.push_back(makeCall(makeVar(lo), makeVar(mid)));
-    thenBody.push_back(makeCall(makeVar(mid), makeVar(hi)));
-
-    // Same guard as the TSP/BinarySearch skeletons' holes: the combine
-    // step is generated with loopAccumulatorBias forced off locally so
-    // this skeleton (or any other) can't be re-selected inside its own
-    // hole -- that would recurse the GENERATOR without bound while
-    // building the AST (a stack overflow at generation time, unrelated to
-    // the interpreter's own maxRecursionDepth guard on the generated
-    // program's runtime recursion).
-    GenConfig innerCfg = cfg;
-    innerCfg.loopAccumulatorBias = 0.0;
-    auto combine =
-        genBlockStmts(rng, 2, innerCfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true, /*insideWhile=*/false);
-    for (auto& s : combine) thenBody.push_back(std::move(s));
-
-    return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
-                  std::move(thenBody));
-}
-
 // Fully hand-written merge sort, the same status as genSelectionSortSkeletonBlock/
 // genHeapSortSkeletonBlock: a control to answer "can the language and the
 // search USE a correct recursive template at all", separate from
@@ -2805,7 +2567,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { Counting, Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, DivideConquer, MergeSort };
+        enum class Skeleton { Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -2882,7 +2644,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             options[n++] = {s, w};
             totalWeight += w;
         };
-        if (allowed("counting")) addOption(Skeleton::Counting, 3);
         if (allowed("recurrence")) addOption(Skeleton::Recurrence, 3);
         if (canNestedLoop && cfg.numVars >= 5 && allowed("nesteddivisor")) addOption(Skeleton::NestedDivisor, 3);
         if (cfg.numVars >= 3 && allowed("nesteddivisornative")) addOption(Skeleton::NestedDivisorNative, 3);
@@ -2916,8 +2677,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // offering this skeleton without it would just be dead weight that
         // always resets to whatever v1/v2 happen to hold (0/0 unless the
         // program itself sets them).
-        if (cfg.numVars >= 4 && cfg.recursionCallBias > 0.0 && allowed("divideconquer"))
-            addOption(Skeleton::DivideConquer, 3);
         // Fully hand-written control (see genMergeSortSkeletonBlock's
         // comment): same recursionCallBias gate as DivideConquer, plus the
         // 4 extra fixed locals (mid/i/j/k) its merge step needs.
@@ -2934,8 +2693,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             }
             if (chosen == Skeleton::BinarySearch) gSkeletonBinarySearchPicks++;
             switch (chosen) {
-                case Skeleton::Counting:
-                    return genCountingLoopBlock(rng, cfg, loopsUsed);
                 case Skeleton::Recurrence:
                     return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed, canNestedLoop);
                 case Skeleton::NestedDivisor:
@@ -2964,8 +2721,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genDtwSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::BinarySearch:
                     return genBinarySearchSkeletonBlock(rng, cfg, loopsUsed);
-                case Skeleton::DivideConquer:
-                    return genDivideConquerSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::MergeSort:
                     return genMergeSortSkeletonBlock(rng, cfg, loopsUsed);
             }

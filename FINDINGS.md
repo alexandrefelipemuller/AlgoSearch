@@ -4265,3 +4265,29 @@ mergesort are the project's only O(n log n) sorts (sections 14 and 25).
 That is the same speed-not-success argument that exempted binarysearch,
 but the rule as registered did not exempt them. Whether to remove them
 is left as an explicit decision.
+
+## 57. Two skeletons removed: `counting` and `divideconquer`
+
+Decision on section 56 (with the user): remove `counting` and
+`divideconquer`, which every problem they serve proved not to need.
+Keep heapsort and mergesort despite passing the removal rule, because
+they are the only O(n log n) sorts. That is the same speed argument that
+exempted binarysearch, and a success-only battery cannot see it.
+Removed from `ProgramGenerator.cpp`: `genCountingLoopBlock`,
+`genDivideConquerSkeletonBlock`, their skeleton options and the
+accumulator helpers only `counting` used. Also removed the test
+`loop_accumulator_bias_produces_a_counting_loop_when_forced`, which tested
+the removed skeleton. `make test` 141/141.
+
+Removing one skeleton is not the configuration section 56 measured
+(STX had every skeleton off) and changes the default's RNG stream. So the
+README's modest battery was re-run on the new default
+(`data/modest_battery_skeleton_pruned_20261004/`, not versioned). All 17
+problems are still confirmed with 0 rejections, in the same complexity
+classes as section 48's table (5 kept everywhere except fibonacci 4 and
+graph_reachability 3).
+
+The skeleton library is now 15: recurrence, nesteddivisor,
+nesteddivisornative, selectionsort, repeatedmultiply, average, heapsort,
+threesum, graphreachability, shortestpath, tspbruteforce,
+tspbranchandbound, dtw, binarysearch, mergesort.
