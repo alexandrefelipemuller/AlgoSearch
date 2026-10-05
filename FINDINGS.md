@@ -4592,3 +4592,25 @@ runs). Verified successes of 30 matched seeds (17000-17029):
   (second_smallest, min_gap, each cleared at 30 seeds) and phase B's
   sub-second 2.11x cost on count_ascending_runs. A new pre-registered
   battery with the corrected step limit is needed before any change.
+
+## 61. `--combinator-state` as the default, with the step limit corrected -- predictions registered before running
+
+Section 60 showed that the graph_reachability gaps of sections 56 and
+58-60 were an artifact of `--step-limit 5000`. This repeats section 56's
+question A on all 49 problems, at **`--step-limit 20000` for every problem
+and both arms**, with 10 fresh matched seeds (19000-19009), section 56's
+max-n, walls and budgets, and per-seed `--benchmark`.
+Script: `scripts/run_state_default_steplimit.sh`. Arms:
+- **base**: current default;
+- **ST**: base + `--combinator-state` (share 1/4, as in section 55).
+
+**Predictions** (section 56's, unchanged):
+1. No regression: ST >= base - 1 on every problem.
+2. Gains: ST >= base + 7 on each of the ten stateful problems.
+3. Cost: on problems both arms solve 10/10, ST's mean search wall <= 2x
+   base. The rule is kept as it was, although the closest past miss was
+   sub-second (2.11x on count_ascending_runs, section 59 phase B).
+
+**Decision rule, fixed now.** If 1, 2 and 3 hold, `--combinator-state`
+becomes the default. If any fails, it stays opt-in and the failing problem
+is reported. No retest is promised in advance.
