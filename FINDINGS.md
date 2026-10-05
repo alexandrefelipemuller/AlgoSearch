@@ -4406,3 +4406,46 @@ instead of shares fixed in the source.
   the credit signal, not the shares.
 - **(d)** If prediction 1 fails (no replication), section 58's regression
   was not robust. That is recorded, and the A/B is re-read from scratch.
+
+## 59 (results, phase A). The bandit credits the right skeleton but does not fix the crowding; the 1/8 share does
+
+`data/adaptive_families_ab_20261004/` (not versioned; 22:41-22:58, 240
+runs). Verified successes of 30 matched seeds (15000-15029):
+
+| problem | base | ST | ST8 | STA |
+|---|---|---|---|---|
+| graph_reachability | 15 | 11 | **15** | 11 |
+| second_smallest | 29 | 30 | 28 | 29 |
+
+1. **Failed by one.** ST <= base - 5 did not hold: the result was -4.
+   Section 58's regression shrank on fresh seeds, but it is still there.
+   Pooled over both retests (60 seeds), ST costs 31 -> 19 on
+   graph_reachability.
+2. **Failed.** STA = 11 on graph_reachability, base - 4. Adaptive weights
+   recovered nothing over ST.
+3. **ST8 did not land in between.** It matched base (15) and is within the
+   bound on second_smallest (28 >= 26).
+4. **Held.** The graphreachability multiplier ended >= 1 in every STA run
+   (2.4-3.8), successful or not. The credit signal finds the right
+   skeleton.
+
+**Why STA failed although 4 held.** The two existing draws are not where
+the crowding happens:
+- The graph skeleton was boosted only relative to the other skeletons.
+  The gates that decide whether a skeleton or a combinator block is drawn
+  at all (`loopAccumulatorBias`, `combinatorBias`) were not arms.
+- The stateful share is a ratio between two families that were both
+  never credited on graph_reachability. Both ended at the same
+  multiplier (about 0.85-0.9), so the stateful quarter stayed a quarter.
+
+Normalizing by the mean credit cannot push down one uncredited family
+relative to another. Cutting the uncredited family's share at the source
+can, and that is what ST8 does.
+
+**Decision (rules (b) and (c)).**
+- Adaptive credit as designed is refuted for this regression.
+  `--adaptive-families` stays opt-in.
+- It is not refuted as a signal (prediction 4). A redesign would need
+  the top-level gates as arms too.
+- ST8 meets prediction 2's bound, so per rule (b) **ST8** (stateful share
+  1/8) goes to phase B in place of STA.
