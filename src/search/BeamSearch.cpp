@@ -668,7 +668,13 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             scoreBandCount = static_cast<int>(std::lround(config_.scoreBandRate * config_.beamWidth));
             scoreBandCount = std::clamp(scoreBandCount, 0, eliteCount - shapeNicheCount - behaviorNicheCount);
         }
-        int nicheCount = shapeNicheCount + behaviorNicheCount + scoreBandCount;
+        int skeletonQuotaCount = 0;
+        if (config_.skeletonQuotaRate > 0.0) {
+            skeletonQuotaCount = static_cast<int>(std::lround(config_.skeletonQuotaRate * config_.beamWidth));
+            skeletonQuotaCount =
+                std::clamp(skeletonQuotaCount, 0, eliteCount - shapeNicheCount - behaviorNicheCount - scoreBandCount);
+        }
+        int nicheCount = shapeNicheCount + behaviorNicheCount + scoreBandCount + skeletonQuotaCount;
         int pureEliteCount = eliteCount - nicheCount;
 
         if (nicheCount > 0 && static_cast<int>(scored.size()) > pureEliteCount) {
@@ -710,6 +716,26 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                     std::string behavior = behaviorSignature(scored[i]);
                     if (behaviorsInBeam.insert(behavior).second) {
                         nextBeam.push_back(std::move(scored[i]));
+                    }
+                }
+            }
+
+            // Section 60: skeleton-lineage quota, round-robin over the
+            // skeleton families, each taking its best unclaimed candidate.
+            if (skeletonQuotaCount > 0) {
+                int quotaTarget = pureEliteCount + shapeNicheCount + behaviorNicheCount + skeletonQuotaCount;
+                std::array<size_t, FamilyCombinatorPlain> next{};
+                next.fill(static_cast<size_t>(pureEliteCount));
+                bool progress = true;
+                while (progress && static_cast<int>(nextBeam.size()) < quotaTarget) {
+                    progress = false;
+                    for (int f = 0; f < FamilyCombinatorPlain && static_cast<int>(nextBeam.size()) < quotaTarget; ++f) {
+                        size_t& i = next[static_cast<size_t>(f)];
+                        while (i < scored.size() && (!scored[i].program || !(scored[i].families & (1u << f)))) ++i;
+                        if (i < scored.size()) {
+                            nextBeam.push_back(std::move(scored[i++]));
+                            progress = true;
+                        }
                     }
                 }
             }
