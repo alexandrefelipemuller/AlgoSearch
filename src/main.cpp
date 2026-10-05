@@ -104,6 +104,8 @@ struct CliArgs {
     double combinatorBias = 0.5;  // default since FINDINGS.md section 48 (A/B in section 47); --combinator-bias 0 restores the old default
     bool combinatorAdjacent = true;  // v2 axes by default; --combinator-v1 restores the frozen v1 family
     bool combinatorState = false;
+    double combinatorStateShare = 0.25;  // section 59's ST8 control arm uses 0.125
+    bool adaptiveFamilies = false;       // FINDINGS.md section 59
     bool combinatorStep = true;  // default since FINDINGS.md section 53; --no-combinator-step restores the old default
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
@@ -163,6 +165,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--combinator-step") args.combinatorStep = true;  // now the default; kept so section 52's scripts still run
         else if (arg == "--no-combinator-step") args.combinatorStep = false;
         else if (arg == "--combinator-state") args.combinatorState = true;
+        else if (arg == "--combinator-state-share") args.combinatorStateShare = std::stod(next("--combinator-state-share"));
+        else if (arg == "--adaptive-families") args.adaptiveFamilies = true;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -190,7 +194,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--combinator-state] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--combinator-state] [--combinator-state-share 0.25] [--adaptive-families] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
@@ -359,8 +363,9 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.combinatorBias = args.combinatorBias;
         config.genConfig.combinatorAdjacent = args.combinatorAdjacent;
         config.genConfig.combinatorStep = args.combinatorStep;
-    config.genConfig.combinatorState = args.combinatorState;
         config.genConfig.combinatorState = args.combinatorState;
+        config.genConfig.combinatorStateShare = args.combinatorStateShare;
+        config.genConfig.adaptiveFamilies = args.adaptiveFamilies;
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
 
@@ -730,6 +735,9 @@ int main(int argc, char** argv) {
     config.genConfig.combinatorBias = args.combinatorBias;
     config.genConfig.combinatorAdjacent = args.combinatorAdjacent;
     config.genConfig.combinatorStep = args.combinatorStep;
+    config.genConfig.combinatorState = args.combinatorState;
+    config.genConfig.combinatorStateShare = args.combinatorStateShare;
+    config.genConfig.adaptiveFamilies = args.adaptiveFamilies;
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;

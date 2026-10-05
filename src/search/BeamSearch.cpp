@@ -157,6 +157,8 @@ struct CandidateRecord {
     // search what a specific problem's correct algorithm looks like --
     // unlike a hand-picked "reward this AST shape" bonus would be.
     std::vector<bool> correctness;
+    // Section 59: families (bit f = Family f) this candidate's lineage drew.
+    uint32_t families = 0;
 };
 
 // A candidate's behavior signature: its correctness pattern encoded as a
@@ -351,6 +353,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     std::unordered_set<std::string> frozenChampions;
     std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
     std::map<int, std::vector<Instance>> seenInstancesByLevel;  // tail enumeration (section 51)
+    // Section 59: per-family progress credit (adaptive family weights).
+    const bool adaptiveFamilies = config_.genConfig.adaptiveFamilies;
+    std::array<double, kFamilyCount> familyCredit{};
+    int creditLevel = currentLevel, creditBestScore = -1, creditBestSize = 0;
 
     for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
         postSolveWindowOpenedThisSize = false;
@@ -371,10 +377,14 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         // worse can never cause the beam's current best to be lost.
         auto genStart = std::chrono::steady_clock::now();
         std::vector<Program> grownPool;
+        std::vector<uint32_t> grownFamilies, freshFamilies, crossoverFamilies, annealFamilies;
         grownPool.reserve(beam.size() * 2);
+        takeFamilyDraws();
         for (auto& b : beam) {
             grownPool.push_back(b.program->clone());
+            grownFamilies.push_back(b.families);
             grownPool.push_back(growProgram(*b.program, size, rng, config_.genConfig));
+            grownFamilies.push_back(b.families | takeFamilyDraws());
         }
 
         // Section 51: for the top beam survivors, cut the program after each
@@ -396,7 +406,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 for (int cut = std::max(0, statements - 2); cut <= statements; ++cut) {
                     auto prefix = makeBlock();
                     for (int k = 0; k < cut; ++k) prefix->body.push_back(program.body[static_cast<size_t>(k)]->clone());
-                    if (auto filled = fillTail(*prefix, seen, problem_, interp)) grownPool.push_back(std::move(filled));
+                    if (auto filled = fillTail(*prefix, seen, problem_, interp)) {
+                        grownPool.push_back(std::move(filled));
+                        grownFamilies.push_back(beam[static_cast<size_t>(b)].families);
+                    }
                 }
             }
         }
@@ -405,7 +418,11 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         int guard = 0;
         while (static_cast<int>(freshPool.size()) < config_.candidatesPerSize && guard < config_.candidatesPerSize * 4) {
             auto candidate = generateRandomProgram(rng, size, config_.genConfig);
-            if (dedup.insertIfNew(*candidate)) freshPool.push_back(std::move(candidate));
+            uint32_t drawn = takeFamilyDraws();
+            if (dedup.insertIfNew(*candidate)) {
+                freshPool.push_back(std::move(candidate));
+                freshFamilies.push_back(drawn);
+            }
             guard++;
         }
 
@@ -422,6 +439,8 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 if (ib == ia) ib = (ib + 1) % static_cast<int>(beam.size());
                 crossoverPool.push_back(crossoverPrograms(*beam[static_cast<size_t>(ia)].program,
                                                             *beam[static_cast<size_t>(ib)].program, rng, config_.genConfig));
+                crossoverFamilies.push_back(beam[static_cast<size_t>(ia)].families | beam[static_cast<size_t>(ib)].families |
+                                            takeFamilyDraws());
             }
         }
         // Annealer pool: one mutation of the walker's current state (or a
@@ -431,6 +450,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (config_.annealingTemperature > 0.0) {
             annealPool.push_back(annealState ? growProgram(*annealState, size, rng, config_.genConfig)
                                               : generateRandomProgram(rng, size, config_.genConfig));
+            annealFamilies.push_back(takeFamilyDraws());
         }
 
         totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size()) + static_cast<int>(annealPool.size());
@@ -455,6 +475,12 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors,
                          trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         totalCandidatesScored += static_cast<long>(scored.size());
+        {
+            size_t k = 0;
+            for (const auto* tags : {&grownFamilies, &freshFamilies, &crossoverFamilies, &annealFamilies}) {
+                for (uint32_t f : *tags) scored[k++].families = f;
+            }
+        }
 
         // Diagnostic only (FINDINGS.md section 35, idea E's go/no-go): how
         // many candidates scored this size step behave EXACTLY like one
@@ -578,6 +604,30 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
         int bestScore = scored.front().score;
         int bestSize = scored.front().size;
+
+        // Section 59: credit every family in the lineage of a candidate that
+        // sets a new best (score, then size) on this level; decay 0.9 per
+        // level; multiplier (1 + credit) / (1 + mean credit) in [0.5, 4].
+        if (adaptiveFamilies) {
+            if (currentLevel != creditLevel) {
+                for (double& c : familyCredit) c *= 0.9;
+                creditLevel = currentLevel;
+                creditBestScore = -1;
+            }
+            if (bestScore > creditBestScore || (bestScore == creditBestScore && bestSize < creditBestSize)) {
+                creditBestScore = bestScore;
+                creditBestSize = bestSize;
+                for (int f = 0; f < kFamilyCount; ++f) {
+                    if (scored.front().families & (1u << f)) familyCredit[static_cast<size_t>(f)] += 1.0;
+                }
+                double mean = 0.0;
+                for (double c : familyCredit) mean += c / static_cast<double>(kFamilyCount);
+                for (int f = 0; f < kFamilyCount; ++f) {
+                    config_.genConfig.familyWeight[static_cast<size_t>(f)] =
+                        std::clamp((1.0 + familyCredit[static_cast<size_t>(f)]) / (1.0 + mean), 0.5, 4.0);
+                }
+            }
+        }
         log::progress(scored.size(), bestScore, static_cast<int>(instances.size()), bestSize, timeouts, errors);
 
         // Diagnostic only (FINDINGS.md section 33's phase-3 go/no-go check):
@@ -722,10 +772,15 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             // to occupy the tail of the beam.
             std::vector<Program> immigrantPool;
             immigrantPool.reserve(static_cast<size_t>(immigrantCount));
-            for (int i = 0; i < immigrantCount; ++i) immigrantPool.push_back(generateRandomProgram(rng, size, config_.genConfig));
+            std::vector<uint32_t> immigrantFamilies;
+            for (int i = 0; i < immigrantCount; ++i) {
+                immigrantPool.push_back(generateRandomProgram(rng, size, config_.genConfig));
+                immigrantFamilies.push_back(takeFamilyDraws());
+            }
             std::vector<CandidateRecord> immigrantScored(immigrantPool.size());
             int immTimeouts = 0, immErrors = 0;
             scoreCandidates(immigrantPool, instances, problem_, interp, threadCount, immigrantScored, 0, immTimeouts, immErrors);
+            for (size_t i = 0; i < immigrantScored.size(); ++i) immigrantScored[i].families = immigrantFamilies[i];
             timeouts += immTimeouts;
             errors += immErrors;
             for (auto& rec : immigrantScored) beam.push_back(std::move(rec));
@@ -945,6 +1000,13 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
     double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
     log::searchFinished(elapsed);
+    if (adaptiveFamilies) {
+        std::cout << "  families:";
+        for (int f = 0; f < kFamilyCount; ++f) {
+            std::cout << " " << familyName(f) << "=" << config_.genConfig.familyWeight[static_cast<size_t>(f)];
+        }
+        std::cout << "\n";
+    }
     if (elapsed > 0.0) {
         double genRate = totalCandidatesGenerated / elapsed;
         double scoreRate = totalCandidatesScored / elapsed;
