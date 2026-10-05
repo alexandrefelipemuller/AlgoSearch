@@ -4333,3 +4333,76 @@ its own matched A/B: a smaller state share (e.g. 1/8 instead of 1/4), or
 drawing the stateful pieces only on problems whose layout is a plain
 sequence. graph_reachability's flat adjacency layout is not one, but
 nothing in a problem-agnostic generator knows that.
+
+## 59. Adaptive family weights against dilution -- design and predictions registered before implementing
+
+Section 58 measured the cost of adding a family of blocks. Every new
+family takes a fixed share of the draws on every problem, so it crowds out
+the families a problem actually needs: graph_reachability went from 16 to
+8 of 30 when the stateful pieces got a quarter of the combinator draws.
+If the library is to grow (by hand or, later, by automatic extraction),
+the generator needs shares that adapt to the problem during the run,
+instead of shares fixed in the source.
+
+**Mechanism (`--adaptive-families`, off by default).**
+- **Arms.** Each top-level block family is one arm: every hand-written
+  skeleton, plain combinator blocks and stateful combinator blocks. Plain
+  grammar statements are not an arm; their share is unchanged.
+- **Tagging.** While a candidate is generated or grown, the generator
+  records which families it drew. BeamSearch keeps that set with the
+  candidate, and mutated or crossed-over children inherit the union of
+  their parents' sets.
+- **Credit is progress, not survival.** A family gets one point each time
+  a candidate containing it sets a new best (score, then size) within a
+  level. Credits decay by 0.9 per level. Rewarding beam survival was
+  rejected on purpose: section 58's crowding is a survival effect, and
+  rewarding survival would amplify the very family causing it.
+- **Weights.** effective_f = static_f * m_f, with m_f = (1 + credit_f) /
+  (1 + mean credit), clamped to [0.5, 4]. The 0.5 floor guarantees that no
+  family, in particular a skeleton that only pays off after several size
+  steps, ever drops below half its static share. The two existing draws
+  use the effective weights: the weighted skeleton roll, and the
+  plain-vs-stateful split inside the combinator.
+- **Logging.** At the end of a run, the final m_f of every arm goes to the
+  log, so the mechanism can be checked and not just the outcome.
+- **Byte identity.** With the flag off, programs and the RNG stream are
+  unchanged. A test in `tests/combinator_tests.cpp` enforces this, as for
+  earlier flags.
+
+**Experiment.**
+- **Phase A** (the regression): graph_reachability and second_smallest,
+  30 fresh matched seeds (15000-15029), section 58's budgets. Arms:
+  - **base**: current default;
+  - **ST**: base + `--combinator-state`;
+  - **ST8**: ST with the stateful share cut to 1/8. This is the one-line
+    manual fix and serves as the control.
+  - **STA**: ST + `--adaptive-families`.
+- **Phase B** (the full battery, run only if STA passes phase A): all 49
+  array/scalar problems, 10 fresh matched seeds (16000-16009), section
+  56's budgets, base vs STA.
+
+**Predictions.**
+1. ST replicates section 58: ST <= base - 5 on graph_reachability.
+2. STA >= base - 3 (of 30) on both phase A problems.
+3. ST8 lands between ST and base on graph_reachability. This is not a
+   pass/fail prediction; it is the control for rule (b) below.
+4. In STA's graph_reachability successes, the final m_f of
+   graphreachability is >= 1. The skeleton is credited, not merely
+   protected by the floor.
+5. Phase B, STA vs base:
+   - STA >= base - 1 on every problem;
+   - STA >= base + 7 on each of the ten stateful problems of section 55;
+   - on problems both arms solve 10/10, mean wall <= 2x base.
+
+**Decision rule, fixed now.**
+- **(a)** If 2 and 5 hold, `--adaptive-families` and `--combinator-state`
+  both become the default.
+- **(b)** If ST8 also satisfies prediction 2's bound, the simpler fix
+  (state share 1/8) goes through phase B instead. The bandit is then
+  recorded as unnecessary for this case and stays opt-in, as
+  infrastructure for future families.
+- **(c)** If prediction 2 fails for STA, adaptive credit as designed is
+  refuted for this regression. If prediction 4 also fails, the cause is
+  the credit signal, not the shares.
+- **(d)** If prediction 1 fails (no replication), section 58's regression
+  was not robust. That is recorded, and the A/B is re-read from scratch.
