@@ -4494,3 +4494,50 @@ problem moved. A fix aimed at that specific crowding (a guarded beam
 quota for a partially built skeleton, or the gates as adaptive arms, see
 the phase A analysis) is the open follow-up; the share alone is not
 enough for a no-regression default.
+
+## 60. A protected beam quota for skeleton lineages -- predictions registered before implementing
+
+Sections 58-59 locate the conflict: graph_reachability's skeleton is built
+over several size steps, and while it is incomplete its lineage loses beam
+slots to fully scoring blocks, the stateful ones in particular. Neither
+cutting the stateful share (ST8) nor reweighting draws (STA) removed the
+cost. This section protects the lineage directly, in selection rather
+than in generation.
+
+**Mechanism (`--skeleton-quota R`, 0 = off and byte-identical).**
+- A fraction R of the beam's elite slots becomes a niche, alongside the
+  existing shape, behavior and score-band niches.
+- The niche is filled round-robin over the hand-written skeleton families
+  (section 59's lineage tags, bits 0-14). Each family in turn gets its
+  best-ranked candidate not already in the beam, until the quota is full
+  or no tagged candidate is left.
+- A skeleton lineage that is temporarily outscored keeps a few slots
+  instead of dropping out. No generation draw changes.
+- R = 0.1 (50 slots at beam width 500), fixed before running.
+
+**Phase A.** graph_reachability, second_smallest and min_gap (min_gap is
+phase B's other drop; its winners are selectionsort + a step block,
+section 56). 30 fresh matched seeds (17000-17029), the section 58
+budgets, plus section 56's for min_gap. Arms:
+- **base**;
+- **ST** = base + `--combinator-state`;
+- **STQ** = ST + `--skeleton-quota 0.1`.
+
+**Phase B** (run only if phase A passes): all 49 problems, 10 fresh
+matched seeds (18000-18009), base vs STQ.
+
+**Predictions.**
+1. STQ >= base - 3 (of 30) on all three phase A problems.
+2. ST < base on graph_reachability, replicating the earlier drop. This is
+   not part of the decision rule.
+3. Phase B, STQ vs base:
+   - STQ >= base - 1 on every problem;
+   - STQ >= base + 7 on each of the ten stateful problems;
+   - on problems both arms solve 10/10, mean wall <= 2x base.
+
+**Decision rule, fixed now.**
+- If 1 and 3 hold, `--combinator-state` and `--skeleton-quota 0.1` both
+  become the default.
+- If 1 fails, the quota at 0.1 is refuted for this conflict.
+- If 1 holds but 3 fails, both stay opt-in, and the phase B failure
+  decides the follow-up.
