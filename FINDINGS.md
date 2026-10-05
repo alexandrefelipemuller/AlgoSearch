@@ -4541,3 +4541,54 @@ matched seeds (18000-18009), base vs STQ.
 - If 1 fails, the quota at 0.1 is refuted for this conflict.
 - If 1 holds but 3 fails, both stay opt-in, and the phase B failure
   decides the follow-up.
+
+## 60 (results). Quota refuted, and the regression it targeted is a step-limit artifact
+
+`data/skeleton_quota_ab_20261005/` (not versioned; 01:53-02:18, 270
+runs). Verified successes of 30 matched seeds (17000-17029):
+
+| problem | base | ST | STQ |
+|---|---|---|---|
+| graph_reachability | 17 | 13 | 13 |
+| second_smallest | 28 | 27 | 29 |
+| min_gap | 11 | 14 | 15 |
+
+- **Prediction 1 failed** on graph_reachability (STQ = base - 4). By the
+  rule, the quota at 0.1 is refuted. STQ is identical to ST on that
+  problem, so the quota changed nothing there.
+- **Prediction 2 held** (13 < 17).
+- min_gap: ST is *above* base. Phase B's 6 -> 4 was 10-seed noise.
+
+**Diagnosis, after the run.**
+- **Not crowding.** In every graph_reachability run, success or failure,
+  base or ST, the champion is the same 69-node relaxation skeleton up to
+  variable renaming. No failing final program uses a stateful block.
+- **What separates success from failure is the level at which that
+  skeleton is first found:**
+  - Found at level 2, invariance lookahead checks N = 3..5 and the
+    program is confirmed: success.
+  - If a small fluke solves level 2 first (in the inspected ST failure, a
+    7-node program), the skeleton is found at level 3. Its lookahead must
+    then pass N = 6, where its O(n^3) relaxation exceeds
+    `--step-limit 5000` on the denser instances. It is marked "breaks
+    before N=6" and the run fails.
+- **Check:** the same 30 seeds rerun at `--step-limit 20000`
+  (`data/graph_steplimit_check_20261005/`, not versioned) give **base
+  30/30, ST 30/30, STQ 30/30**. Mean wall is 0.54 s vs 0.61 s.
+
+**Consequences.**
+- Every graph_reachability gap in sections 56, 58, 59 and 60 measured
+  whether the skeleton showed up at level 2, not whether the search found
+  it. Extra draws such as the stateful pieces shift that race. The
+  "graph regression" of `--combinator-state` is an artifact of the
+  battery's step limit, not a cost of the pieces. section 58's crowding
+  mechanism, and the motivation for sections 59 and 60, were wrong.
+- The decisions recorded under the fixed rules stand as recorded:
+  `--combinator-state`, `--adaptive-families` and `--skeleton-quota` all
+  stay opt-in. The quota and the adaptive weights showed no benefit, so
+  they are not candidates.
+- With graph_reachability at a sufficient step limit, the remaining
+  objections to `--combinator-state` as the default are 10-seed noise
+  (second_smallest, min_gap, each cleared at 30 seeds) and phase B's
+  sub-second 2.11x cost on count_ascending_runs. A new pre-registered
+  battery with the corrected step limit is needed before any change.
