@@ -71,7 +71,10 @@ search budget** for each (`--beam-width 500 --candidates 1500
 bitwise, the skeleton library from `FINDINGS.md` sections 11-17 (minus the
 `counting` and `divideconquer` skeletons, removed in section 57 after an
 isolation battery showed nothing needs them), and the combinator algebra on
-by default, `--combinator-bias 0.5`, since section 48).
+by default, `--combinator-bias 0.5`, since section 48). The table predates
+the stateful combinator pieces (Kadane, LIS, rain water and relatives),
+on by default since section 62. With them, ten more array problems are
+solved 10/10 (section 61); `--no-combinator-state` reproduces the table.
 Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core

@@ -4650,3 +4650,28 @@ rule measures a relative cost, which a sub-second baseline makes easy to
 exceed. Whether the rule should be replaced (for example by an absolute
 or a battery-total wall budget) is a decision to make and register
 *before* the next battery, not a reinterpretation of this one.
+
+## 62. `--combinator-state` becomes the default by explicit decision, after section 61's data
+
+This is a decision made *after* seeing section 61's results, not the
+outcome of a pre-registered rule. The record says so explicitly.
+
+Section 61's cost rule (ST's mean wall <= 2x base on problems both arms
+solve 10/10) failed only on two sub-second problems:
+- contains_ordered: 0.42 s -> 1.35 s;
+- contains: 0.28 s -> 0.59 s.
+
+Both success predictions held: no problem dropped by more than 1, and
+all ten stateful problems went from 0 to 9-10. The project owner decided
+that search time is not a criterion for promotion: **what matters is
+reachability and diversity of the problems solved**, and on those
+`--combinator-state` is a pure gain.
+
+The CLI default is now `--combinator-state` on.
+`--no-combinator-state` restores the previous behavior. GenConfig's own
+default stays false, so the generator's byte-identity tests are
+unchanged.
+
+Going forward, default-promotion rules for search features should be
+written on success and diversity (no regression, gains). Wall time is
+reported, not used as a gate.
