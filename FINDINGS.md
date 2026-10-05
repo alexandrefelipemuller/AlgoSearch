@@ -4614,3 +4614,39 @@ Script: `scripts/run_state_default_steplimit.sh`. Arms:
 **Decision rule, fixed now.** If 1, 2 and 3 hold, `--combinator-state`
 becomes the default. If any fails, it stays opt-in and the failing problem
 is reported. No retest is promised in advance.
+
+## 61 (results). Success predictions hold; the 2x cost rule fails on sub-second problems, so the default does not change
+
+`data/state_default_steplimit_20261005/` (not versioned; 07:11-08:48,
+980 runs, 172 wall timeouts, on problems neither arm solves or in base
+runs of the stateful problems). Verified successes of 10 matched seeds
+(19000-19009), base / ST:
+
+| problem(s) | base | ST |
+|---|---|---|
+| the ten stateful problems of section 55 | 0 each | 10 each (lis 9) |
+| graph_reachability | 10 | 10 |
+| count_distinct / second_smallest | 3 / 9 | 7 / 10 |
+| count_ascending_runs / max_gap_sorted / min_gap | 10 / 4 / 4 | 9 / 3 / 3 |
+| three_sum | 7 | 7 |
+| every other solved problem (31) | 10 each | 10 each |
+| max_adjacent_gap, cycle, max_profit, count_leaders, has_majority | 0 | 0 |
+
+1. **No regression: held.** The worst case is -1 (count_ascending_runs,
+   max_gap_sorted, min_gap). At step limit 20000, graph_reachability is
+   10/10 in both arms, confirming section 60.
+2. **Gains: held.** +9 or +10 on all ten stateful problems.
+3. **Cost: failed.**
+   - contains_ordered: 0.42 s -> 1.35 s (3.2x);
+   - contains: 0.28 s -> 0.59 s (2.1x).
+
+   Every other shared 10/10 problem is <= 1.6x, and the largest absolute
+   increase is under 1 s. Where ST solves a problem base also solves
+   slowly, it is much faster: count_distinct 67 s -> 30 s, max_gap_sorted
+   96 s -> 10 s.
+
+**Decision: by the fixed rule, `--combinator-state` stays opt-in.** The
+rule measures a relative cost, which a sub-second baseline makes easy to
+exceed. Whether the rule should be replaced (for example by an absolute
+or a battery-total wall budget) is a decision to make and register
+*before* the next battery, not a reinterpretation of this one.
