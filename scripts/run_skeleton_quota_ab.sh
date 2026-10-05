@@ -5,7 +5,7 @@
 # One --benchmark --benchmark-seeds 1 process per run.
 #
 # Usage: scripts/run_skeleton_quota_ab.sh output_root
-# Env: SEEDS (30), SEED_BASE (15000), JOBS (8).
+# Env: SEEDS (30), SEED_BASE (17000), JOBS (8).
 
 set -uo pipefail
 cd "$(dirname "$0")/.."
