@@ -4449,3 +4449,48 @@ can, and that is what ST8 does.
   the top-level gates as arms too.
 - ST8 meets prediction 2's bound, so per rule (b) **ST8** (stateful share
   1/8) goes to phase B in place of STA.
+
+## 59 (results, phase B). ST8 solves every stateful target but misses no-regression again on graph_reachability
+
+`data/state_share_phase_b_20261004/` (not versioned; 23:00-00:20, 980
+runs, 54 wall timeouts, all on problems neither arm solves). Script:
+`scripts/run_state_share_phase_b.sh`. Verified successes of 10 matched
+seeds (16000-16009), base / ST8:
+
+| problem(s) | base | ST8 |
+|---|---|---|
+| the ten stateful problems of section 55 | 0 each | 10 each (lis 9) |
+| graph_reachability | 8 | **5** |
+| min_gap / max_gap_sorted / count_distinct | 6 / 8 / 2 | **4** / 7 / 4 |
+| palindrome / three_sum | 10 / 9 | 9 / 9 |
+| every other solved problem (32) | 10 each | 10 each |
+| max_adjacent_gap, cycle, max_profit, count_leaders, has_majority | 0 | 0 |
+
+Prediction 5:
+- **(i) Failed:** no-regression within -1 does not hold.
+  graph_reachability drops 8 -> 5 and min_gap drops 6 -> 4.
+- **(ii) Held:** the ten stateful problems go up by 9-10 each.
+- **(iii) Failed, narrowly:** the worst cost ratio on problems both arms
+  solve 10/10 is 2.11x, on count_ascending_runs (0.61 s -> 1.28 s).
+  Everything else is <= 1.4x.
+
+**Decision: by rule (a), ST8 does not become the default either.**
+`--combinator-state` stays opt-in at either share.
+
+graph_reachability is the same problem for the third time in a row. The
+evidence across the three experiments:
+
+| experiment | base | with state |
+|---|---|---|
+| section 58 (30 seeds) | 16 | 8 |
+| phase A, ST (30 seeds) | 15 | 11 |
+| phase A, ST8 (30 seeds) | 15 | 15 |
+| phase B, ST8 (10 seeds) | 8 | 5 |
+
+Pooled at 1/8, ST8 gives 20/40 against base 23/40. That is a much smaller
+cost than 1/4's 19/60 against 31/60, but probably not zero. The share
+knob trades graph_reachability against nothing else: no other skeleton
+problem moved. A fix aimed at that specific crowding (a guarded beam
+quota for a partially built skeleton, or the gates as adaptive arms, see
+the phase A analysis) is the open follow-up; the share alone is not
+enough for a no-regression default.
