@@ -5,6 +5,7 @@
 #include "problems/ContainsOrderedProblem.hpp"
 #include "search/ProgramGenerator.hpp"
 #include "search/HoleFiller.hpp"
+#include "search/HoleGrammar.hpp"
 #include "test_framework.hpp"
 
 using namespace algosearch;
@@ -81,4 +82,14 @@ TEST(contains_ordered_instances_reject_the_section_63_impostor_decision) {
     };
     CHECK(passesAll(*build(makeIntConst(0)).program));
     CHECK(!passesAll(*build(makeVar(2)).program));
+}
+
+TEST(hole_grammar_membership_matches_section_65) {
+    // In: atoms, atom op atom, atom +/- atom compared with an atom.
+    CHECK(inValueGrammar(*makeBinOp(ExprKind::Mod, makeVar(1), makeVar(4))));
+    CHECK(inCondGrammar(*makeCompare(ExprKind::Ge, makeVar(2), makeVar(4))));
+    // Out: compound array index, three-term sum (section 65's unreached sites).
+    CHECK(!inValueGrammar(*makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(7)))));
+    auto sum3 = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeVar(1), makeVar(2)), makeVar(3));
+    CHECK(!inCondGrammar(*makeCompare(ExprKind::Eq, std::move(sum3), makeIntConst(0))));
 }

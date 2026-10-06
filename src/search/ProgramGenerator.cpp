@@ -1,5 +1,7 @@
 #include "search/ProgramGenerator.hpp"
 
+#include "search/HoleGrammar.hpp"
+
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
@@ -32,6 +34,18 @@ SkeletonDebugPrinter gSkeletonDebugPrinter;
 // Section 59: families drawn on this thread since the last takeFamilyDraws().
 thread_local uint32_t tFamilyDraws = 0;
 void noteFamily(int family) { tFamilyDraws |= 1u << family; }
+
+// Section 66: replace every site of a skeleton block whose expression lies
+// in the hole grammar (search/HoleGrammar.hpp) by a random grammar
+// expression over the block's own scalars; out-of-grammar sites are kept.
+void scrambleHoleSites(Stmt& block, Random& rng) {
+    std::set<int> varSet = {0};
+    collectVars(block, varSet);
+    std::vector<int> vars(varSet.begin(), varSet.end());
+    forEachSlot(block, [&](Stmt&, ExprPtr& slot, bool isCond) {
+        if (isCond ? inCondGrammar(*slot) : inValueGrammar(*slot)) slot = isCond ? randomCond(rng, vars) : randomValue(rng, vars);
+    });
+}
 
 // -- Generation-time pruning (GenConfig::pruneGeneration) and its counters --
 //
@@ -2723,6 +2737,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             }
             noteFamily(static_cast<int>(chosen));
             if (chosen == Skeleton::BinarySearch) gSkeletonBinarySearchPicks++;
+            StmtPtr skeletonBlock = [&]() -> StmtPtr {
             switch (chosen) {
                 case Skeleton::Recurrence:
                     return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed, canNestedLoop);
@@ -2755,6 +2770,11 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                 case Skeleton::MergeSort:
                     return genMergeSortSkeletonBlock(rng, cfg, loopsUsed);
             }
+            return nullptr;
+            }();
+            // Section 66: shape only -- every in-grammar site drawn at random.
+            if (cfg.skeletonHoles && skeletonBlock) scrambleHoleSites(*skeletonBlock, rng);
+            if (skeletonBlock) return skeletonBlock;
         }
     }
 

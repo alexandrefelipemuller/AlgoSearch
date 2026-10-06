@@ -214,6 +214,11 @@ struct GenConfig {
     // BeamSearch updates during the run from per-family progress credit.
     // When off, familyWeight is never read (byte-identical).
     bool adaptiveFamilies = false;
+
+    // Section 66: skeletons are offered as shape only -- every site in the
+    // hole grammar is drawn at random (`--skeleton-holes`). False is
+    // byte-identical.
+    bool skeletonHoles = false;
     std::array<double, kFamilyCount> familyWeight = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):

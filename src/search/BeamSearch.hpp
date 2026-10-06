@@ -209,6 +209,10 @@ struct SearchConfig {
     // the top `tailEnumTop` beam survivors at every size step. 0 = off,
     // byte-identical to before.
     int tailEnumTop = 0;
+    // Section 66: enumerative single-site repair of the top `holeRepairTop`
+    // beam survivors at every size step (search/HoleGrammar.hpp). 0 = off,
+    // byte-identical.
+    int holeRepairTop = 0;
 
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written

@@ -5084,3 +5084,51 @@ grammar), plus graph_reachability (8 reach-only sites; expected to fail).
 - If 2 fails, single-site coordinate descent does not compose under the
   search's score.
 - Nothing becomes default from this section alone.
+
+## 66 (results). Shape alone does not compose: single-site repair from a scrambled skeleton reaches nothing; battery not run
+
+The registered battery was **not run**: pilots showed the mechanism fails
+at its base, and the result does not need ten seeds to read. What was run:
+
+1. **Pilot 1, as registered** (`--hole-repair` on the top beam
+   survivors). gcd, seed 20000: no solution. The beam is dominated by a
+   non-skeleton 72/100 plateau program, and repair only ever sees that.
+   This is a design defect, found before any battery.
+2. **Pilot 2, amended design.** Repair targets skeleton-tagged survivors,
+   topped up with fresh scrambled skeleton draws. Each target is
+   hill-climbed site by site until a pass without improvement. gcd seed
+   20000: no solution in 249 s.
+3. **Direct probe of the core question** (`scripts/probe_shape_climb.cpp`,
+   linked against the library). Twenty scrambled skeletons per problem
+   were hill-climbed with full class lists, no cap and up to 6 passes, on
+   the training levels:
+
+   | problem (skeleton) | fully solved | typical trajectory |
+   |---|---|---|
+   | gcd (recurrence) | **0/20** | 15 stay at 0; 5 climb to a 550/857 plateau |
+   | factorial (repeatedmultiply) | **0/20** | all stay at 0 |
+
+**Why.** Section 65's one-hole result holds when every *other* site is
+already right. From an all-scrambled start, no single site change moves
+the score at all: the program crashes or loops, or the output is wrong
+on every instance until several sites are right together. Coordinate
+descent has no gradient to follow. This is the same "no gradient"
+diagnosis as section 18, now one level up: per-site enumeration solved
+the gradient problem *within* a site, not *across* sites.
+
+**Predictions.** 2 (HR >= 7/10 on >= 5 problems) is refuted by the
+mechanism probe. 1 and 3 were not measured. By the rule, *single-site
+coordinate descent does not compose under the search's score.* The
+hand-written fills stay; nothing is removed. `--skeleton-holes` and
+`--hole-repair` remain as opt-in research flags (off, byte-identical).
+
+**What it says about the skeletons.** Section 65 measured what is
+recoverable *individually*. Section 66 shows the fills are not
+recoverable *jointly* by local search. The knowledge in a skeleton is its
+shape *plus* the coordination between its sites. Candidate next
+approaches, none tried yet:
+- enumerate pairs or triples of sites jointly, guided by section 65's
+  per-site class counts;
+- a constraint or SMT-style solver over the sites (still no ML);
+- fill sites in dependency order (loop guard after loop body), each
+  against intermediate-state labels rather than final output.

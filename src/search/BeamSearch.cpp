@@ -18,6 +18,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "search/Dedup.hpp"
 #include "search/Logger.hpp"
+#include "search/HoleGrammar.hpp"
 #include "search/TailFiller.hpp"
 
 namespace algosearch {
@@ -411,6 +412,99 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                         grownFamilies.push_back(beam[static_cast<size_t>(b)].families);
                     }
                 }
+            }
+        }
+
+        // Section 66: enumerative repair of skeleton-shaped programs. Targets
+        // are the best beam survivors whose lineage drew a hand-written
+        // skeleton (section 59's tags), topped up with fresh skeleton draws
+        // when fewer than `holeRepairTop` exist. Each target is hill-climbed
+        // site by site: visit its sites in random order, replace a site by
+        // the grammar fill that solves the most of (a sample of) this level's
+        // instances (ties: fewer steps) when that strictly improves, and stop
+        // after a pass without improvement (at most 3 passes). The result
+        // joins the pool; the beam decides as usual.
+        if (config_.holeRepairTop > 0) {
+            std::vector<Instance> sample;
+            size_t stride = std::max<size_t>(1, instances.size() / 30);
+            for (size_t i = 0; i < instances.size(); i += stride) sample.push_back(instances[i]);
+            std::vector<int> outBuf;
+            auto scoreOn = [&](const Stmt& prog, int& solved, long& steps) {
+                solved = 0;
+                steps = 0;
+                for (const auto& inst : sample) {
+                    long st = 0;
+                    if (problem_.evaluateInto(prog, inst, interp, outBuf, &st) == ExecStatus::SUCCESS) solved++;
+                    steps += st;
+                }
+            };
+            const uint32_t skeletonBits = (1u << FamilyCombinatorPlain) - 1;
+            std::vector<std::pair<Program, uint32_t>> targets;
+            for (const auto& b : beam) {
+                if (static_cast<int>(targets.size()) >= config_.holeRepairTop) break;
+                if (b.families & skeletonBits) targets.emplace_back(b.program->clone(), b.families);
+            }
+            GenConfig shapeCfg = config_.genConfig;
+            shapeCfg.loopAccumulatorBias = 1.0;
+            shapeCfg.combinatorBias = 0.0;
+            takeFamilyDraws();
+            for (int tries = 0; static_cast<int>(targets.size()) < config_.holeRepairTop && tries < 20; ++tries) {
+                Program fresh = generateRandomProgram(rng, 2, shapeCfg);
+                uint32_t drawn = takeFamilyDraws();
+                if (drawn & skeletonBits) targets.emplace_back(std::move(fresh), drawn);
+            }
+            for (auto& [work, families] : targets) {
+                int curSolved = 0;
+                long curSteps = 0;
+                scoreOn(*work, curSolved, curSteps);
+                size_t sites = 0;
+                forEachSlot(*work, [&](Stmt&, ExprPtr&, bool) { sites++; });
+                std::set<int> varSet = {0};
+                collectVars(*work, varSet);
+                std::vector<int> vars(varSet.begin(), varSet.end());
+                for (int pass = 0; pass < 3 && sites > 0; ++pass) {
+                    bool improved = false;
+                    std::vector<size_t> siteOrder(sites);
+                    for (size_t k = 0; k < sites; ++k) siteOrder[k] = k;
+                    std::shuffle(siteOrder.begin(), siteOrder.end(), rng.engine());
+                    for (size_t k : siteOrder) {
+                        bool isCond = false;
+                        size_t idx = 0;
+                        forEachSlot(*work, [&](Stmt&, ExprPtr&, bool c) {
+                            if (idx++ == k) isCond = c;
+                        });
+                        std::vector<HoleState> states;
+                        {
+                            const Stmt* siteStmt = nullptr;
+                            Program traced = withHole(*work, k, nullptr, &siteStmt);
+                            Interpreter tracer = interp;
+                            tracer.setConditionTrace(siteStmt, [&](const std::vector<int>& v, const std::vector<int>& a) {
+                                if (states.size() < 300) states.push_back({v, a});
+                            });
+                            for (const auto& inst : sample) tracer.run(*traced, inst.input, problem_.numVars(), outBuf);
+                        }
+                        std::vector<ExprPtr> classes = dedupeOnStates(isCond ? enumerateConds(vars) : enumerateValues(vars), states);
+                        if (classes.size() > 200) {
+                            std::shuffle(classes.begin(), classes.end(), rng.engine());
+                            classes.resize(200);
+                        }
+                        for (const auto& fill : classes) {
+                            Program candidate = withHole(*work, k, fill.get());
+                            int solved = 0;
+                            long steps = 0;
+                            scoreOn(*candidate, solved, steps);
+                            if (solved > curSolved || (solved == curSolved && steps < curSteps)) {
+                                curSolved = solved;
+                                curSteps = steps;
+                                work = std::move(candidate);
+                                improved = true;
+                            }
+                        }
+                    }
+                    if (!improved) break;
+                }
+                grownPool.push_back(std::move(work));
+                grownFamilies.push_back(families);
             }
         }
 
