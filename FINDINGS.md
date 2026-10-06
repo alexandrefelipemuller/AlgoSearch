@@ -5160,3 +5160,25 @@ draws as section 66 (seeds 100-119).
 - If it holds, a registered in-search battery follows.
 - If it fails, triples are not tried by brute force (cost x 100+). The
   dependency-order idea is next.
+
+## 67 (results). Pairs move some climbs off zero but none reach a solution: 0/20 and 0/20
+
+`data/pair_climb_20261006/` (not versioned), a few minutes in total.
+
+| problem | stuck at 0 | stopped at a plateau | fully solved |
+|---|---|---|---|
+| gcd (857 instances) | 10 | 10 at 550/857 | **0/20** |
+| factorial (66 instances) | 11 | 9 at 12-18/66 | **0/20** |
+
+Compared with section 66, pairs lift more climbs off zero (gcd: 5 -> 10
+reach the plateau). Every gcd climb that leaves zero still stops at the
+same 550/857 local optimum. Half the draws stay at 0 even with pairs: no
+single site and no pair of sites gives them any signal.
+
+**Prediction (>= 5/20 each): failed.** Following the rule, triples are
+not tried by brute force. The obstacle is twofold: draws where three or
+more sites must be right before anything scores, and a deceptive
+plateau (550/857) that pair moves cannot leave. The next idea on the list
+is filling sites in dependency order against intermediate-state labels.
+That changes the signal rather than the neighborhood size, so it is the
+right kind of next attempt.
