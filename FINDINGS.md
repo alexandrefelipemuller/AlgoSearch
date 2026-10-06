@@ -4896,3 +4896,63 @@ Stage 1 (the whole loop body, midpoint included, as a free
 statement-sequence hole) is outside this method. Filling it would need
 enumeration of statement sequences, which is the next frontier, not
 attempted here.
+
+## 65. How much of each indispensable skeleton can enumeration rebuild? Single-hole ablation -- predictions registered before implementing
+
+Sections 63-64 rebuilt two parts of binary search by enumeration. This
+section asks the same of every skeleton that section 56 found
+indispensable, one hole at a time, to measure how much human knowledge
+each one really carries.
+
+**Mode `--ablate-skeleton NAME`** (research mode, like `--fill-tsp-guard`).
+1. **Reference program.** Generate random programs with
+   `ALGOSEARCH_FORCE_SKELETON=NAME`, loop bias 1 and the combinator off,
+   until one solves every training instance. That program is the
+   reference.
+2. **Sites.** Every If/While condition and every right-hand side of a
+   scalar or array assignment in the reference program. Each site
+   becomes a hole on its own; the rest of the program stays as is.
+3. **Fill grammar.** Atoms are the program's scalars, the literals 0..2
+   and `arr[v]` for each scalar v.
+   - Value holes: an atom, or `a op b` with op in + - * / %.
+   - Condition holes: lhs an atom or atom +/- atom, rhs an atom, op in
+     < > == <= >= !=.
+
+   No hole-specific terms (section 63's product is not included).
+4. **Dedupe** by value/truth vector on states traced at the site while
+   running the reference program. This is a pruning shortcut, disclosed:
+   the states are the reference's. Then run every class with fast
+   rejection, and rank survivors by training steps.
+5. **Classify each site:**
+   - **recovered**: every candidate tied for the fewest steps passes
+     held-out;
+   - **reach-only**: some training-correct candidate passes held-out,
+     but a tied winner does not;
+   - **unreached**: no candidate passes held-out.
+
+   The log also records whether the original expression is in the
+   grammar.
+
+**Skeleton -> problem, with training max-n (held-out: the next 3 levels
+plus adversarial instances):**
+- recurrence -> gcd 20, fibonacci 20;
+- nesteddivisor and nesteddivisornative -> is_prime 20;
+- repeatedmultiply -> factorial 15, power 10;
+- average -> average 10;
+- threesum -> three_sum 8;
+- graphreachability -> graph_reachability 6;
+- selectionsort -> sorting 5.
+
+**Predictions.**
+1. Of the sites whose original expression is in the grammar, >= 80% are
+   reached (recovered or reach-only).
+2. Of the reached sites, >= 70% are recovered: step-based selection
+   works, as in sections 63-64.
+3. Every skeleton has at least one recovered site.
+4. Unrecovered sites are proportionally more common among value holes
+   than among condition holes.
+
+**Decision rule.** This is a measurement, so no default changes. Sites
+recovered across all of a skeleton's problems become candidates for
+"skeleton with enumerated holes" in an integration experiment, to be
+registered separately.
