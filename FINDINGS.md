@@ -4858,3 +4858,41 @@ identical result: 12 survivors, the same two winners. Wall time went from
   not attempted here.
 - If 2 fails, the wall is at stage 2 for this grammar.
 - If 2 holds and 3 fails, the wall is selection.
+
+## 64 (results). Stage 2 reached: enumeration rebuilds the found-check and the decision together
+
+`data/bsearch_hole_20261005/stage2_seed42_n12.txt` (not versioned).
+
+**Search space.**
+- C1: 49,740 found-check conditions -> 119 consistent with the labels ->
+  66 classes, x 2 found bodies.
+- C2, A, B: 8432 decision classes x 56 move pairs.
+
+**Survivors: 24 candidates correct on all 9930 training instances.**
+Every one has C1 = `v == target`, under either found body.
+- 4 bisect (growth x1.49).
+- 4 are mixed (x5.06).
+- 16 are linear (>= x6.7).
+
+| prediction | result |
+|---|---|
+| 1. `v == target` survives the label pruning | **held**; it is the only C1 in any survivor |
+| 2. reach (a bisecting survivor) | **held** (4) |
+| 3. select (all step-tied winners correct on held-out and bisecting) | **held**: all 4 correct on 4448 held-out instances, x1.49 |
+
+The four winners are the hand-written program up to two harmless
+choices: how the found branch exits (`hi = lo` or `lo = hi`) and the
+spelling of the decision. They tie with it exactly at 911,277 training
+steps.
+
+**Reading.** Section 22's ladder found nothing short of the full
+algorithm by mutation. By enumeration, both stage 3 and stage 2 are
+reached and correctly selected. What remains hand-supplied:
+- the loop frame, the direction detection and the midpoint;
+- the product term in the condition grammar;
+- the restriction of F to two loop-exiting bodies.
+
+Stage 1 (the whole loop body, midpoint included, as a free
+statement-sequence hole) is outside this method. Filling it would need
+enumeration of statement sequences, which is the next frontier, not
+attempted here.
