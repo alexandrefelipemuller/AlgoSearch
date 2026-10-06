@@ -5182,3 +5182,57 @@ plateau (550/857) that pair moves cannot leave. The next idea on the list
 is filling sites in dependency order against intermediate-state labels.
 That changes the signal rather than the neighborhood size, so it is the
 right kind of next attempt.
+
+## 68. Filling all of a skeleton's holes at once with an SMT solver (sketching / CEGIS) -- pilot, predictions registered before implementing
+
+Sections 66-67 failed because local search needs a gradient, and a
+scrambled skeleton gives none until several sites are right together. A
+constraint solver needs no gradient: it looks for one assignment of
+*every* hole that makes every given instance correct. This is the
+classic program-sketching setup (Solar-Lezama's Sketch, solved by
+counterexample-guided inductive synthesis, CEGIS). It is deduction, not
+learning, so the no-ML rule holds. The tool is Z3, from the `z3-solver`
+Python package in a scratch virtualenv. Nothing is added to the project's
+build.
+
+**Pilot pieces.**
+- `scripts/sketch_bridge.cpp` (C++, linked against the library) has two
+  modes.
+  - `export` draws section 66's scrambled skeleton (same draws: seeds
+    100-119) and writes JSON with three things: the AST with every
+    in-grammar site marked as a hole, the atom list, and the instances.
+  - `verify` reads the solver's fills, rebuilds the program, and checks
+    it with the real interpreter and `isSolution` on the training levels
+    (<= 6) and on held-out (the next 3 levels plus adversarial
+    instances).
+- `scripts/sketch_solve.py` encodes the program symbolically:
+  - 32-bit bitvectors with C semantics (truncating division; division
+    by zero is an error);
+  - array reads as if-then-else chains;
+  - if/while merged by if-then-else;
+  - while loops unrolled up to U = 16 iterations, with "still running
+    after U" counted as failure.
+
+  Each hole is a choice of form x atoms x operator over section 65's
+  grammar, the same one, with nothing added. CEGIS runs over the
+  training instances whose input values are all <= 12: solve, run the
+  candidate concretely on that pool, add the first instance it fails,
+  and repeat.
+
+Problems: gcd (recurrence) and factorial (repeatedmultiply), 20 draws
+each.
+
+**Predictions.**
+1. **Tractable:** every draw gets SAT or UNSAT within 10 minutes.
+2. **Correct:** >= 80% of SAT draws give a fill that `verify` confirms
+   on full training and held-out.
+3. **Diagnostic, not a pass/fail prediction.** The split of draws into
+   SAT and UNSAT tells whether section 66-67's 0/20 came partly from
+   shapes that cannot work at all, or from local search missing
+   solutions that exist.
+
+**Rule.** If 1 and 2 hold, solver-based hole filling is viable, and an
+in-search integration follows (registered separately). If 1 fails, the
+encoding does not scale even to these skeletons. If 2 fails, the
+small-value training pool admits impostors, and CEGIS needs larger or
+adversarial instances.
