@@ -4788,3 +4788,28 @@ one.
   dense consecutive haystacks. This affects the main search too: any
   search on this problem can accept the impostor. It is fixed in the
   next commit, and section 63 is re-run once with it.
+
+**Re-run with the generator fixed** (`data/bsearch_hole_20261005/seed42_n12_everypos.txt`).
+
+The fix: contains_ordered now adds, at every level, an evenly spaced
+haystack (0, 2, 4, ...). The target appears at every position, and is
+absent in every gap and at both ends, in both directions. A test checks
+that the impostor is rejected.
+
+Same command, 9930 training instances, 8432 classes, 12 survivors:
+
+| | survivors |
+|---|---|
+| bisecting, growth x1.49 | **2**, both spellings of the hand-written decision |
+| mixed, growth x5.06 | 2 |
+| linear, growth >= x6.7 | 8 |
+
+Both bisecting winners are correct on all 4448 held-out instances
+(n = 13..20). The tie between them is a tie between equivalent programs,
+not a coin flip. Section 63's prediction 3 now holds without the caveat.
+
+What remains outside the system is the product term in the enumeration
+grammar. The next step, by section 63's rule, is stage 2, where the
+found-check is also a hole. The generator change also alters
+contains_ordered's training set for ordinary searches; earlier
+contains_ordered results were obtained without it.

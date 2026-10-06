@@ -1,6 +1,9 @@
 #include <vector>
 
 #include "ast/Expr.hpp"
+#include "interpreter/Interpreter.hpp"
+#include "problems/ContainsOrderedProblem.hpp"
+#include "search/ProgramGenerator.hpp"
 #include "search/HoleFiller.hpp"
 #include "test_framework.hpp"
 
@@ -53,4 +56,29 @@ TEST(enumerated_conditions_include_the_hand_written_guard) {
     bool found = false;
     for (const auto& c : enumerateConditions(vars, 3)) found = found || exprEqual(c.get(), target.get());
     CHECK(found);
+}
+
+TEST(contains_ordered_instances_reject_the_section_63_impostor_decision) {
+    // `(v - target) * dir < lo` passed every generated instance before the
+    // every-position cases; the sound `< 0` must pass, the impostor must not.
+    ContainsOrderedProblem problem(6, 40, 9, 42);
+    std::vector<int> skel = {1, 2, 3, 4, 5, 6, 7};
+    auto build = [&](ExprPtr rhs) {
+        auto lhs = makeBinOp(ExprKind::Mul, makeBinOp(ExprKind::Sub, makeVar(5), makeVar(1)), makeVar(6));
+        return buildBinarySearchWithDecision(skel, makeCompare(ExprKind::Lt, std::move(lhs), std::move(rhs)),
+                                             makeAssign(2, makeBinOp(ExprKind::Add, makeVar(4), makeIntConst(1))),
+                                             makeAssign(3, makeVar(4)));
+    };
+    auto passesAll = [&](const Stmt& program) {
+        Interpreter interp(1000000);
+        std::vector<int> out;
+        for (int n = 2; n <= 8; ++n) {
+            for (const auto& inst : problem.generateInstances(n)) {
+                if (problem.evaluateInto(program, inst, interp, out) != ExecStatus::SUCCESS) return false;
+            }
+        }
+        return true;
+    };
+    CHECK(passesAll(*build(makeIntConst(0)).program));
+    CHECK(!passesAll(*build(makeVar(2)).program));
 }

@@ -48,6 +48,26 @@ void addSortedBothDirections(std::vector<int> values, std::vector<Instance>& out
     std::reverse(values.begin(), values.end());
     addBothCases(values, out);
 }
+
+// Section 63: the target at EVERY position of an evenly spaced haystack
+// (0, 2, 4, ...), and absent in every gap between neighbors (the odd
+// values) and at both ends, in both directions. addBothCases only probes
+// the front/middle/back and "off the end", which let a binary-search
+// decision that also moves right when 0 < (v - target) * dir < lo pass
+// every generated instance (wrong on 794 of 1638 dense probes).
+void addEveryPositionCases(int n, std::vector<Instance>& out) {
+    std::vector<int> haystack(static_cast<size_t>(n));
+    for (int i = 0; i < n; ++i) haystack[static_cast<size_t>(i)] = 2 * i;
+    for (int pass = 0; pass < 2; ++pass) {
+        for (size_t i = 0; i < haystack.size(); ++i) addPresentAt(haystack, i, out);
+        for (int t = -1; t <= 2 * n - 1; t += 2) {
+            std::vector<int> input = {t};
+            input.insert(input.end(), haystack.begin(), haystack.end());
+            out.push_back({input, {0}});
+        }
+        std::reverse(haystack.begin(), haystack.end());
+    }
+}
 }  // namespace
 
 std::vector<Instance> ContainsOrderedProblem::generateInstances(int level) const {
@@ -61,6 +81,7 @@ std::vector<Instance> ContainsOrderedProblem::generateInstances(int level) const
             addSortedBothDirections(std::move(haystack), instances);
         }
     }
+    if (n >= 1) addEveryPositionCases(n, instances);
     return instances;
 }
 
