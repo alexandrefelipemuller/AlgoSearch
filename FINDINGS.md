@@ -4675,3 +4675,59 @@ unchanged.
 Going forward, default-promotion rules for search features should be
 written on success and diversity (no regression, gains). Wall time is
 reported, not used as a gate.
+
+## 63. Section 22's binary-search ladder, stage 3, with the hole filled by enumeration -- predictions registered before implementing
+
+Section 22 concluded that "there is no gradual tipping point": with
+everything hand-written except the final "which way to move" decision
+(stage 3), free search found binary search in 1/5 seeds, and that one had
+degenerated to O(n) (`hi = hi - 1`). That hole was filled by *mutation*.
+Sections 41-44 later showed, on TSP's pruning guard, that the same kind of
+hole is reachable by *enumeration*, provided selection has a signal that
+separates the right answer from distribution-specific impostors (there,
+weight scaling). Section 22 was never retried with enumeration. This
+section does that.
+
+**Mechanism (`--fill-bsearch-hole`, a research mode like
+`--fill-tsp-guard`).** Section 22's stage-3 shape is fixed, and the hole is
+`if (C) { A } else { B }` in the not-found branch:
+- **C**: every condition from `enumerateConditions` over the atoms n, target, lo,
+  hi, mid, v, dir and the literals 0..2. Terms are an atom, atom +/- atom,
+  and, new here, (atom - atom) * atom. This extension is needed because
+  the direction-aware comparison `(v - target) * dir < 0` contains a
+  product.
+- **A, B**: each is one move from
+  {lo = mid+1, lo = mid, lo = mid-1, hi = mid, hi = mid-1, hi = mid+1,
+  lo = lo+1, hi = hi-1}. The last two are the linear escapes section 22
+  found.
+- **Pruning:** conditions are deduplicated by truth vector on states
+  traced from the two linear-escape programs, which contain no knowledge
+  of the answer.
+- **Evaluation:** every (class, A, B) program runs on training
+  contains_ordered instances with n = 2..12. Candidates that fail any
+  training instance are rejected; the correct ones are ranked by total
+  interpreter steps on training.
+- **Checks on the winner:**
+  - held-out correctness on n = 13..20, generated plus adversarial
+    instances;
+  - step growth on the problem's benchmark instance at n = 16 and n = 128.
+
+**Predictions.**
+1. **Reach:** at least one correct class implements genuine bisection
+   (steps(128)/steps(16) <= 3; O(log n) gives about 1.75, O(n) about 8).
+2. **Contrast:** correct O(n) escapes are also in the correct set.
+   Section 22's degeneration is inside the space; it just has to lose on
+   selection.
+3. **Select (the decisive one):** the training-steps winner is correct on
+   held-out n = 13..20 and has steps(128)/steps(16) <= 3.
+
+**Decision rule, fixed now.**
+- If 3 holds, section 22's conclusion is refuted for stage 3: the tipping
+  point exists, and what was missing was the filling method, not
+  hand-written knowledge. The next step is section 22's stage 2 (the
+  found-check also a hole).
+- If 1 holds but 3 fails, the wall is selection, as in section 41. The
+  follow-up then selects on larger n (training up to 20), registered
+  before running, as section 41 did.
+- If 1 fails, the hole is out of reach of this grammar. That is
+  reported, not patched.
