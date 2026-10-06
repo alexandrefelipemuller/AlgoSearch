@@ -5236,3 +5236,53 @@ in-search integration follows (registered separately). If 1 fails, the
 encoding does not scale even to these skeletons. If 2 fails, the
 small-value training pool admits impostors, and CEGIS needs larger or
 adversarial instances.
+
+## 68 (results). The SMT encoding does not scale even to gcd's 7-hole sketch: 16/16 timeouts; pilot stopped for memory
+
+`data/sketch_pilot_20261006/` (not versioned; `scripts/run_sketch_pilot.sh`
+with 8 parallel jobs, 600 s each, unroll 8, solver width 8, pool values
+<= 10).
+
+The pilot was stopped by hand after 16 gcd draws. Eight concurrent Z3
+processes had pushed the machine to 14 of 15 GB, and the session's
+background monitor was killed for low memory. The factorial draws were
+never reached. They are not reported.
+
+| gcd draws finished | SAT and verified | UNSAT | timeout (600 s) |
+|---|---|---|---|
+| 16 of 20 | 0 | 0 | **16** |
+
+- Most draws timed out after 2-4 CEGIS rounds (5-7 instances). Each
+  added counterexample made the next query much harder.
+- Draw 115 is different: 112 rounds in 600 s. Z3 kept returning fills
+  that satisfied the encoding but failed the concrete check. The likely
+  cause is a gap between the solver's 8-bit wraparound and the concrete
+  32-bit run. This is an encoding artifact and should be read as such.
+- Earlier single-draw attempts (gcd 100) agree:
+  - at 32 bits, unroll 16: still in round 2 at 600 s;
+  - at 12 bits, unroll 12: round 2 at 500 s;
+  - with a QF_BV solver and bitvector selectors at 8 bits: round 4 at
+    500 s.
+
+**Prediction 1 (tractable within 10 minutes): failed** on every gcd draw
+measured. Prediction 2 could not be evaluated (no SAT). Diagnostic 3 is
+open: no draw was proven UNSAT either.
+
+**Reading.** This is a negative result about *this encoding*, not about
+sketching in general. The encoding is naive in three ways:
+- every hole carries the whole grammar as nested if-then-else over all
+  atoms and forms;
+- the grammar includes division and modulo, which bit-blast badly;
+- the encoding is repeated in every unrolled iteration of every
+  instance.
+
+Real sketch solvers avoid exactly this. They use a separate
+interpretation per hole occurrence, choose hole values once and share
+them, and keep many small queries instead of one growing one. Narrowing
+the grammar per hole, or fixing each hole's form first and then solving
+only for atoms, would also shrink the problem. Those are engineering
+steps of a different size than this pilot.
+
+By the rule, the encoding does not scale even to these skeletons.
+Section 66's conclusion stands for now: the fills' coordination is real
+knowledge that neither local search nor this naive solver recovers.
