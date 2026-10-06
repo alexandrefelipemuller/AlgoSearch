@@ -5031,3 +5031,56 @@ tell full work from shortcuts.
 **Next, per the rule:** an integration experiment (registered
 separately), in which skeletons whose sites are all recovered are
 offered with their recovered sites as enumerated holes.
+
+## 66. Shape-only skeletons + enumerative repair inside the search -- predictions registered before implementing
+
+Section 65 showed that, given a skeleton's *shape*, enumeration rebuilds
+nearly every condition and value, one hole at a time and with the rest of
+the program correct. Inside the search, a skeleton offered as shape only
+has *all* its sites wrong at once. So the question is whether the
+search's partial score can guide repair site after site: coordinate
+descent, with each step an exhaustive single-site enumeration.
+
+**Two mechanisms.**
+- **`--skeleton-holes` (generation).** When a hand-written skeleton is
+  drawn, every site whose expression lies in section 65's hole grammar is
+  replaced by a random expression from that grammar, over the block's own
+  scalars. Sites outside the grammar (compound indices, three-term sums)
+  stay as written, so the shape plus those pieces is what the skeleton
+  still contributes. The grammar test is syntactic and automatic, with no
+  per-skeleton list.
+- **`--hole-repair K` (search operator).** At each size step, for each
+  of the top K beam survivors (any program, skeleton or not):
+  1. pick one site uniformly at random;
+  2. enumerate the hole grammar over the program's scalars;
+  3. deduplicate on the states traced at that site on the current
+     level's instances;
+  4. score every class on those instances (solved count, then steps) and
+     add the best one to the candidate pool.
+
+  The pool is scored normally, so the beam decides.
+
+**Experiment.** Problems: gcd, fibonacci, is_prime, factorial, power,
+average, three_sum, sorting (all section 65 sites recovered or out of
+grammar), plus graph_reachability (8 reach-only sites; expected to fail).
+10 matched seeds (20000-20009), section 56's max-n, walls and budgets,
+`--step-limit 20000`, per-seed `--benchmark`. Arms:
+- **base**: current default (full skeletons);
+- **HR**: `--skeleton-holes --hole-repair 10`;
+- **H**: `--skeleton-holes` alone (control: shape without repair).
+
+**Predictions.**
+1. H <= 2/10 on at least 6 of the 8 main problems: scrambled shapes are
+   not solved by mutation alone (sections 18, 22).
+2. HR >= 7/10 on at least 5 of the 8 main problems: repair turns shape
+   into solutions.
+3. graph_reachability: HR < base (section 65's selection wall).
+
+**Decision rule.**
+- If 1 and 2 hold, the result reads "shape + enumerative repair
+  suffices" for those problems, and the hand-written fills of those
+  skeletons are candidates for removal (a later, separately registered
+  step).
+- If 2 fails, single-site coordinate descent does not compose under the
+  search's score.
+- Nothing becomes default from this section alone.
