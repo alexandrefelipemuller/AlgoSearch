@@ -1,13 +1,14 @@
 #include "search/ProgramGenerator.hpp"
 
-#include "search/HoleGrammar.hpp"
-
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <set>
 #include <vector>
+
+#include "search/HoleGrammar.hpp"
 
 namespace algosearch {
 
@@ -30,10 +31,6 @@ struct SkeletonDebugPrinter {
     }
 };
 SkeletonDebugPrinter gSkeletonDebugPrinter;
-
-// Section 59: families drawn on this thread since the last takeFamilyDraws().
-thread_local uint32_t tFamilyDraws = 0;
-void noteFamily(int family) { tFamilyDraws |= 1u << family; }
 
 // Section 66: replace every site of a skeleton block whose expression lies
 // in the hole grammar (search/HoleGrammar.hpp) by a random grammar
@@ -2100,20 +2097,7 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
-    if (cfg.combinatorState) {
-        double share = cfg.combinatorStateShare;
-        if (cfg.adaptiveFamilies) {
-            double ws = share * cfg.familyWeight[FamilyCombinatorState];
-            double wp = (1.0 - share) * cfg.familyWeight[FamilyCombinatorPlain];
-            share = ws / (ws + wp);
-        }
-        bool stateful = (share == 0.25 && !cfg.adaptiveFamilies) ? rng.uniformInt(0, 3) == 0 : rng.chance(share);
-        if (stateful) {
-            noteFamily(FamilyCombinatorState);
-            return genStatefulBlock(rng, cfg, loopsUsed);
-        }
-    }
-    noteFamily(FamilyCombinatorPlain);
+    if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
     std::vector<int> v = pickDistinctVars(rng, cfg, 6);
     int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
 
@@ -2713,29 +2697,15 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // 4 extra fixed locals (mid/i/j/k) its merge step needs.
         if (cfg.numVars >= 7 && cfg.recursionCallBias > 0.0 && allowed("mergesort")) addOption(Skeleton::MergeSort, 3);
         if (n > 0) {
+            int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
-            if (cfg.adaptiveFamilies) {
-                // Section 59: static weight x the family's adaptive multiplier.
-                double total = 0.0;
-                for (int i = 0; i < n; ++i) total += options[i].weight * cfg.familyWeight[static_cast<int>(options[i].skeleton)];
-                double roll = std::uniform_real_distribution<double>(0.0, total)(rng.engine());
-                for (int i = 0; i < n; ++i) {
-                    double w = options[i].weight * cfg.familyWeight[static_cast<int>(options[i].skeleton)];
+            for (int i = 0; i < n; ++i) {
+                if (roll < options[i].weight) {
                     chosen = options[i].skeleton;
-                    if (roll < w) break;
-                    roll -= w;
+                    break;
                 }
-            } else {
-                int roll = rng.uniformInt(0, totalWeight - 1);
-                for (int i = 0; i < n; ++i) {
-                    if (roll < options[i].weight) {
-                        chosen = options[i].skeleton;
-                        break;
-                    }
-                    roll -= options[i].weight;
-                }
+                roll -= options[i].weight;
             }
-            noteFamily(static_cast<int>(chosen));
             if (chosen == Skeleton::BinarySearch) gSkeletonBinarySearchPicks++;
             StmtPtr skeletonBlock = [&]() -> StmtPtr {
             switch (chosen) {
@@ -3124,20 +3094,6 @@ Program crossoverPrograms(const Stmt& recipient, const Stmt& donor, Random& rng,
     }
     (void)cfg;  // reserved for future context-aware splicing (e.g. remapping variable indices)
     return root;
-}
-
-const char* familyName(int family) {
-    static const char* names[kFamilyCount] = {
-        "recurrence", "nesteddivisor", "nesteddivisornative", "selectionsort", "repeatedmultiply", "average",
-        "heapsort", "threesum", "graphreachability", "shortestpath", "tspbruteforce", "tspbranchandbound",
-        "dtw", "binarysearch", "mergesort", "combinator", "combinator-state"};
-    return family >= 0 && family < kFamilyCount ? names[family] : "?";
-}
-
-uint32_t takeFamilyDraws() {
-    uint32_t draws = tFamilyDraws;
-    tFamilyDraws = 0;
-    return draws;
 }
 
 }  // namespace algosearch

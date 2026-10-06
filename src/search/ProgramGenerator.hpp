@@ -1,27 +1,9 @@
 #pragma once
 
-#include <array>
-#include <cstdint>
-
 #include "ast/Stmt.hpp"
 #include "core/Random.hpp"
 
 namespace algosearch {
-
-// Section 59: top-level block families, the arms of adaptive family
-// weights. 0..14 are the hand-written skeletons in the generator's Skeleton
-// order; then plain and stateful combinator blocks.
-enum Family : int {
-    FamilyCombinatorPlain = 15,
-    FamilyCombinatorState = 16,
-    kFamilyCount = 17,
-};
-const char* familyName(int family);
-
-// Bitmask (bit f = Family f) of the families drawn on this thread since the
-// last call; the call resets it. BeamSearch reads it around each candidate's
-// generation to tag the candidate.
-uint32_t takeFamilyDraws();
 
 // Bounds respected while generating/growing programs, to avoid unbounded
 // AST explosion during random construction.
@@ -200,26 +182,14 @@ struct GenConfig {
 
     // Section 55: stateful pieces (RunBest, ResetSum, EarlierCellsBest,
     // PrefixSuffix -- see genStatefulBlock), a quarter of combinator blocks
-    // when on. Opt-in (`--combinator-state`); false is byte-identical.
+    // when on. Default on since section 62 (`--no-combinator-state` off).
     bool combinatorState = false;
 
-    // Section 59: the stateful share of combinator blocks. 0.25 is section
-    // 55's fixed quarter and draws exactly as before (byte-identical); any
-    // other value is drawn with rng.chance (`--combinator-state-share`).
-    double combinatorStateShare = 0.25;
-
-    // Section 59: adaptive family weights (`--adaptive-families`). When on,
-    // the weighted skeleton roll and the plain-vs-stateful combinator split
-    // multiply each family's static weight by familyWeight[f], which
-    // BeamSearch updates during the run from per-family progress credit.
-    // When off, familyWeight is never read (byte-identical).
-    bool adaptiveFamilies = false;
-
     // Section 66: skeletons are offered as shape only -- every site in the
-    // hole grammar is drawn at random (`--skeleton-holes`). False is
-    // byte-identical.
+    // hole grammar is drawn at random. Research hook for the section 66-68
+    // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no
+    // CLI flag, since the approach was refuted. False is byte-identical.
     bool skeletonHoles = false;
-    std::array<double, kFamilyCount> familyWeight = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 
     // Opt-in (0.0 = off, reproduces exactly today's fixed-bias behavior):
     // instead of leaving loopAccumulatorBias fixed for the whole run, let

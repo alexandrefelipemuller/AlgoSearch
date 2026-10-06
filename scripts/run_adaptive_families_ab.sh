@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# NOTE (section 69): --adaptive-families/--combinator-state-share were removed after being refuted; to rerun,
+# build the tree at commit 33632dc first (git checkout 33632dc -- src && make).
 # FINDINGS.md section 59, phase A: adaptive family weights on section 58's
 # regression. Arms: base (current default), ST (+ --combinator-state), ST8
 # (ST with the stateful share cut to 1/8, the manual control) and STA (ST +

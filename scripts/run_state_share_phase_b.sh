@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# NOTE (section 69): --combinator-state-share was removed after being refuted; to rerun,
+# build the tree at commit 81fc1b6 first (git checkout 81fc1b6 -- src && make).
 # FINDINGS.md section 59, phase B: base (current default) vs ST8
 # (--combinator-state with the stateful share cut to 1/8) on every
 # registered array/scalar problem, matched fresh seeds. One --benchmark

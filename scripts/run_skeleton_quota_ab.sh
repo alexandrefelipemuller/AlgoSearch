@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# NOTE (section 69): --skeleton-quota was removed after being refuted; to rerun,
+# build the tree at commit 97e3bd9 first (git checkout 97e3bd9 -- src && make).
 # FINDINGS.md section 60, phase A: protected skeleton-lineage beam quota on the
 # stateful-pieces regressions. Arms: base, ST (+ --combinator-state) and
 # STQ (ST + --skeleton-quota 0.1).

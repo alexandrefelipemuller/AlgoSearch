@@ -163,12 +163,6 @@ struct SearchConfig {
     // fitness diversity. 0.0 (default) disables it and reproduces prior
     // behavior exactly.
     double scoreBandRate = 0.0;
-    // Section 60: reserves `skeletonQuotaRate * beamWidth` elite slots for
-    // candidates whose lineage drew a hand-written skeleton (section 59's
-    // family tags), filled round-robin over the skeleton families in rank
-    // order, so a partially built skeleton is not crowded out by fully
-    // scoring blocks. 0.0 (default) disables it and is byte-identical.
-    double skeletonQuotaRate = 0.0;
 
     // Speed-aware fitness tie-break (data/skeleton_middle_ground_experiments.md,
     // "Tests 2 and 4" follow-up hypothesis): `score` (exact-correctness
@@ -209,10 +203,6 @@ struct SearchConfig {
     // the top `tailEnumTop` beam survivors at every size step. 0 = off,
     // byte-identical to before.
     int tailEnumTop = 0;
-    // Section 66: enumerative single-site repair of the top `holeRepairTop`
-    // beam survivors at every size step (search/HoleGrammar.hpp). 0 = off,
-    // byte-identical.
-    int holeRepairTop = 0;
 
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written

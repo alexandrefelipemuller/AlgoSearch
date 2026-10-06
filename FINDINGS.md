@@ -5286,3 +5286,63 @@ steps of a different size than this pilot.
 By the rule, the encoding does not scale even to these skeletons.
 Section 66's conclusion stands for now: the fills' coordination is real
 knowledge that neither local search nor this naive solver recovers.
+
+## 69. Closing the "shape vs fills" thread (sections 59-68), and the code clean-up
+
+**What the thread established.**
+1. **The graph_reachability regression was an artifact** (sections
+   58-61). Every gap measured at `--step-limit 5000` was a race to find
+   the skeleton at level 2, because the O(n^3) relaxation exceeds that
+   limit at N = 6 lookahead. At 20,000 there is no gap. As a result,
+   `--combinator-state` is the default since section 62. The two
+   mechanisms built to fix the supposed crowding were refuted on their
+   own terms: adaptive family weights (59) and the protected skeleton
+   quota (60).
+2. **Holes inside a correct shape are reachable by enumeration.**
+   - Section 22's binary-search ladder, which mutation could not climb,
+     is climbed at stages 3 and 2 by exhaustive enumeration with
+     step-based selection (63-64).
+   - Single-hole ablation of the ten indispensable skeleton/problem pairs
+     rebuilds 100 of 112 sites (65).
+   - The exceptions are compound array indices, a three-term sum, `%`
+     inside a condition (all outside the grammar), and selection on
+     graph_reachability, whose small instances reward under-computation.
+   - Along the way, contains_ordered's generator got the target at
+     every position. Its old instances admitted an unsound
+     binary-search decision.
+3. **The coordination between sites is not recovered.** Starting from a
+   scrambled skeleton:
+   - single-site repair: 0/20 (66);
+   - pair-site repair: 0/20 (67);
+   - a naive SMT sketch encoding: 16/16 gcd timeouts (68).
+
+   The knowledge in a skeleton is its shape *plus* the coordination of
+   its fills; each fill alone is cheap. Closing this gap would take
+   engineering of a different size: a real sketch solver encoding, or
+   intermediate-state labels. It is left open, deliberately.
+
+**Code clean-up (this commit).** Following the merge policy (refuted
+opt-in features are not kept because they are harmless), these are
+removed:
+- adaptive family weights and the per-candidate family tags;
+- `--combinator-state-share`;
+- `--skeleton-quota`;
+- `--hole-repair` and the `--skeleton-holes` CLI flag.
+
+`BeamSearch.{hpp,cpp}` and `tests/combinator_tests.cpp` are back to their
+pre-section-59 versions. The generator's stateful split and skeleton roll
+are back to their section 55-58 form.
+
+Kept:
+- `--fill-bsearch-hole [--bsearch-stage 2|3]` and `--ablate-skeleton`
+  (positive results, sections 63-65);
+- `search/HoleGrammar.{hpp,cpp}`;
+- `GenConfig::skeletonHoles` (no CLI flag), which the section 66-68
+  probes use;
+- the stage-2 builder;
+- the interpreter's assignment tracing;
+- the contains_ordered fix;
+- the non-benchmark `--combinator-state` fix from section 59.
+
+The three battery scripts that need removed flags say which commit to
+build. `make test`: 143/143.
