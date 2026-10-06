@@ -49,7 +49,7 @@ public:
 
     // Diagnostic/synthesis hook (section 41's hole filling): every time the
     // condition of `site` (an If or While node of the program being run) is
-    // about to be evaluated, `onVisit` receives the current scalar
+    // about to be evaluated, or `site` (any other statement) is about to run, `onVisit` receives the current scalar
     // variables and array. Off (null) by default; the search's scoring path never sets
     // it, so it costs one pointer comparison per If/While when unused.
     void setConditionTrace(const Stmt* site, std::function<void(const std::vector<int>&, const std::vector<int>&)> onVisit) {

@@ -66,6 +66,7 @@
 #include "search/BeamSearch.hpp"
 #include "search/Benchmark.hpp"
 #include "search/Persistence.hpp"
+#include "search/SkeletonAblation.hpp"
 
 using namespace algosearch;
 
@@ -118,6 +119,7 @@ struct CliArgs {
     bool fillTspGuard = false;
     bool fillBsearchHole = false;  // FINDINGS.md section 63
     int bsearchStage = 3;
+    std::string ablateSkeleton;  // FINDINGS.md section 65
     bool soundnessLabels = false;
     bool metamorphic = false;
     bool rankWorstScale = false;
@@ -182,6 +184,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
         else if (arg == "--fill-bsearch-hole") args.fillBsearchHole = true;
         else if (arg == "--bsearch-stage") args.bsearchStage = std::stoi(next("--bsearch-stage"));
+        else if (arg == "--ablate-skeleton") args.ablateSkeleton = next("--ablate-skeleton");
         else if (arg == "--soundness-labels") args.soundnessLabels = true;
         else if (arg == "--metamorphic") args.metamorphic = true;
         else if (arg == "--rank-worst-scale") args.rankWorstScale = true;
@@ -205,7 +208,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -953,6 +956,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (!args.ablateSkeleton.empty()) {
+        unsigned threads = args.threads > 0 ? static_cast<unsigned>(args.threads) : std::max(1u, std::thread::hardware_concurrency());
+        runSkeletonAblation(args.ablateSkeleton, *problem, args.startLevel, args.maxN, args.numVars,
+                            static_cast<uint64_t>(args.seed), threads);
+        return 0;
+    }
     if (args.fillBsearchHole) {
         runFillBsearchHoleMode(args);
         return 0;

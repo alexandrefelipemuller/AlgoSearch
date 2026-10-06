@@ -4912,8 +4912,11 @@ each one really carries.
 2. **Sites.** Every If/While condition and every right-hand side of a
    scalar or array assignment in the reference program. Each site
    becomes a hole on its own; the rest of the program stays as is.
-3. **Fill grammar.** Atoms are the program's scalars, the literals 0..2
-   and `arr[v]` for each scalar v.
+3. **Fill grammar.** Atoms are the program's scalars, the literals 0..2,
+   `arr[v]` for each scalar v, and `arr[0..2]`. The last group was
+   added after a pilot on gcd showed its `arr[0]`/`arr[1]` loads were
+   outside the grammar; that was a grammar-coverage fix, made before
+   any battery.
    - Value holes: an atom, or `a op b` with op in + - * / %.
    - Condition holes: lhs an atom or atom +/- atom, rhs an atom, op in
      < > == <= >= !=.

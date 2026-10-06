@@ -170,6 +170,9 @@ void execBlock(const std::vector<std::unique_ptr<Stmt>>& stmts, Environment& env
 void execStmt(const Stmt& s, Environment& env) {
     tick(env);
     if (aborted(env)) return;
+    // Section 65: assignment sites are traced too (If/While trace at their
+    // condition, below).
+    if (&s == env.traceSite && s.kind != StmtKind::If && s.kind != StmtKind::While) (*env.traceFn)(env.vars, env.arr);
     switch (s.kind) {
         case StmtKind::Assign: {
             int value = evalExpr(*s.valueExpr, env);
