@@ -4959,3 +4959,75 @@ plus adversarial instances):**
 recovered across all of a skeleton's problems become candidates for
 "skeleton with enumerated holes" in an integration experiment, to be
 registered separately.
+
+## 65 (results). 100 of 112 skeleton sites are rebuilt by enumeration; what resists is compound array indexing, three-term sums, and selection on graph_reachability
+
+`data/skeleton_ablation_20261006/` (not versioned;
+`scripts/run_skeleton_ablation.sh`, seed 1, about 2 min for all ten
+pairs).
+
+| skeleton -> problem | sites | in grammar | recovered | reach-only | unreached |
+|---|---|---|---|---|---|
+| recurrence -> gcd | 9 | 9 | 9 | 0 | 0 |
+| recurrence -> fibonacci | 8 | 8 | 8 | 0 | 0 |
+| nesteddivisor -> is_prime | 14 | 12 | 14 | 0 | 0 |
+| nesteddivisornative -> is_prime | 9 | 7 | 8 | 0 | 1 |
+| repeatedmultiply -> factorial | 11 | 10 | 11 | 0 | 0 |
+| repeatedmultiply -> power | 12 | 12 | 12 | 0 | 0 |
+| average -> average | 11 | 11 | 11 | 0 | 0 |
+| threesum -> three_sum | 13 | 12 | 12 | 0 | 1 |
+| graphreachability -> graph_reachability | 16 | 14 | 6 | **8** | 2 |
+| selectionsort -> sorting | 9 | 9 | 9 | 0 | 0 |
+| **total** | **112** | **104** | **100** | **8** | **4** |
+
+**Predictions.**
+1. **Held:** 104 of 104 in-grammar sites reached (>= 80% predicted).
+2. **Held:** 100 of 108 reached sites recovered, 93% (>= 70% predicted).
+3. **Held:** every skeleton has >= 1 recovered site (graphreachability
+   has 6).
+4. **Failed, the opposite way.** Condition holes are the harder kind: 7
+   of 28 unrecovered (25%) against 5 of 84 value holes (6%).
+
+**What resists.**
+- **Unreached (4 sites), all outside the grammar:**
+  - graph's `arr[1 + v7] == 1` and `arr[v1 + v7*v4 + v5] == 1` (array
+    reads at compound indices);
+  - three_sum's `arr[i] + arr[j] + arr[k] == 0` (three-term sum);
+  - nesteddivisornative's `v4 % v1 == 0` (no `%` in condition terms).
+
+  These are the irreducible pieces under this grammar. Each is a
+  compound expression, not a decision.
+- **Reach-only (8 sites), all in graphreachability:**
+  - A correct fill exists in each case, but the training-steps winner is
+    wrong on V = 7..9.
+  - The winners do less work, with fewer relaxation rounds or shortcuts
+    such as `v5 == arr[v4]`, which is exact at V <= 6 and not beyond.
+  - This is section 41's selection wall again: sparse small instances
+    reward under-computation.
+  - It is also the skeleton whose training set is smallest (86
+    instances).
+
+**Caveats.**
+- **"Recovered" means correct, not complexity-preserving.**
+  nesteddivisor's `v1 * v1 <= v4` bound (O(sqrt n)) is outside the
+  condition grammar, which has no products, and was replaced by
+  `v1 + v1 <= v4` (O(n)). That fill is correct, and it is the fastest
+  one *available*. The opposite also happened: gcd's subtraction step
+  `v2 - v4` was replaced by `v1 % v4`, turning subtractive Euclid into
+  the faster modulo form.
+- **Single holes only.** The rest of the program always stays intact;
+  multiple simultaneous holes were not tested.
+- Dedupe used states traced from the reference program, and each pair
+  used one reference program (seed 1).
+
+**Reading.** Measured site by site, the hand-written knowledge in nine of
+the ten skeleton/problem pairs is almost entirely their *shape*: loop
+nesting, which variable gets which role, and where the answer is
+written. Given the shape, enumeration rebuilds nearly every individual
+condition and value. The exceptions are compound index arithmetic, a
+three-term sum, and selection on a skeleton whose small instances cannot
+tell full work from shortcuts.
+
+**Next, per the rule:** an integration experiment (registered
+separately), in which skeletons whose sites are all recovered are
+offered with their recovered sites as enumerated holes.
