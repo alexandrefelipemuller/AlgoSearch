@@ -5132,3 +5132,31 @@ approaches, none tried yet:
 - a constraint or SMT-style solver over the sites (still no ML);
 - fill sites in dependency order (loop guard after loop body), each
   against intermediate-state labels rather than final output.
+
+## 67. Joint enumeration of site pairs -- probe, prediction registered before running
+
+This is section 66's first candidate fix. The climb from a scrambled
+skeleton stays the same as section 66's probe, with one change: when no
+single-site fill improves the score, the climb tries every *pair* of
+sites (i, j). It enumerates fill_i x fill_j, each from the site's classes
+deduplicated on the current program's states, and accepts the first pair
+that strictly improves (solved count, then steps). Single-site moves
+resume after any accepted move.
+
+Cost control:
+- scoring runs on a sample of 40 training instances;
+- a candidate stops as soon as it can no longer beat the current
+  program;
+- the full training set re-checks the final program.
+
+Probe: `scripts/probe_shape_climb.cpp pairs`, 20 scrambled skeletons
+each for gcd (recurrence) and factorial (repeatedmultiply), the same
+draws as section 66 (seeds 100-119).
+
+**Prediction:** pairs fully solve >= 5/20 on each problem (section 66:
+0/20 and 0/20).
+
+**Rule:**
+- If it holds, a registered in-search battery follows.
+- If it fails, triples are not tried by brute force (cost x 100+). The
+  dependency-order idea is next.
