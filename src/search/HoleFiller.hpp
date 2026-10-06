@@ -18,10 +18,11 @@ namespace algosearch {
 
 // Every comparison `lhs op rhs` with lhs a term (an atom, or atom +/- atom)
 // and rhs an atom, where atoms are the given variables and the literals
-// 0..maxConst, and op is one of < > == <= >= !=.
-std::vector<ExprPtr> enumerateConditions(const std::vector<int>& vars, int maxConst);
+// 0..maxConst, and op is one of < > == <= >= !=. With `products` (section
+// 63), terms also include (atom - atom) * atom, e.g. (v - target) * dir.
+std::vector<ExprPtr> enumerateConditions(const std::vector<int>& vars, int maxConst, bool products = false);
 
-// Value of a Var/IntConst/Add/Sub/comparison expression on a snapshot of the
+// Value of a Var/IntConst/Add/Sub/Mul/comparison expression on a snapshot of the
 // scalar variables (no array access -- enumerated candidates never read arr).
 int evalOnSnapshot(const Expr& e, const std::vector<int>& vars);
 

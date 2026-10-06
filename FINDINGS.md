@@ -4731,3 +4731,60 @@ section does that.
   before running, as section 41 did.
 - If 1 fails, the hole is out of reach of this grammar. That is
   reported, not patched.
+
+## 63 (results). Enumeration reaches binary search from stage 3; selection holds only by a tie-break, and the instance generator has a blind spot
+
+`data/bsearch_hole_20261005/seed42_n12.txt` (not versioned): `./algosearch
+--problem contains_ordered --fill-bsearch-hole --max-n 12 --seed 42
+--threads 8`, 7.5 min.
+
+**Search space.** 9600 training instances (n = 2..12), 49,740 conditions
+collapsing to 7,394 truth-vector classes, times 56 move pairs (plus the
+8 condition-free pairs). Every candidate was run.
+
+**Survivors: 16 candidates correct on every training instance.** All 16
+use the product term (v - target) * dir. No product-free condition
+survives.
+- 4 bisect, with step growth x1.49 from n = 16 to 128. This is the
+  hand-written `lo = mid + 1` / `hi = mid` pair under four spellings of
+  the condition.
+- 4 are mixed (`hi = hi - 1` on one side), growth x5.06.
+- 8 are linear, growth >= x6.7. This includes section 22's `lo = lo + 1`
+  escape.
+
+| prediction | result |
+|---|---|
+| 1. reach (a bisecting class exists) | **held** (4) |
+| 2. contrast (O(n) escapes also correct) | **held** (8 linear, 4 mixed) |
+| 3. select (the training-steps winner is correct on held-out n = 13..20, growth <= 3) | **held, with a caveat** |
+
+**The caveat.** The four bisecting candidates tie exactly on training
+steps, so the winner was decided by enumeration order. Two of the four
+(`(v - target) * dir < lo` and its negation) are unsound: in the
+not-found branch they also move right when 0 < diff < lo. They pass all
+9600 training instances and all 3904 held-out ones, because
+contains_ordered's generator never produces a target just below a probed
+value early in the search. A direct probe on dense consecutive haystacks
+(0..n-1, every target, both directions, n = 2..40; 1638 instances) has
+the sound decision wrong on 0 and the impostor wrong on 794. This is
+the same failure class as section 41's TSP guards: a condition valid
+only on the generator's distribution, tied with or beating the sound
+one. Here it merely tied, so a coin flip of ordering picked the sound
+one.
+
+**Reading.**
+- **Reach is no longer the wall.** Section 22's "no gradual tipping
+  point" was a property of mutation. Enumeration fills the stage-3 hole,
+  and selection by steps cleanly separates bisection from the linear and
+  mixed escapes (growth x1.49 vs x5-7). By the rule, the conclusion is
+  refuted for stage 3, and stage 2 is next.
+- **Two honest limits.**
+  - The product term (atom - atom) * atom was added because the
+    direction-aware answer needs it. That is grammar knowledge supplied
+    from outside, smaller than a whole decision but not nothing.
+  - Separating sound from distribution-fit decisions needs instances
+    the generator does not make.
+- **Generator blind spot.** contains_ordered's instances should include
+  dense consecutive haystacks. This affects the main search too: any
+  search on this problem can accept the impostor. It is fixed in the
+  next commit, and section 63 is re-run once with it.

@@ -307,6 +307,17 @@ struct TspBranchAndBound {
 };
 TspBranchAndBound buildTspBranchAndBoundWithGuard(const std::vector<int>& vars, ExprPtr guard);
 
+// Section 63: section 22's stage-3 binary-search shape (direction detection,
+// midpoint, found-check all hand-written) with the not-found decision given
+// as `if (decision) { thenMove } else { elseMove }`. `vars` are target, lo,
+// hi, mid, v, dir, found. `decisionSite` is that If node.
+struct BinarySearchWithDecision {
+    StmtPtr program;
+    const Stmt* decisionSite = nullptr;
+};
+BinarySearchWithDecision buildBinarySearchWithDecision(const std::vector<int>& vars, ExprPtr decision, StmtPtr thenMove,
+                                                       StmtPtr elseMove);
+
 Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg);
 
 // Clones `seed` and grows it by inserting freshly generated statements into

@@ -2936,6 +2936,42 @@ void collectAllStmts(const Stmt& s, std::vector<const Stmt*>& out) {
 
 }  // namespace
 
+BinarySearchWithDecision buildBinarySearchWithDecision(const std::vector<int>& vars, ExprPtr decision, StmtPtr thenMove,
+                                                       StmtPtr elseMove) {
+    const int target = vars[0], lo = vars[1], hi = vars[2], mid = vars[3], v = vars[4], dir = vars[5], found = vars[6];
+    auto root = makeBlock();
+    root->body.push_back(makeAssign(target, makeArrayAccess(makeIntConst(0))));
+    root->body.push_back(makeAssign(lo, makeIntConst(1)));
+    root->body.push_back(makeAssign(hi, makeVar(0)));
+    root->body.push_back(makeAssign(found, makeIntConst(0)));
+    root->body.push_back(makeAssign(dir, makeIntConst(1)));
+    {
+        std::vector<StmtPtr> flip;
+        flip.push_back(makeAssign(dir, makeBinOp(ExprKind::Sub, makeIntConst(0), makeIntConst(1))));
+        root->body.push_back(makeIf(makeCompare(ExprKind::Gt, makeArrayAccess(makeIntConst(1)),
+                                                makeArrayAccess(makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1)))),
+                                    std::move(flip)));
+    }
+    std::vector<StmtPtr> loopBody;
+    loopBody.push_back(makeAssign(
+        mid, makeBinOp(ExprKind::Add, makeVar(lo), makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+    loopBody.push_back(makeAssign(v, makeArrayAccess(makeVar(mid))));
+    std::vector<StmtPtr> foundBranch;
+    foundBranch.push_back(makeAssign(found, makeIntConst(1)));
+    foundBranch.push_back(makeAssign(hi, makeVar(lo)));
+    std::vector<StmtPtr> thenBody, elseBody;
+    thenBody.push_back(std::move(thenMove));
+    elseBody.push_back(std::move(elseMove));
+    auto decisionIf = makeIf(std::move(decision), std::move(thenBody), std::move(elseBody));
+    const Stmt* site = decisionIf.get();
+    std::vector<StmtPtr> notFound;
+    notFound.push_back(std::move(decisionIf));
+    loopBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(v), makeVar(target)), std::move(foundBranch), std::move(notFound)));
+    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(lo), makeVar(hi)), std::move(loopBody)));
+    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(found)));
+    return {std::move(root), site};
+}
+
 TspBranchAndBound buildTspBranchAndBoundWithGuard(const std::vector<int>& vars, ExprPtr guard) {
     int loopsUsed = 0;
     return buildTspBranchAndBoundImpl(vars, std::move(guard), loopsUsed);

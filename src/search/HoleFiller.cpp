@@ -6,7 +6,7 @@
 
 namespace algosearch {
 
-std::vector<ExprPtr> enumerateConditions(const std::vector<int>& vars, int maxConst) {
+std::vector<ExprPtr> enumerateConditions(const std::vector<int>& vars, int maxConst, bool products) {
     std::vector<ExprPtr> atoms;
     for (int v : vars) atoms.push_back(makeVar(v));
     for (int c = 0; c <= maxConst; ++c) atoms.push_back(makeIntConst(c));
@@ -18,6 +18,14 @@ std::vector<ExprPtr> enumerateConditions(const std::vector<int>& vars, int maxCo
             if (a->kind == ExprKind::IntConst && b->kind == ExprKind::IntConst) continue;  // constant, already covered
             terms.push_back(makeBinOp(ExprKind::Add, a->clone(), b->clone()));
             terms.push_back(makeBinOp(ExprKind::Sub, a->clone(), b->clone()));
+        }
+    }
+    if (products) {
+        for (const auto& a : atoms) {
+            for (const auto& b : atoms) {
+                if (a->kind == ExprKind::IntConst && b->kind == ExprKind::IntConst) continue;
+                for (int v : vars) terms.push_back(makeBinOp(ExprKind::Mul, makeBinOp(ExprKind::Sub, a->clone(), b->clone()), makeVar(v)));
+            }
         }
     }
 
@@ -42,6 +50,7 @@ int evalOnSnapshot(const Expr& e, const std::vector<int>& vars) {
     switch (e.kind) {
         case ExprKind::Add: return static_cast<int>(a + b);
         case ExprKind::Sub: return static_cast<int>(a - b);
+        case ExprKind::Mul: return static_cast<int>(a * b);
         case ExprKind::Lt: return a < b;
         case ExprKind::Gt: return a > b;
         case ExprKind::Eq: return a == b;

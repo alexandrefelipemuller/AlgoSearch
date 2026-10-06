@@ -116,6 +116,7 @@ struct CliArgs {
     std::string checkpointPath;
     bool benchmark = false;
     bool fillTspGuard = false;
+    bool fillBsearchHole = false;  // FINDINGS.md section 63
     bool soundnessLabels = false;
     bool metamorphic = false;
     bool rankWorstScale = false;
@@ -178,6 +179,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--checkpoint-path") args.checkpointPath = next("--checkpoint-path");
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
+        else if (arg == "--fill-bsearch-hole") args.fillBsearchHole = true;
         else if (arg == "--soundness-labels") args.soundnessLabels = true;
         else if (arg == "--metamorphic") args.metamorphic = true;
         else if (arg == "--rank-worst-scale") args.rankWorstScale = true;
@@ -201,7 +203,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -682,6 +684,157 @@ void runFillTspGuardMode(const CliArgs& args) {
     }
 }
 
+// Section 63: section 22's binary-search ladder, stage 3, with the hole
+// `if (C) { A } else { B }` filled by exhaustive enumeration instead of
+// mutation. Training is contains_ordered at n = 2..--max-n; correct
+// candidates are ranked by total training steps; the winner is checked on
+// held-out n = --max-n+1..--max-n+8 and by its step growth from n = 16 to
+// n = 128 on the problem's benchmark instance (O(log n) ~1.75x, O(n) ~8x).
+void runFillBsearchHoleMode(const CliArgs& args) {
+    const std::vector<int> skel = {1, 2, 3, 4, 5, 6, 7};  // target lo hi mid v dir found
+    const int numVars = 9;
+    const long stepLimit = 1'000'000;
+    ContainsOrderedProblem problem(6, 40, numVars, static_cast<uint64_t>(args.seed));
+    std::vector<Instance> training;
+    for (int n = 2; n <= args.maxN; ++n) {
+        for (auto& inst : problem.generateInstances(n)) training.push_back(std::move(inst));
+    }
+    static const char* const moveNames[8] = {"lo = mid + 1", "lo = mid", "lo = mid - 1", "hi = mid",
+                                             "hi = mid - 1", "hi = mid + 1", "lo = lo + 1", "hi = hi - 1"};
+    auto move = [](int k) -> StmtPtr {
+        const int lo = 2, hi = 3, mid = 4;
+        switch (k) {
+            case 0: return makeAssign(lo, makeBinOp(ExprKind::Add, makeVar(mid), makeIntConst(1)));
+            case 1: return makeAssign(lo, makeVar(mid));
+            case 2: return makeAssign(lo, makeBinOp(ExprKind::Sub, makeVar(mid), makeIntConst(1)));
+            case 3: return makeAssign(hi, makeVar(mid));
+            case 4: return makeAssign(hi, makeBinOp(ExprKind::Sub, makeVar(mid), makeIntConst(1)));
+            case 5: return makeAssign(hi, makeBinOp(ExprKind::Add, makeVar(mid), makeIntConst(1)));
+            case 6: return makeAssign(lo, makeBinOp(ExprKind::Add, makeVar(lo), makeIntConst(1)));
+            default: return makeAssign(hi, makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1)));
+        }
+    };
+    auto build = [&](const Expr& c, int a, int b) { return buildBinarySearchWithDecision(skel, c.clone(), move(a), move(b)); };
+
+    // Snapshots at the decision, traced from the two linear escapes (no
+    // knowledge of the answer), subsampled 1 in 3.
+    std::vector<std::vector<int>> snapshots;
+    for (int escape : {6, 7}) {
+        BinarySearchWithDecision open = build(*makeIntConst(1), escape, escape);
+        Interpreter interp(stepLimit);
+        long visits = 0;
+        interp.setConditionTrace(open.decisionSite, [&](const std::vector<int>& v, const std::vector<int>&) {
+            if (visits++ % 3 == 0 && snapshots.size() < 6000) snapshots.push_back(v);
+        });
+        std::vector<int> out;
+        for (const auto& inst : training) interp.run(*open.program, inst.input, numVars, out);
+    }
+    std::vector<int> atoms = {0, 1, 2, 3, 4, 5, 6};  // n, target, lo, hi, mid, v, dir
+    std::vector<ExprPtr> all = enumerateConditions(atoms, 2, /*products=*/true);
+    size_t enumerated = all.size();
+    std::vector<ExprPtr> reps = dedupeByTruthVector(std::move(all), snapshots);
+    std::cout << "[bsearch] " << training.size() << " training instances (n=2.." << args.maxN << "), " << snapshots.size()
+              << " snapshots, " << enumerated << " conditions -> " << reps.size() << " classes, x 56 move pairs\n";
+
+    auto evaluate = [&](const Stmt& prog, const std::vector<Instance>& insts, long& steps) {
+        Interpreter interp(stepLimit);
+        std::vector<int> out;
+        steps = 0;
+        for (const auto& inst : insts) {
+            long st = 0;
+            if (problem.evaluateInto(prog, inst, interp, out, &st) != ExecStatus::SUCCESS) return false;
+            steps += st;
+        }
+        return true;
+    };
+    struct Candidate {
+        size_t cls;
+        int a, b;
+        long steps;
+        double growth = 0;
+    };
+    std::vector<std::vector<Candidate>> found(args.threads > 0 ? args.threads : std::max(1u, std::thread::hardware_concurrency()));
+    unsigned workers = static_cast<unsigned>(found.size());
+    std::vector<std::thread> pool;
+    for (unsigned t = 0; t < workers; ++t) {
+        pool.emplace_back([&, t] {
+            for (size_t i = t; i < reps.size(); i += workers) {
+                for (int a = 0; a < 8; ++a) {
+                    for (int b = 0; b < 8; ++b) {
+                        if (a == b && i != 0) continue;  // the condition is irrelevant; evaluate once
+                        long st = 0;
+                        if (evaluate(*build(*reps[i], a, b).program, training, st)) found[t].push_back({i, a, b, st});
+                    }
+                }
+            }
+        });
+    }
+    for (auto& th : pool) th.join();
+    std::vector<Candidate> correct;
+    for (auto& f : found) correct.insert(correct.end(), f.begin(), f.end());
+    std::sort(correct.begin(), correct.end(), [](const Candidate& x, const Candidate& y) {
+        return x.steps != y.steps ? x.steps < y.steps : x.cls != y.cls ? x.cls < y.cls : x.a * 8 + x.b < y.a * 8 + y.b;
+    });
+
+    // Step growth n = 16 -> 128 on the benchmark instance, mean over 5 seeds.
+    auto growth = [&](const Stmt& prog) {
+        double s16 = 0, s128 = 0;
+        Interpreter interp(stepLimit);
+        std::vector<int> out;
+        for (uint64_t seed = 1; seed <= 5; ++seed) {
+            long a = 0, b = 0;
+            if (problem.evaluateInto(prog, problem.generateBenchmarkInstance(16, seed), interp, out, &a) != ExecStatus::SUCCESS ||
+                problem.evaluateInto(prog, problem.generateBenchmarkInstance(128, seed), interp, out, &b) != ExecStatus::SUCCESS) {
+                return -1.0;
+            }
+            s16 += static_cast<double>(a);
+            s128 += static_cast<double>(b);
+        }
+        return s128 / std::max(1.0, s16);
+    };
+    int bisection = 0, linear = 0;
+    for (auto& c : correct) {
+        c.growth = growth(*build(*reps[c.cls], c.a, c.b).program);
+        if (c.growth > 0 && c.growth <= 3) bisection++;
+        if (c.growth >= 6) linear++;
+    }
+    std::cout << "[bsearch] " << correct.size() << " candidates correct on every training instance: " << bisection
+              << " with growth <= 3 (bisection), " << linear << " with growth >= 6 (linear)\n";
+
+    // Hand-written reference: (v - target) * dir < 0 -> lo = mid + 1, else hi = mid.
+    ExprPtr hand = makeCompare(ExprKind::Lt, makeBinOp(ExprKind::Mul, makeBinOp(ExprKind::Sub, makeVar(5), makeVar(1)), makeVar(6)),
+                               makeIntConst(0));
+    long handSteps = 0;
+    bool handOk = evaluate(*build(*hand, 0, 3).program, training, handSteps);
+    size_t handRank = 0;
+    for (const auto& c : correct) handRank += c.steps < handSteps ? 1 : 0;
+    std::cout << "[bsearch] hand-written decision: " << (handOk ? "correct" : "SANITY FAILURE") << ", " << handSteps
+              << " training steps, growth x" << std::fixed << std::setprecision(2) << growth(*build(*hand, 0, 3).program)
+              << ", would rank #" << (handRank + 1) << "\n";
+    std::cout << "[bsearch] fastest correct candidates (v1 target, v2 lo, v3 hi, v4 mid, v5 v, v6 dir):\n";
+    for (size_t k = 0; k < correct.size() && k < 12; ++k) {
+        const auto& c = correct[k];
+        std::cout << "  " << std::setw(9) << c.steps << " steps  growth x" << std::setprecision(2) << c.growth << "  if ("
+                  << reps[c.cls]->toString() << ") { " << moveNames[c.a] << " } else { " << moveNames[c.b] << " }\n";
+    }
+    if (correct.empty()) return;
+    // Held-out for every candidate tied with the winner on training steps:
+    // the tie-break among them is enumeration order, not evidence.
+    std::vector<Instance> heldOut;
+    for (int n = args.maxN + 1; n <= args.maxN + 8; ++n) {
+        for (auto& inst : problem.generateInstances(n)) heldOut.push_back(std::move(inst));
+        for (auto& inst : problem.generateAdversarialInstances(n)) heldOut.push_back(std::move(inst));
+    }
+    for (const auto& c : correct) {
+        if (c.steps != correct.front().steps) break;
+        long st = 0;
+        bool ok = evaluate(*build(*reps[c.cls], c.a, c.b).program, heldOut, st);
+        std::cout << "[bsearch] held-out n=" << (args.maxN + 1) << ".." << (args.maxN + 8) << " (" << heldOut.size()
+                  << " instances): " << (ok ? "correct" : "WRONG") << "  if (" << reps[c.cls]->toString() << ") { "
+                  << moveNames[c.a] << " } else { " << moveNames[c.b] << " }\n";
+    }
+}
+
 int main(int argc, char** argv) {
     CliArgs args;
     if (!parseArgs(argc, argv, args)) {
@@ -699,6 +852,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (args.fillBsearchHole) {
+        runFillBsearchHoleMode(args);
+        return 0;
+    }
     if (args.fillTspGuard) {
         runFillTspGuardMode(args);
         return 0;
