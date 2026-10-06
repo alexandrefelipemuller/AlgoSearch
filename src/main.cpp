@@ -117,6 +117,7 @@ struct CliArgs {
     bool benchmark = false;
     bool fillTspGuard = false;
     bool fillBsearchHole = false;  // FINDINGS.md section 63
+    int bsearchStage = 3;
     bool soundnessLabels = false;
     bool metamorphic = false;
     bool rankWorstScale = false;
@@ -180,6 +181,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--benchmark") args.benchmark = true;
         else if (arg == "--fill-tsp-guard") args.fillTspGuard = true;
         else if (arg == "--fill-bsearch-hole") args.fillBsearchHole = true;
+        else if (arg == "--bsearch-stage") args.bsearchStage = std::stoi(next("--bsearch-stage"));
         else if (arg == "--soundness-labels") args.soundnessLabels = true;
         else if (arg == "--metamorphic") args.metamorphic = true;
         else if (arg == "--rank-worst-scale") args.rankWorstScale = true;
@@ -203,7 +205,7 @@ void printUsage() {
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
-                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole]\n";
+                 "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]]\n";
 }
 
 // The dedicated skeletons in ProgramGenerator.cpp gate themselves on
@@ -684,16 +686,23 @@ void runFillTspGuardMode(const CliArgs& args) {
     }
 }
 
-// Section 63: section 22's binary-search ladder, stage 3, with the hole
-// `if (C) { A } else { B }` filled by exhaustive enumeration instead of
-// mutation. Training is contains_ordered at n = 2..--max-n; correct
-// candidates are ranked by total training steps; the winner is checked on
-// held-out n = --max-n+1..--max-n+8 and by its step growth from n = 16 to
-// n = 128 on the problem's benchmark instance (O(log n) ~1.75x, O(n) ~8x).
+// Section 63: section 22's binary-search ladder with holes filled by
+// exhaustive enumeration instead of mutation. Stage 3 (default): the hole is
+// the not-found decision `if (C2) { A } else { B }`. Stage 2
+// (`--bsearch-stage 2`): the found-check is a hole too,
+// `if (C1) { F } else { if (C2) { A } else { B } }`, with F one of two
+// loop-exiting bodies. C1 candidates are pruned by the instances' own labels:
+// a C1 true at a state traced on an ABSENT instance would set found = 1 and
+// answer wrongly, so it is dropped; a C1 never true on any present-instance
+// state can never answer 1. Training is contains_ordered at n = 2..--max-n;
+// correct candidates are ranked by total training steps; winners tied on
+// steps are checked on held-out n = --max-n+1..--max-n+8, and every survivor
+// by its step growth from n = 16 to 128 (O(log n) ~1.5x, O(n) ~7x).
 void runFillBsearchHoleMode(const CliArgs& args) {
     const std::vector<int> skel = {1, 2, 3, 4, 5, 6, 7};  // target lo hi mid v dir found
     const int numVars = 9;
     const long stepLimit = 1'000'000;
+    const bool stage2 = args.bsearchStage == 2;
     ContainsOrderedProblem problem(6, 40, numVars, static_cast<uint64_t>(args.seed));
     std::vector<Instance> training;
     for (int n = 2; n <= args.maxN; ++n) {
@@ -701,6 +710,7 @@ void runFillBsearchHoleMode(const CliArgs& args) {
     }
     static const char* const moveNames[8] = {"lo = mid + 1", "lo = mid", "lo = mid - 1", "hi = mid",
                                              "hi = mid - 1", "hi = mid + 1", "lo = lo + 1", "hi = hi - 1"};
+    static const char* const foundNames[2] = {"found = 1; hi = lo", "found = 1; lo = hi"};
     auto move = [](int k) -> StmtPtr {
         const int lo = 2, hi = 3, mid = 4;
         switch (k) {
@@ -714,13 +724,19 @@ void runFillBsearchHoleMode(const CliArgs& args) {
             default: return makeAssign(hi, makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1)));
         }
     };
-    auto build = [&](const Expr& c, int a, int b) { return buildBinarySearchWithDecision(skel, c.clone(), move(a), move(b)); };
+    auto foundBody = [](int f) {
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(7, makeIntConst(1)));
+        body.push_back(f == 0 ? makeAssign(3, makeVar(2)) : makeAssign(2, makeVar(3)));
+        return body;
+    };
+    std::vector<int> atoms = {0, 1, 2, 3, 4, 5, 6};  // n, target, lo, hi, mid, v, dir
 
-    // Snapshots at the decision, traced from the two linear escapes (no
-    // knowledge of the answer), subsampled 1 in 3.
+    // Decision snapshots, traced from the two linear escapes (no knowledge
+    // of the answer), subsampled 1 in 3.
     std::vector<std::vector<int>> snapshots;
     for (int escape : {6, 7}) {
-        BinarySearchWithDecision open = build(*makeIntConst(1), escape, escape);
+        BinarySearchWithDecision open = buildBinarySearchWithDecision(skel, makeIntConst(1), move(escape), move(escape));
         Interpreter interp(stepLimit);
         long visits = 0;
         interp.setConditionTrace(open.decisionSite, [&](const std::vector<int>& v, const std::vector<int>&) {
@@ -729,13 +745,71 @@ void runFillBsearchHoleMode(const CliArgs& args) {
         std::vector<int> out;
         for (const auto& inst : training) interp.run(*open.program, inst.input, numVars, out);
     }
-    std::vector<int> atoms = {0, 1, 2, 3, 4, 5, 6};  // n, target, lo, hi, mid, v, dir
     std::vector<ExprPtr> all = enumerateConditions(atoms, 2, /*products=*/true);
     size_t enumerated = all.size();
     std::vector<ExprPtr> reps = dedupeByTruthVector(std::move(all), snapshots);
-    std::cout << "[bsearch] " << training.size() << " training instances (n=2.." << args.maxN << "), " << snapshots.size()
-              << " snapshots, " << enumerated << " conditions -> " << reps.size() << " classes, x 56 move pairs\n";
 
+    // Stage 2: found-check candidates, from found-check states traced from
+    // the same escapes with C1 = 0 (found never set), labeled by whether
+    // the instance's target is absent.
+    std::vector<ExprPtr> c1s;
+    if (stage2) {
+        std::vector<std::vector<int>> states;
+        std::vector<char> absent;
+        for (int escape : {6, 7}) {
+            BinarySearchWithDecision open =
+                buildBinarySearchStage2(skel, makeIntConst(0), foundBody(0), makeIntConst(1), move(escape), move(escape));
+            Interpreter interp(stepLimit);
+            char curAbsent = 0;
+            interp.setConditionTrace(open.foundCheckSite, [&](const std::vector<int>& v, const std::vector<int>&) {
+                states.push_back(v);
+                absent.push_back(curAbsent);
+            });
+            std::vector<int> out;
+            for (const auto& inst : training) {
+                curAbsent = inst.expectedOutput[0] == 0 ? 1 : 0;
+                interp.run(*open.program, inst.input, numVars, out);
+            }
+        }
+        std::vector<ExprPtr> candidates = enumerateConditions(atoms, 2, /*products=*/true);
+        size_t c1Enumerated = candidates.size();
+        std::vector<ExprPtr> kept;
+        for (auto& c : candidates) {
+            bool ok = true, anyPresent = false;
+            for (size_t k = 0; k < states.size() && ok; ++k) {
+                if (evalOnSnapshot(*c, states[k]) == 0) continue;
+                if (absent[k]) ok = false;
+                else anyPresent = true;
+            }
+            if (ok && anyPresent) kept.push_back(std::move(c));
+        }
+        std::vector<std::vector<int>> sample;
+        for (size_t k = 0; k < states.size(); k += 3) sample.push_back(states[k]);
+        size_t keptCount = kept.size();
+        c1s = dedupeByTruthVector(std::move(kept), sample);
+        std::cout << "[bsearch] stage 2: " << c1Enumerated << " found-check conditions -> " << keptCount
+                  << " consistent with the labels -> " << c1s.size() << " classes, x 2 found bodies\n";
+    }
+    std::cout << "[bsearch] " << training.size() << " training instances (n=2.." << args.maxN << "), " << snapshots.size()
+              << " snapshots, " << enumerated << " decision conditions -> " << reps.size() << " classes, x 56 move pairs\n";
+
+    struct Candidate {
+        int c1 = -1, f = 0;  // stage 2 only
+        size_t cls;
+        int a, b;
+        long steps;
+        double growth = 0;
+    };
+    auto build = [&](const Candidate& c) {
+        if (c.c1 < 0) return buildBinarySearchWithDecision(skel, reps[c.cls]->clone(), move(c.a), move(c.b));
+        return buildBinarySearchStage2(skel, c1s[static_cast<size_t>(c.c1)]->clone(), foundBody(c.f), reps[c.cls]->clone(),
+                                       move(c.a), move(c.b));
+    };
+    auto describe = [&](const Candidate& c) {
+        std::string d = c.c1 < 0 ? "" : "if (" + c1s[static_cast<size_t>(c.c1)]->toString() + ") { " + foundNames[c.f] + " } else ";
+        return d + "if (" + reps[c.cls]->toString() + ") { " + moveNames[c.a] + " } else { " + moveNames[c.b] + " }";
+    };
+    // Full evaluation (steps summed over all instances).
     auto evaluate = [&](const Stmt& prog, const std::vector<Instance>& insts, long& steps) {
         Interpreter interp(stepLimit);
         std::vector<int> out;
@@ -747,23 +821,47 @@ void runFillBsearchHoleMode(const CliArgs& args) {
         }
         return true;
     };
-    struct Candidate {
-        size_t cls;
-        int a, b;
-        long steps;
-        double growth = 0;
-    };
-    std::vector<std::vector<Candidate>> found(args.threads > 0 ? args.threads : std::max(1u, std::thread::hardware_concurrency()));
-    unsigned workers = static_cast<unsigned>(found.size());
+
+    // Filtering with a per-thread "killer" order: the instance that rejected
+    // the last candidate moves to the front, so most wrong candidates die on
+    // their first run. Survivors are then re-evaluated in full for steps.
+    unsigned workers = args.threads > 0 ? static_cast<unsigned>(args.threads) : std::max(1u, std::thread::hardware_concurrency());
+    std::vector<std::vector<Candidate>> found(workers);
+    std::vector<int> c1Range = stage2 ? std::vector<int>{} : std::vector<int>{-1};
+    for (size_t i = 0; stage2 && i < c1s.size(); ++i) c1Range.push_back(static_cast<int>(i));
+    const int fCount = stage2 ? 2 : 1;
     std::vector<std::thread> pool;
     for (unsigned t = 0; t < workers; ++t) {
         pool.emplace_back([&, t] {
-            for (size_t i = t; i < reps.size(); i += workers) {
-                for (int a = 0; a < 8; ++a) {
-                    for (int b = 0; b < 8; ++b) {
-                        if (a == b && i != 0) continue;  // the condition is irrelevant; evaluate once
-                        long st = 0;
-                        if (evaluate(*build(*reps[i], a, b).program, training, st)) found[t].push_back({i, a, b, st});
+            // A correct candidate needs a few hundred steps at n <= 12 even
+            // when linear; non-terminating ones would otherwise burn the
+            // full limit on every rejection.
+            Interpreter interp(20'000);
+            std::vector<int> out;
+            std::vector<size_t> order(training.size());
+            for (size_t k = 0; k < order.size(); ++k) order[k] = k;
+            for (int c1 : c1Range) {
+                for (int f = 0; f < fCount; ++f) {
+                    for (size_t i = t; i < reps.size(); i += workers) {
+                        for (int a = 0; a < 8; ++a) {
+                            for (int b = 0; b < 8; ++b) {
+                                if (a == b && i != 0) continue;  // the decision is irrelevant; evaluate once
+                                Candidate cand{c1, f, i, a, b, 0};
+                                auto prog = build(cand);
+                                bool ok = true;
+                                for (size_t k = 0; k < order.size(); ++k) {
+                                    if (problem.evaluateInto(*prog.program, training[order[k]], interp, out) != ExecStatus::SUCCESS) {
+                                        std::rotate(order.begin(), order.begin() + static_cast<long>(k), order.begin() + static_cast<long>(k) + 1);
+                                        ok = false;
+                                        break;
+                                    }
+                                }
+                                if (ok) {
+                                    evaluate(*prog.program, training, cand.steps);
+                                    found[t].push_back(cand);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -773,7 +871,10 @@ void runFillBsearchHoleMode(const CliArgs& args) {
     std::vector<Candidate> correct;
     for (auto& f : found) correct.insert(correct.end(), f.begin(), f.end());
     std::sort(correct.begin(), correct.end(), [](const Candidate& x, const Candidate& y) {
-        return x.steps != y.steps ? x.steps < y.steps : x.cls != y.cls ? x.cls < y.cls : x.a * 8 + x.b < y.a * 8 + y.b;
+        if (x.steps != y.steps) return x.steps < y.steps;
+        if (x.c1 != y.c1) return x.c1 < y.c1;
+        if (x.f != y.f) return x.f < y.f;
+        return x.cls != y.cls ? x.cls < y.cls : x.a * 8 + x.b < y.a * 8 + y.b;
     });
 
     // Step growth n = 16 -> 128 on the benchmark instance, mean over 5 seeds.
@@ -794,28 +895,29 @@ void runFillBsearchHoleMode(const CliArgs& args) {
     };
     int bisection = 0, linear = 0;
     for (auto& c : correct) {
-        c.growth = growth(*build(*reps[c.cls], c.a, c.b).program);
+        c.growth = growth(*build(c).program);
         if (c.growth > 0 && c.growth <= 3) bisection++;
         if (c.growth >= 6) linear++;
     }
     std::cout << "[bsearch] " << correct.size() << " candidates correct on every training instance: " << bisection
               << " with growth <= 3 (bisection), " << linear << " with growth >= 6 (linear)\n";
 
-    // Hand-written reference: (v - target) * dir < 0 -> lo = mid + 1, else hi = mid.
+    // Hand-written reference: v == target -> found; (v - target) * dir < 0 -> lo = mid + 1, else hi = mid.
     ExprPtr hand = makeCompare(ExprKind::Lt, makeBinOp(ExprKind::Mul, makeBinOp(ExprKind::Sub, makeVar(5), makeVar(1)), makeVar(6)),
                                makeIntConst(0));
+    auto handProg = buildBinarySearchWithDecision(skel, hand->clone(), move(0), move(3));
     long handSteps = 0;
-    bool handOk = evaluate(*build(*hand, 0, 3).program, training, handSteps);
+    bool handOk = evaluate(*handProg.program, training, handSteps);
     size_t handRank = 0;
     for (const auto& c : correct) handRank += c.steps < handSteps ? 1 : 0;
-    std::cout << "[bsearch] hand-written decision: " << (handOk ? "correct" : "SANITY FAILURE") << ", " << handSteps
-              << " training steps, growth x" << std::fixed << std::setprecision(2) << growth(*build(*hand, 0, 3).program)
+    std::cout << "[bsearch] hand-written program: " << (handOk ? "correct" : "SANITY FAILURE") << ", " << handSteps
+              << " training steps, growth x" << std::fixed << std::setprecision(2) << growth(*handProg.program)
               << ", would rank #" << (handRank + 1) << "\n";
     std::cout << "[bsearch] fastest correct candidates (v1 target, v2 lo, v3 hi, v4 mid, v5 v, v6 dir):\n";
     for (size_t k = 0; k < correct.size() && k < 12; ++k) {
         const auto& c = correct[k];
-        std::cout << "  " << std::setw(9) << c.steps << " steps  growth x" << std::setprecision(2) << c.growth << "  if ("
-                  << reps[c.cls]->toString() << ") { " << moveNames[c.a] << " } else { " << moveNames[c.b] << " }\n";
+        std::cout << "  " << std::setw(9) << c.steps << " steps  growth x" << std::setprecision(2) << c.growth << "  " << describe(c)
+                  << "\n";
     }
     if (correct.empty()) return;
     // Held-out for every candidate tied with the winner on training steps:
@@ -828,10 +930,9 @@ void runFillBsearchHoleMode(const CliArgs& args) {
     for (const auto& c : correct) {
         if (c.steps != correct.front().steps) break;
         long st = 0;
-        bool ok = evaluate(*build(*reps[c.cls], c.a, c.b).program, heldOut, st);
+        bool ok = evaluate(*build(c).program, heldOut, st);
         std::cout << "[bsearch] held-out n=" << (args.maxN + 1) << ".." << (args.maxN + 8) << " (" << heldOut.size()
-                  << " instances): " << (ok ? "correct" : "WRONG") << "  if (" << reps[c.cls]->toString() << ") { "
-                  << moveNames[c.a] << " } else { " << moveNames[c.b] << " }\n";
+                  << " instances): " << (ok ? "correct" : "WRONG") << "  " << describe(c) << "\n";
     }
 }
 

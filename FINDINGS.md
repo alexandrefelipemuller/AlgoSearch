@@ -4813,3 +4813,48 @@ grammar. The next step, by section 63's rule, is stage 2, where the
 found-check is also a hole. The generator change also alters
 contains_ordered's training set for ordinary searches; earlier
 contains_ordered results were obtained without it.
+
+## 64. Stage 2: the found-check is a hole too -- predictions registered before running
+
+The hole is `if (C1) { F } else { if (C2) { A } else { B } }`. Only the
+loop frame, the direction detection and the midpoint stay hand-written.
+This is section 22's stage 2, except that F is restricted to two
+loop-exiting bodies (below). Mode: `--fill-bsearch-hole --bsearch-stage 2`.
+- **C2, A, B:** as in section 63 (8432 decision classes x 56 move pairs).
+- **F:** one of {found = 1; hi = lo} and {found = 1; lo = hi}. A body
+  without an exit (found = 1 alone) never terminates once the target is
+  hit, so it is left out.
+- **C1:** the same enumerated grammar as C2, pruned by the instances' own
+  labels. States at the found-check are traced from the two linear
+  escapes with C1 = 0, and each is labeled by whether that instance's
+  target is absent.
+  - A C1 true at any absent-instance state is dropped, since it would
+    answer 1 where the answer is 0.
+  - A C1 never true at any present-instance state is dropped, since it
+    could never answer 1.
+  - The survivors are deduplicated by truth vector.
+
+  This is pruning by the problem's own oracle, with no knowledge of the
+  algorithm. It is still a heuristic: the traced states are those of the
+  linear escapes, not of bisection.
+
+**Evaluation change, verified neutral.** Rejection runs now use a
+20,000-step limit and a per-thread "killer" instance order. Survivors are
+re-evaluated in full at 1,000,000 steps. Re-running stage 3 gives the
+identical result: 12 survivors, the same two winners. Wall time went from
+6 min to 12 s.
+
+**Predictions.**
+1. The hand C1, `v == target`, survives the label pruning.
+2. **Reach:** at least one candidate correct on all training
+   instances bisects (growth <= 3).
+3. **Select:** every candidate tied for the fewest training steps is
+   correct on held-out n = 13..20 and bisects.
+
+**Decision rule.**
+- If 2 and 3 hold, stage 2 is reached by enumeration.
+- Stage 1 (the whole loop body free) is a statement-sequence hole that
+  this method does not cover. It would be reported as the next frontier,
+  not attempted here.
+- If 2 fails, the wall is at stage 2 for this grammar.
+- If 2 holds and 3 fails, the wall is selection.

@@ -314,9 +314,15 @@ TspBranchAndBound buildTspBranchAndBoundWithGuard(const std::vector<int>& vars, 
 struct BinarySearchWithDecision {
     StmtPtr program;
     const Stmt* decisionSite = nullptr;
+    const Stmt* foundCheckSite = nullptr;  // the `if (v == target)` node (or its stage-2 hole)
 };
 BinarySearchWithDecision buildBinarySearchWithDecision(const std::vector<int>& vars, ExprPtr decision, StmtPtr thenMove,
                                                        StmtPtr elseMove);
+// Section 63, stage 2: the found-check is a hole too --
+// `if (foundCheck) { foundBody } else { if (decision) { thenMove } else { elseMove } }`.
+BinarySearchWithDecision buildBinarySearchStage2(const std::vector<int>& vars, ExprPtr foundCheck,
+                                                 std::vector<StmtPtr> foundBody, ExprPtr decision, StmtPtr thenMove,
+                                                 StmtPtr elseMove);
 
 Program generateRandomProgram(Random& rng, int targetSize, const GenConfig& cfg);
 
