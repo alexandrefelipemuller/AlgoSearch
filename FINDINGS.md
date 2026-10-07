@@ -5662,3 +5662,17 @@ the noise: count_unique is 8/10 here and was 6/10 in section 71 under
 the same configuration. The rule was fixed, though, and a 30-seed retest
 of has_majority and count_unique (as sections 54 and 58 did) would
 settle it.
+
+## 74. Canonical tests: 30-seed retest of has_majority and count_unique -- predictions registered before running
+
+Following sections 54 and 58: base (nested on) vs CT, with 30 fresh
+matched seeds (23000-23029), section 73's budgets and per-seed
+`--benchmark`. Script: `scripts/run_canonical_retest_ab.sh`.
+
+**Predictions.**
+1. has_majority: CT >= base - 3 (of 30).
+2. count_unique: CT >= base + 3 (of 30).
+
+**Decision rule, fixed now.** If both hold, `--nested-canonical-tests`
+becomes the default (section 73's other rows already met no-regression).
+Otherwise it stays opt-in.
