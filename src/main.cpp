@@ -40,6 +40,10 @@
 #include "problems/MaxProfitProblem.hpp"
 #include "problems/CountLeadersProblem.hpp"
 #include "problems/HasMajorityProblem.hpp"
+#include "problems/ElementsTwiceProblem.hpp"
+#include "problems/MinFrequencyProblem.hpp"
+#include "problems/ModeProblem.hpp"
+#include "problems/ValuesTwiceProblem.hpp"
 #include "problems/MaxFrequencyProblem.hpp"
 #include "problems/CountUniqueProblem.hpp"
 #include "problems/CountDominatedProblem.hpp"
@@ -205,7 +209,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -320,6 +324,10 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "max_profit") return std::make_unique<MaxProfitProblem>(numVars, seed);
     if (name == "count_leaders") return std::make_unique<CountLeadersProblem>(numVars, seed);
     if (name == "has_majority") return std::make_unique<HasMajorityProblem>(numVars, seed);
+    if (name == "elements_twice") return std::make_unique<ElementsTwiceProblem>(numVars, seed);
+    if (name == "min_frequency") return std::make_unique<MinFrequencyProblem>(numVars, seed);
+    if (name == "mode") return std::make_unique<ModeProblem>(numVars, seed);
+    if (name == "values_twice") return std::make_unique<ValuesTwiceProblem>(numVars, seed);
     if (name == "max_frequency") return std::make_unique<MaxFrequencyProblem>(numVars, seed);
     if (name == "count_unique") return std::make_unique<CountUniqueProblem>(numVars, seed);
     if (name == "count_dominated") return std::make_unique<CountDominatedProblem>(numVars, seed);

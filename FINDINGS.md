@@ -5741,3 +5741,34 @@ still there.
    `--step-limit 20000`, per-seed `--benchmark`.
 
 Phase-1 sampling is reported as a diagnostic only. Time is not a gate.
+
+### 75, post-freeze problems and predictions (registered after freeze 1ba125d, before running)
+
+Four problems were written after the freeze, each with labels and a
+verified reference program.
+- **Predicted reachable:**
+  - `elements_twice`: elements whose value occurs exactly twice
+    (table `==`, count-if aux == 2);
+  - `min_frequency`: occurrences of the least frequent value (table
+    `==`, min aux).
+- **Predicted unreachable** (the boundaries of the frozen design):
+  - `mode`: the most frequent *value*. The pass returns aux, never the
+    element at the argmax.
+  - `values_twice`: *distinct* values occurring twice. That needs the
+    count-if halved, and the pass has no division.
+
+**A/B.** All 58 registered array/scalar problems, base (current default)
+vs FR = + `--combinator-frequency`. 10 matched seeds (24000-24009),
+section 71's budgets, `--step-limit 20000`, per-seed `--benchmark`.
+Script: `scripts/run_frequency_ab.sh`.
+
+**Predictions.**
+1. elements_twice and min_frequency: FR >= base + 5 each, and > 0.
+2. mode and values_twice: FR = 0.
+3. count_unique: FR >= base.
+4. No problem drops by more than 1.
+
+**Decision rule, fixed now.** If 1, 3 and 4 hold, `--combinator-frequency`
+becomes the default. Prediction 2 is a boundary check: if it fails, that
+is reported as the piece being more general than designed, and it does
+not block the promotion.

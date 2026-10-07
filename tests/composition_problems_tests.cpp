@@ -30,6 +30,10 @@
 #include "problems/MaxDrawdownProblem.hpp"
 #include "problems/MaxFrequencyProblem.hpp"
 #include "problems/TotalVariationProblem.hpp"
+#include "problems/ElementsTwiceProblem.hpp"
+#include "problems/MinFrequencyProblem.hpp"
+#include "problems/ModeProblem.hpp"
+#include "problems/ValuesTwiceProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -474,4 +478,52 @@ TEST(total_variation_problem_labels_and_reference_solution) {
                                  makeIf(cmp(ExprKind::Lt, var(5), lit(0)), stmts(makeAssign(5, sub(lit(0), var(5))))),
                                  makeAssign(3, add(var(3), var(5)))));
     checkProblem(problem, *finish(std::move(p)));
+}
+
+// -- Section 75 post-freeze problems: frequency table v5 (count of equal
+// elements, per outer element v1) feeding an outer test or best, or (mode)
+// the argmax value. --
+
+namespace {
+
+Program frequencyPass(std::vector<StmtPtr> consume) {
+    return nestedPass(false, stmts(makeAssign(4, lit(0))),
+                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4)))), std::move(consume));
+}
+
+}  // namespace
+
+TEST(elements_twice_problem_labels_and_reference_solution) {
+    ElementsTwiceProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 3}), 2);
+    checkProblem(problem, *frequencyPass(stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(2)), stmts(inc(3))))));
+}
+
+TEST(min_frequency_problem_labels_and_reference_solution) {
+    MinFrequencyProblem problem;
+    CHECK_EQ(problem.answer({1, 1, 2, 2, 2}), 2);
+    CHECK_EQ(problem.answer({}), 0);
+    // v3 = 0 means "unset": keep t when v3 is 0 or t < v3.
+    checkProblem(problem, *frequencyPass(stmts(makeIf(cmp(ExprKind::Eq, var(3), lit(0)), stmts(makeAssign(3, var(4)))),
+                                               makeIf(cmp(ExprKind::Lt, var(4), var(3)), stmts(makeAssign(3, var(4)))))));
+}
+
+TEST(mode_problem_labels_and_reference_solution) {
+    ModeProblem problem;
+    CHECK_EQ(problem.answer({3, 1, 3, 1, 2}), 1);  // tie between 1 and 3: the smaller
+    // v6 = best count, v3 = its value; a strictly better count, or a tie with a smaller value.
+    auto take = [] { return stmts(makeAssign(6, var(4)), makeAssign(3, at(var(1)))); };
+    checkProblem(problem, *frequencyPass(stmts(
+                              makeIf(cmp(ExprKind::Gt, var(4), var(6)), take()),
+                              makeIf(cmp(ExprKind::Eq, var(4), var(6)),
+                                     stmts(makeIf(cmp(ExprKind::Lt, at(var(1)), var(3)), take()))))));
+}
+
+TEST(values_twice_problem_labels_and_reference_solution) {
+    ValuesTwiceProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 4, 4, 4}), 2);
+    // Each value occurring twice is counted at both elements: halve at the end.
+    auto p = frequencyPass(stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(2)), stmts(inc(3)))));
+    p->body.insert(p->body.end() - 1, makeAssign(3, makeBinOp(ExprKind::Div, var(3), lit(2))));
+    checkProblem(problem, *p);
 }
