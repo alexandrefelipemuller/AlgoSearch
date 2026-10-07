@@ -5676,3 +5676,33 @@ matched seeds (23000-23029), section 73's budgets and per-seed
 **Decision rule, fixed now.** If both hold, `--nested-canonical-tests`
 becomes the default (section 73's other rows already met no-regression).
 Otherwise it stays opt-in.
+
+## 74 (results). Not noise: canonical tests cost has_majority 29 -> 22 of 30; they stay opt-in
+
+`data/canonical_retest_20261007/` (not versioned; 19:59-20:19; 120 runs).
+Verified successes of 30 matched seeds (23000-23029):
+
+| problem | base | CT |
+|---|---|---|
+| has_majority | 29 | **22** |
+| count_unique | 25 | 28 |
+
+- Prediction 1 **failed**: has_majority -7, against an allowed -3.
+- Prediction 2 **held**: count_unique +3, the required +3.
+- **Decision: `--nested-canonical-tests` stays opt-in.**
+
+Section 73's -2 on has_majority grew at 30 seeds instead of
+disappearing, so it is a real cost. That contradicts the mechanism I
+expected (has_majority's `t > n/2` gets *more* draws under CT), so the
+cause is not known. A plausible guess, not tested: the old joint draw
+also produced other tests that are correct for majority on these
+instances. One example is `t >= n/2` combined with ExistsIf and
+the count including the element itself. The canonical set removed
+those, together with the true redundancies. Collapsing "equivalent"
+draws on the domain t >= 0 is not neutral when several distinct tests
+solve the same problem.
+
+**Where count_unique stands.** It was 0 before section 71. Under the
+current default (nested on, no CT) it is 6/10, 8/10 and 25/30 in the
+three measurements: solved by the generic piece in most seeds, with no
+skeleton.
