@@ -172,3 +172,15 @@ TEST(combinator_nested_pieces_emit_threshold_and_absolute_step_blocks) {
     CHECK(halfThreshold > 0);
     CHECK(absStep > 0);
 }
+
+TEST(nested_canonical_tests_are_byte_identical_when_off) {
+    // Section 73: the canonical draw only happens with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorStep = b.combinatorStep = true;
+    a.combinatorNested = b.combinatorNested = true;
+    b.nestedCanonicalTests = false;
+    Random ra(73), rb(73);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}

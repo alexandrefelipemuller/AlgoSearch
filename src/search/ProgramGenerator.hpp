@@ -192,6 +192,12 @@ struct GenConfig {
     // false here is byte-identical, which the generator tests rely on.
     bool combinatorNested = false;
 
+    // Section 73: the nested aggregate's outer test drawn from six canonical
+    // tests on t >= 0 (t == 0, t > 0, t == 1, t > 1, t > n/2, t <= n/2)
+    // instead of comparator x threshold. Opt-in
+    // (`--nested-canonical-tests`); false is byte-identical.
+    bool nestedCanonicalTests = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no

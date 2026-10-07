@@ -2305,6 +2305,15 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             ExprPtr thr = thrKind == 0 ? makeIntConst(0)
                           : thrKind == 1 ? makeIntConst(1)
                                          : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
+            if (cfg.nestedCanonicalTests) {
+                // Section 73: one of six distinct tests on t >= 0.
+                static const ExprKind ops[] = {ExprKind::Eq, ExprKind::Gt, ExprKind::Eq, ExprKind::Gt, ExprKind::Gt, ExprKind::Le};
+                int test = rng.uniformInt(0, 5);
+                cmp2 = ops[test];
+                thr = test < 2 ? makeIntConst(0)
+                      : test < 4 ? makeIntConst(1)
+                                 : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
+            }
             std::vector<StmtPtr> consume;
             if (outerKind == 0) {
                 consume.push_back(makeAssign(acc, makeVar(t)));

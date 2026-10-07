@@ -5603,3 +5603,35 @@ seed), not on phase-1 sampling. Phase 1 remains a diagnostic.
 The CLI default is now `--combinator-nested` on;
 `--no-combinator-nested` restores the old behavior. GenConfig's own
 default stays false, so the byte-identity tests are unchanged.
+
+## 73. Canonical outer tests for the nested aggregate -- predictions registered before implementing
+
+Section 71's outer `CountIf` / `ExistsIf` test draws a comparator (6) and
+a threshold (0, 1, n/2) independently: 18 combinations. The aggregate t
+is never negative: counts, forall flags and best differences from 0 all
+satisfy t >= 0. On that domain the 18 collapse:
+- `t < 0` is never true;
+- `t >= 0` is always true;
+- `t > 0`, `t >= 1` and `t != 0` are the same test;
+- the other combinations repeat in the same way.
+
+`--nested-canonical-tests` replaces the joint draw with six distinct
+tests: `t == 0`, `t > 0`, `t == 1`, `t > 1`, `t > n/2`, `t <= n/2`.
+The change is problem-agnostic. It removes equivalent and constant draws
+and gives each distinct test about 3x its current share. count_unique,
+with its `t == 1`, is only one of the beneficiaries. With the flag off,
+nothing changes.
+
+**A/B.** The current default (nested on) vs + `--nested-canonical-tests`.
+All 54 array/scalar problems, 10 fresh matched seeds (22000-22009), the
+same budgets as section 71, `--step-limit 20000`, per-seed `--benchmark`.
+
+**Predictions.**
+1. count_unique >= base + 2 (base expected around 6/10).
+2. No problem drops by more than 1.
+
+**Decision rule, fixed now.** Time is not a gate (section 62), and
+post-freeze reachability is judged by the search (section 72). If both
+predictions hold, the flag becomes the default. If prediction 1 fails,
+the canonical tests stay opt-in, and count_unique stays at what the
+generic piece gives.
