@@ -5575,3 +5575,31 @@ selection get to what sampling did not. The two designed boundaries stay
 at 0, and two problems the pieces were not aimed at gained (min_gap +6,
 count_distinct +3). Promoting the flag despite rule (c) is a decision for
 the project owner, as in section 62, and is not made here.
+
+## 72. `--combinator-nested` becomes the default by explicit decision, after section 71's data
+
+This decision was made *after* seeing section 71's results, as an
+exception to the fixed rule, and is recorded as such, like section 62.
+
+Rules (a) (all four targets +8 or more) and (b) (worst drop -1) held. Rule
+(c) failed: count_unique did not appear in 20,000 phase-1 samples. The
+project owner promoted the flag anyway, for these reasons:
+- Rule (c) measured random sampling, not the search. The search itself
+  solved count_unique in 6 of 10 seeds, which is the property that
+  matters (reachability).
+- On reachability and diversity, the criterion from section 62, the
+  result is a pure gain: six problems go from 0-1 to 6-10, two more
+  improve, and nothing drops beyond 10-seed noise.
+- Evidence against overfitting: three post-freeze problems reached, two
+  designed boundaries held at 0.
+
+Caveat recorded: second_smallest's -1 at 10 seeds is probably noise
+(it moved the same way in sections 56 and 58), but it is not proven.
+
+**Rule change for future pieces.** The reachability requirement for
+post-freeze problems is judged on phase 2 (the search reaches it in >= 1
+seed), not on phase-1 sampling. Phase 1 remains a diagnostic.
+
+The CLI default is now `--combinator-nested` on;
+`--no-combinator-nested` restores the old behavior. GenConfig's own
+default stays false, so the byte-identity tests are unchanged.

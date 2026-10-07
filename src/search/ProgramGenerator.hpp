@@ -188,7 +188,8 @@ struct GenConfig {
     // Section 71: nested aggregates (an inner count / forall / best
     // difference per outer element, fed into an outer best / count-if /
     // exists-if) on nested loops, and an absolute value on BestStep.
-    // Opt-in (`--combinator-nested`); false is byte-identical.
+    // CLI default since section 72 (`--no-combinator-nested` turns it off);
+    // false here is byte-identical, which the generator tests rely on.
     bool combinatorNested = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the
