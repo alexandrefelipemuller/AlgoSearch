@@ -198,6 +198,12 @@ struct GenConfig {
     // (`--nested-canonical-tests`); false is byte-identical.
     bool nestedCanonicalTests = false;
 
+    // Section 75: a fifth stateful piece, FrequencyTable -- aux[i] = how many
+    // j have cmp(elem(j), elem(i)) (frequency or rank), then one pass over
+    // aux (max, min, count-if, exists). Opt-in (`--combinator-frequency`);
+    // false is byte-identical.
+    bool combinatorFrequency = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no

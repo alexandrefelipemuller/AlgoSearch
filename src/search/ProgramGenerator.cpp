@@ -2020,7 +2020,9 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     auto elem = [&](ExprPtr i) { return makeArrayAccess(add(base->clone(), std::move(i))); };
 
     bool nestedOk = (cfg.maxLoops - loopsUsed) >= 2;
-    int piece = rng.uniformInt(0, nestedOk ? 3 : 1);
+    // Section 75: FrequencyTable needs three loops (two nested, one pass).
+    bool frequencyOk = cfg.combinatorFrequency && (cfg.maxLoops - loopsUsed) >= 3;
+    int piece = rng.uniformInt(0, frequencyOk ? 4 : nestedOk ? 3 : 1);
     ExprKind keep = rng.chance(0.5) ? ExprKind::Gt : ExprKind::Lt;
     switch (piece) {
         case 0: {  // RunBest
@@ -2062,6 +2064,36 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 });
                 outer.push_back(makeAssignAux(var(vi), add(var(tmp), unitWeight ? lit(1) : elem(var(vi)))));
                 outer.push_back(keepBest(ExprKind::Gt, acc, aux(var(vi))));
+            });
+            break;
+        }
+        case 4: {  // FrequencyTable (section 75)
+            static const ExprKind tableCmps[] = {ExprKind::Eq, ExprKind::Lt, ExprKind::Gt};
+            ExprKind tableCmp = tableCmps[rng.uniformInt(0, 2)];
+            int pass = rng.uniformInt(0, 3);  // max, min, count-if, exists
+            ExprKind cmp2 = combinator::drawComparator(rng);
+            int thrKind = rng.uniformInt(0, 3);  // 0, 1, 2, n / 2
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
+                outer.push_back(makeAssign(tmp, lit(0)));
+                outer.push_back(makeAssign(vj, lit(0)));
+                appendCountingWhile(outer, vj, bound(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
+                    inner.push_back(makeIf(makeCompare(tableCmp, elem(var(vj)), elem(var(vi))),
+                                           one(makeAssign(tmp, add(var(tmp), lit(1))))));
+                });
+                outer.push_back(makeAssignAux(var(vi), var(tmp)));
+            });
+            root.push_back(makeAssign(acc, lit(0)));
+            if (pass < 2) root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(acc, aux(lit(0))))));
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                if (pass < 2) {
+                    body.push_back(keepBest(pass == 0 ? ExprKind::Gt : ExprKind::Lt, acc, aux(var(vi))));
+                    return;
+                }
+                ExprPtr thr = thrKind < 3 ? lit(thrKind) : makeBinOp(ExprKind::Div, bound(), lit(2));
+                body.push_back(makeIf(makeCompare(cmp2, aux(var(vi)), std::move(thr)),
+                                      one(makeAssign(acc, pass == 2 ? add(var(acc), lit(1)) : lit(1)))));
             });
             break;
         }

@@ -184,3 +184,29 @@ TEST(nested_canonical_tests_are_byte_identical_when_off) {
         CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
     }
 }
+
+TEST(frequency_table_piece_is_byte_identical_when_off) {
+    // Section 75: the fifth stateful piece is drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorState = b.combinatorState = true;
+    b.combinatorFrequency = false;
+    Random ra(75), rb(75);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(frequency_table_piece_emits_table_passes) {
+    // With the flag on, some blocks read the table's first cell (the max /
+    // min pass over aux), which no other piece does.
+    Random rng(76);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorState = true;
+    cfg.combinatorFrequency = true;
+    cfg.maxLoops = 4;  // the table needs three loops
+    int tablePasses = 0;
+    for (int i = 0; i < 4000; ++i) {
+        if (generateRandomProgram(rng, 2, cfg)->toString().find("= aux[0]") != std::string::npos) tablePasses++;
+    }
+    CHECK(tablePasses > 0);
+}
