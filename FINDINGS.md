@@ -5428,3 +5428,54 @@ aggregates over a triangular or pair loop. That is one candidate
 combinator axis value, not three skeletons. max_adjacent_gap needs a
 one-operator addition (`|.|`). cycle needs a new loop kind (pointer
 following).
+
+## 71. Nested aggregates and an absolute step -- design registered before implementing
+
+Section 70 found that max_profit, count_leaders and has_majority all lack
+the same capability: an aggregate *per element over the others*, fed into
+an outer aggregate. max_adjacent_gap lacks an absolute value on the step.
+Both become combinator axis values under one opt-in flag,
+`--combinator-nested`. With the flag off, the generator is byte-identical.
+
+**Nested relation.** It applies on the nested loops (full, or triangular
+with j > i) of the whole-array and length-prefixed layouts. For each outer
+element `elem(i)`, the inner loop over j computes t_i, which is reset per
+outer element. The inner aggregate is one of three:
+- `CountCmp`: t += 1 when cmp(elem(j), elem(i));
+- `ForallCmp`: t starts at 1 and is cleared when cmp(elem(j), elem(i));
+- `BestDiff`: t = max of `elem(j) - elem(i)`, starting at 0.
+
+The outer aggregate over t_i is one of:
+- `Best`: acc = max t_i, starting at 0;
+- `CountIf`: acc += 1 when t_i cmp2 thr;
+- `ExistsIf`: acc = 1 when t_i cmp2 thr.
+
+thr is one of 0, 1, or `bound / 2` (n/2). cmp and cmp2 are drawn from
+the six comparators.
+- On a nested loop, the relation draw gives Nested 2 times in 7, with
+  the flag on.
+- The difference direction is fixed (j minus i), deliberately. That makes
+  one boundary falsifiable below.
+
+**Absolute step.** With the flag on, `BestStep` takes `|elem(i) -
+elem(i-1)|` one time in three. It applies to `BestStep` only, not to sums,
+also deliberately.
+
+**Protocol.**
+1. Implement and freeze (commit).
+2. Write post-freeze problems and register predictions.
+3. Phase 1: reachability probe with the flag on (`probe_reachability`
+   gains the flag) for the four targets and the post-freeze problems.
+4. Phase 2: a matched A/B (base vs base + `--combinator-nested`) on all
+   registered array/scalar problems, 10 seeds, per-seed `--benchmark`,
+   `--step-limit 20000`.
+
+**Decision rule, fixed now.** Per section 62, time is not a gate. The flag
+becomes the default if:
+- (a) at least 3 of the 4 targets reach >= base + 7 in phase 2;
+- (b) no problem drops by more than 1;
+- (c) every post-freeze problem predicted reachable has a generalizing
+  sample in phase 1.
+
+cycle (pointer chasing) is out of scope here. It needs a new loop kind
+and is listed as the next gap.
