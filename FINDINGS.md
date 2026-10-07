@@ -5635,3 +5635,30 @@ post-freeze reachability is judged by the search (section 72). If both
 predictions hold, the flag becomes the default. If prediction 1 fails,
 the canonical tests stay opt-in, and count_unique stays at what the
 generic piece gives.
+
+## 73 (results). count_unique 8 -> 10, but has_majority 8 -> 6: the no-regression rule fails by one
+
+`data/canonical_tests_ab_20261007/` (not versioned; 19:06-19:56; 1080
+runs, 53 wall timeouts, on problems neither arm solves). Verified
+successes of 10 matched seeds (22000-22009), base (nested on) / CT. Rows
+not listed are equal in both arms.
+
+| problem | base | CT |
+|---|---|---|
+| count_unique | 8 | **10** |
+| has_majority | 8 | **6** |
+| second_smallest / min_gap / max_gap_sorted | 8 / 6 / 8 | 9 / 7 / 9 |
+| count_leaders, count_dominated, max_frequency, max_profit, max_adjacent_gap | 10 each | 10 each |
+
+- Prediction 1 **held**, exactly: count_unique gained 2.
+- Prediction 2 **failed**: has_majority dropped by 2.
+- **Decision: by the fixed rule, `--nested-canonical-tests` stays
+  opt-in.**
+
+The drop runs against the mechanism. has_majority's test `t > n/2` has
+a 1/6 share under CT against 1/18 before, so if anything the change
+should help it. That points to 10-seed noise. The base arm also shows
+the noise: count_unique is 8/10 here and was 6/10 in section 71 under
+the same configuration. The rule was fixed, though, and a 30-seed retest
+of has_majority and count_unique (as sections 54 and 58 did) would
+settle it.
