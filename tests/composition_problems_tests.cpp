@@ -25,6 +25,11 @@
 #include "problems/LongestNonIncreasingRunProblem.hpp"
 #include "problems/MaxSumIncreasingSubsequenceProblem.hpp"
 #include "problems/MinSubarraySumProblem.hpp"
+#include "problems/CountDominatedProblem.hpp"
+#include "problems/CountUniqueProblem.hpp"
+#include "problems/MaxDrawdownProblem.hpp"
+#include "problems/MaxFrequencyProblem.hpp"
+#include "problems/TotalVariationProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -398,4 +403,75 @@ TEST(ceiling_water_problem_labels_and_reference_solution) {
     p->body.push_back(makeAssign(1, lit(0)));
     p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(outer)));
     checkProblem(problem, *finish(std::move(p)), /*minVariedN=*/3);
+}
+
+// -- Section 71 post-freeze problems --
+
+namespace {
+
+// v1 = 0; while (v1 < n) { reset; v2 = start; while (v2 < n) { inner; v2++ } consume; v1++ }
+// with start = v1 + 1 (triangular) or 0; elem(i) = arr[v1], elem(j) = arr[v2].
+Program nestedPass(bool triangular, std::vector<StmtPtr> reset, std::vector<StmtPtr> inner, std::vector<StmtPtr> consume) {
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    inner.push_back(inc(2));
+    std::vector<StmtPtr> outer = std::move(reset);
+    outer.push_back(makeAssign(2, triangular ? add(var(1), lit(1)) : lit(0)));
+    outer.push_back(makeWhile(cmp(ExprKind::Lt, var(2), var(0)), std::move(inner)));
+    for (auto& st : consume) outer.push_back(std::move(st));
+    outer.push_back(inc(1));
+    p->body.push_back(makeAssign(1, lit(0)));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(outer)));
+    return finish(std::move(p));
+}
+
+}  // namespace
+
+TEST(max_frequency_problem_labels_and_reference_solution) {
+    MaxFrequencyProblem problem;
+    CHECK_EQ(problem.answer({3, 1, 3, 2, 3}), 3);
+    CHECK_EQ(problem.answer({4}), 1);
+    checkProblem(problem, *nestedPass(false, stmts(makeAssign(4, lit(0))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4)))),
+                                      stmts(makeIf(cmp(ExprKind::Gt, var(4), var(3)), stmts(makeAssign(3, var(4)))))));
+}
+
+TEST(count_unique_problem_labels_and_reference_solution) {
+    CountUniqueProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3}), 2);
+    CHECK_EQ(problem.answer({5, 5}), 0);
+    checkProblem(problem, *nestedPass(false, stmts(makeAssign(4, lit(0))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4)))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(1)), stmts(inc(3))))));
+}
+
+TEST(count_dominated_problem_labels_and_reference_solution) {
+    CountDominatedProblem problem;
+    CHECK_EQ(problem.answer({1, 3, 2, 2}), 1);  // only the 1 has a greater element later
+    CHECK_EQ(problem.answer({4, 3, 3}), 0);
+    checkProblem(problem, *nestedPass(true, stmts(makeAssign(4, lit(0))),
+                                      stmts(makeIf(cmp(ExprKind::Gt, at(var(2)), at(var(1))), stmts(makeAssign(4, lit(1))))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(1)), stmts(inc(3))))));
+}
+
+TEST(max_drawdown_problem_labels_and_reference_solution) {
+    MaxDrawdownProblem problem;
+    CHECK_EQ(problem.answer({3, 7, 1, 5}), 6);
+    CHECK_EQ(problem.answer({1, 2, 3}), 0);
+    checkProblem(problem, *nestedPass(true, stmts(),
+                                      stmts(makeIf(cmp(ExprKind::Gt, sub(at(var(1)), at(var(2))), var(3)),
+                                                   stmts(makeAssign(3, sub(at(var(1)), at(var(2))))))),
+                                      stmts()));
+}
+
+TEST(total_variation_problem_labels_and_reference_solution) {
+    TotalVariationProblem problem;
+    CHECK_EQ(problem.answer({1, 4, 2, 2}), 5);
+    CHECK_EQ(problem.answer({7}), 0);
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    appendAdjacentPass(*p, stmts(makeAssign(5, sub(cur(), prev())),
+                                 makeIf(cmp(ExprKind::Lt, var(5), lit(0)), stmts(makeAssign(5, sub(lit(0), var(5))))),
+                                 makeAssign(3, add(var(3), var(5)))));
+    checkProblem(problem, *finish(std::move(p)));
 }

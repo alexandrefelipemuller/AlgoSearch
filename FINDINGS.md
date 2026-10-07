@@ -5479,3 +5479,29 @@ becomes the default if:
 
 cycle (pointer chasing) is out of scope here. It needs a new loop kind
 and is listed as the next gap.
+
+### 71, post-freeze problems and phase 1 predictions (registered after freeze 5f17009, before running)
+
+Five problems were written after the freeze. Each has labels and a
+verified reference program in `tests/composition_problems_tests.cpp`.
+- **Predicted reachable** with the nested pieces:
+  - `max_frequency`: occurrences of the most frequent value (full loop,
+    count ==, outer best);
+  - `count_unique`: elements whose value occurs exactly once (full loop,
+    count ==, outer count-if t == 1);
+  - `count_dominated`: elements with a strictly greater element later
+    (triangular, forall-cleared, outer count-if t == 0).
+- **Predicted unreachable** (the falsifiable boundaries of the frozen
+  design):
+  - `max_drawdown`: max(0, max over i < j of arr[i] - arr[j]). The
+    difference direction is fixed to j minus i.
+  - `total_variation`: the sum of |arr[i] - arr[i-1]|. The absolute
+    value exists only inside `BestStep`, not in sums.
+
+**Phase 1 predictions.** `probe_reachability ... nested`: 20,000 samples,
+generalizing = correct on training and held-out, in any of the shapes
+one, one+T or two+T.
+1. All four targets (max_adjacent_gap, max_profit, count_leaders,
+   has_majority) have >= 1 generalizing sample.
+2. The three predicted-reachable post-freeze problems have >= 1 each.
+3. max_drawdown and total_variation have 0.

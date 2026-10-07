@@ -21,11 +21,16 @@
 #include <string>
 
 #include "interpreter/Interpreter.hpp"
+#include "problems/CountDominatedProblem.hpp"
 #include "problems/CountLeadersProblem.hpp"
+#include "problems/CountUniqueProblem.hpp"
 #include "problems/CycleDetectionProblem.hpp"
 #include "problems/HasMajorityProblem.hpp"
 #include "problems/MaxAdjacentGapProblem.hpp"
+#include "problems/MaxDrawdownProblem.hpp"
+#include "problems/MaxFrequencyProblem.hpp"
 #include "problems/MaxProfitProblem.hpp"
+#include "problems/TotalVariationProblem.hpp"
 #include "search/ProgramGenerator.hpp"
 #include "search/TailFiller.hpp"
 
@@ -43,6 +48,11 @@ int main(int argc, char** argv) {
     else if (name == "max_profit") p = std::make_unique<MaxProfitProblem>(numVars);
     else if (name == "count_leaders") p = std::make_unique<CountLeadersProblem>(numVars);
     else if (name == "has_majority") p = std::make_unique<HasMajorityProblem>(numVars);
+    else if (name == "max_frequency") p = std::make_unique<MaxFrequencyProblem>(numVars);
+    else if (name == "count_unique") p = std::make_unique<CountUniqueProblem>(numVars);
+    else if (name == "count_dominated") p = std::make_unique<CountDominatedProblem>(numVars);
+    else if (name == "max_drawdown") p = std::make_unique<MaxDrawdownProblem>(numVars);
+    else if (name == "total_variation") p = std::make_unique<TotalVariationProblem>(numVars);
     else if (name == "cycle") {
         p = std::make_unique<CycleDetectionProblem>(6, 30, numVars);
         trainMax = 5;
