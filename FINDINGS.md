@@ -5346,3 +5346,30 @@ Kept:
 
 The three battery scripts that need removed flags say which commit to
 build. `make test`: 143/143.
+
+## 70. Phase-1 reachability for the five never-solved problems -- prediction registered before running
+
+The five problems are max_adjacent_gap, cycle, max_profit, count_leaders
+and has_majority. They are 0/10 in every arm of sections 56, 59 and 61.
+
+`scripts/probe_reachability.cpp` samples 20,000 programs per problem
+from the *default* generator family (combinator 0.5 with step axes and
+stateful pieces, loop bias 0.4, every remaining skeleton; numVars 9).
+Each sample is checked in three shapes:
+- **one**: a single drawn block;
+- **one+T**: that block plus section 51's enumerated tail;
+- **two+T**: two independent blocks in sequence, then the tail.
+
+For each shape it counts the samples correct on every training
+instance (levels <= 8; cycle <= 5) and how many of those also pass
+held-out (the next 3 levels plus adversarial instances).
+
+**Prediction:** zero generalizing samples on all five problems in all
+three shapes. Their failure is then expressivity (the family lacks a
+piece), not search.
+
+**Rule:**
+- A problem with a generalizing sample is a *search* failure, and gets
+  its own follow-up.
+- A problem without one gets a diagnosis of the missing piece from its
+  best near miss.
