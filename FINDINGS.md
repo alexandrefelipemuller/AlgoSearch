@@ -5542,3 +5542,36 @@ the search as well. Rule (c) is therefore **not met**, and the flag
 cannot become the default from this section, whatever phase 2 shows.
 Phase 2 still runs, for rules (a) and (b), and to see whether search
 reaches count_unique through mutation where sampling did not.
+
+### 71, phase 2 results
+
+`data/nested_ab_20261007/` (not versioned; 07:17-08:25; 1080 runs, 107
+wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (21000-21009), base / NE (`--combinator-nested`). Rows
+not listed are equal in both arms.
+
+| problem | base | NE |
+|---|---|---|
+| max_adjacent_gap (target) | 0 | **10** |
+| max_profit (target) | 0 | **10** |
+| count_leaders (target) | 0 | **10** |
+| has_majority (target) | 0 | **8** |
+| count_dominated (post-freeze) | 1 | **10** |
+| count_unique (post-freeze) | 0 | **6** |
+| max_frequency (post-freeze) | 10 | 10 |
+| max_drawdown / total_variation (boundaries) | 0 / 0 | 0 / 0 |
+| min_gap | 2 | 8 |
+| count_distinct | 7 | 10 |
+| second_smallest | 10 | 9 |
+
+**Rules.**
+- (a) **Held**, 4 of 4 targets at base + 8 or more.
+- (b) **Held**: the worst drop is -1 (second_smallest).
+- (c) **Failed** in phase 1 (count_unique too rare to sample), so by the
+  fixed rule the flag stays opt-in.
+
+The search itself reached count_unique in 6 of 10 seeds. Mutation and
+selection get to what sampling did not. The two designed boundaries stay
+at 0, and two problems the pieces were not aimed at gained (min_gap +6,
+count_distinct +3). Promoting the flag despite rule (c) is a decision for
+the project owner, as in section 62, and is not made here.
