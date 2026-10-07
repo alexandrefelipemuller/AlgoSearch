@@ -5373,3 +5373,58 @@ piece), not search.
   its own follow-up.
 - A problem without one gets a diagnosis of the missing piece from its
   best near miss.
+
+## 70 (results). All five are expressivity gaps: no sample of the default family solves any of them
+
+`data/reachability_unsolved_20261006/` (not versioned). 20,000 samples
+per problem, about 2.5 min each.
+
+| problem | one | one+T | two+T | best near miss (training) |
+|---|---|---|---|---|
+| max_adjacent_gap | 0 | 0 | 0 | 355/536 |
+| max_profit | 0 | 0 | 0 | 384/536 |
+| count_leaders | 0 | 0 | 0 | 405/536 |
+| has_majority | 0 | 0 | 0 | 442/536 |
+| cycle | 0 | 0 | 2 correct on training, **0** on held-out | 38/38 (fit) |
+
+**Prediction: held.** No generalizing sample anywhere: these five are not
+search failures, the default family does not contain them. The best near
+misses show what is missing:
+
+- **max_adjacent_gap: absolute value.** The best near miss is the step
+  axis's `BestStep` maximum of `arr[i] - arr[i-1]`. That is right
+  whenever the largest jump goes up, and wrong when it goes down. The
+  missing piece is an `|.|` combine on the step, or max(maxStep,
+  -minStep). Nothing in the family takes the absolute value of a
+  difference.
+- **max_profit: best difference against all earlier elements.** The
+  near miss is again the adjacent `BestStep`. The answer needs
+  max over i < j of `arr[j] - arr[i]`: the step relation over *all*
+  earlier elements, either as a running minimum combined with a
+  difference or as a triangular pair loop with a best-difference
+  relation. Neither exists. `BestStep` is adjacent-only, and the pair
+  relations count or test, they do not take a best difference.
+- **count_leaders: a count over a per-element "for all later
+  elements".** The near miss is an unrelated LIS-style DP that agrees on
+  405 instances by coincidence. The answer is "count i such that every
+  j > i has `arr[j] < arr[i]`" (a quantifier nested inside a count), or
+  a right-to-left scan with a running maximum. The family has neither
+  nested quantifiers nor a reversed single-pass direction with state.
+- **has_majority: a per-element count compared with n/2.** The near
+  miss is a palindrome-shaped scan. The answer is "exists i such that
+  count of j with `arr[j] == arr[i]` exceeds n/2" (a count nested inside
+  an exists, with a threshold on `v0 / 2`), or Boyer-Moore voting. The
+  same nesting gap as count_leaders, plus a threshold relative to n.
+- **cycle: pointer chasing.** The near miss is an ordering scan. The
+  answer must follow `x = arr[1 + x]` (and Floyd's version moves two
+  such pointers at different speeds). No family has a loop whose next
+  index comes from the data. The two training-correct two+T samples are
+  fits that fail held-out, as section 25 anticipated.
+
+**Pattern.** Three of the five (max_profit, count_leaders, has_majority)
+need the same missing capability: an aggregate *per element over the
+others*, fed into an outer aggregate. These are nested quantifiers or
+aggregates over a triangular or pair loop. That is one candidate
+combinator axis value, not three skeletons. max_adjacent_gap needs a
+one-operator addition (`|.|`). cycle needs a new loop kind (pointer
+following).
