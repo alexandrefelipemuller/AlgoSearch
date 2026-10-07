@@ -185,6 +185,12 @@ struct GenConfig {
     // when on. Default on since section 62 (`--no-combinator-state` off).
     bool combinatorState = false;
 
+    // Section 71: nested aggregates (an inner count / forall / best
+    // difference per outer element, fed into an outer best / count-if /
+    // exists-if) on nested loops, and an absolute value on BestStep.
+    // Opt-in (`--combinator-nested`); false is byte-identical.
+    bool combinatorNested = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no

@@ -1961,7 +1961,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2164,6 +2164,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     if (cfg.combinatorStep && loop == Loop::Adjacent && rng.uniformInt(0, 6) >= 5) {
         rel = rng.chance(0.5) ? Relation::BestStep : Relation::CountSegments;
     }
+    // Section 71: on a nested loop over one sequence, the nested aggregate
+    // joins the five pair relations (2 of 7). Drawn only with the flag on.
+    if (cfg.combinatorNested && (loop == Loop::NestedFull || loop == Loop::NestedTriangular) &&
+        (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 6) >= 5) {
+        rel = Relation::Nested;
+    }
     ExprKind cmp = drawComparator(rng);
 
     // Operands for this loop shape.
@@ -2193,6 +2199,7 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     bool writeBack = true;
     int accInit = 0;
     int resultVar = acc;
+    bool absStep = false;  // section 71
     ExprPtr rhs = b ? b->clone() : key->clone();
     switch (rel) {
         case Relation::Sum:
@@ -2253,6 +2260,13 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         case Relation::BestStep: {
             // acc = min or max of elem(i) - elem(i-1); `found` holds the step.
             inner.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
+            // Section 71: |step|, one time in three with the flag on.
+            absStep = cfg.combinatorNested && rng.uniformInt(0, 2) == 0;
+            if (absStep) {
+                std::vector<StmtPtr> negate;
+                negate.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(found))));
+                inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(negate)));
+            }
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeVar(found)));
             inner.push_back(makeIf(makeCompare(rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt, makeVar(found), makeVar(acc)),
@@ -2265,6 +2279,41 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
             inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
             accInit = 1;
+            break;
+        }
+        case Relation::Nested: {
+            // t (held in `found`) aggregates elem(j) against elem(i) over the
+            // inner loop, reset per outer element; acc aggregates the t_i.
+            int innerKind = rng.uniformInt(0, 2);  // CountCmp, ForallCmp, BestDiff
+            int outerKind = rng.uniformInt(0, 2);  // Best, CountIf, ExistsIf
+            ExprKind cmp2 = drawComparator(rng);
+            int thrKind = rng.uniformInt(0, 2);  // 0, 1, bound / 2
+            const int t = found;
+            perOuterReset.push_back(makeAssign(t, makeIntConst(innerKind == 1 ? 1 : 0)));
+            std::vector<StmtPtr> then;
+            if (innerKind == 0) {
+                then.push_back(makeAssign(t, makeBinOp(ExprKind::Add, makeVar(t), makeIntConst(1))));
+                inner.push_back(makeIf(makeCompare(cmp, b->clone(), a->clone()), std::move(then)));
+            } else if (innerKind == 1) {
+                then.push_back(makeAssign(t, makeIntConst(0)));
+                inner.push_back(makeIf(makeCompare(cmp, b->clone(), a->clone()), std::move(then)));
+            } else {
+                then.push_back(makeAssign(t, makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
+                inner.push_back(makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, b->clone(), a->clone()), makeVar(t)),
+                                       std::move(then)));
+            }
+            ExprPtr thr = thrKind == 0 ? makeIntConst(0)
+                          : thrKind == 1 ? makeIntConst(1)
+                                         : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
+            std::vector<StmtPtr> consume;
+            if (outerKind == 0) {
+                consume.push_back(makeAssign(acc, makeVar(t)));
+                perOuterConsume.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(t), makeVar(acc)), std::move(consume)));
+            } else {
+                consume.push_back(makeAssign(acc, outerKind == 1 ? makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))
+                                                                 : makeIntConst(1)));
+                perOuterConsume.push_back(makeIf(makeCompare(cmp2, makeVar(t), std::move(thr)), std::move(consume)));
+            }
             break;
         }
     }
@@ -2281,6 +2330,11 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                                makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart + 1))),
                                makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart))))));
             root.push_back(makeIf(makeCompare(ExprKind::Lt, makeIntConst(loopStart + 1), bound->clone()), std::move(first)));
+            if (absStep) {
+                std::vector<StmtPtr> negate;
+                negate.push_back(makeAssign(acc, makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(acc))));
+                root.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(acc), makeIntConst(0)), std::move(negate)));
+            }
         } else {
             root.push_back(makeAssign(acc, makeIntConst(accInit)));
         }

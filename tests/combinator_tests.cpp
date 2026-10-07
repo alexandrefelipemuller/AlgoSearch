@@ -144,3 +144,31 @@ TEST(combinator_state_pieces_emit_aux_dp_blocks) {
     }
     CHECK(auxWrites > 0);
 }
+
+TEST(combinator_nested_pieces_are_byte_identical_when_off) {
+    // Section 71: the flag adds draws only when it is on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorStep = b.combinatorStep = true;
+    b.combinatorNested = false;
+    Random ra(71), rb(71);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(combinator_nested_pieces_emit_threshold_and_absolute_step_blocks) {
+    // With the flag on, some blocks compare a per-element aggregate with
+    // n / 2, and some take the absolute value of a step (0 - step).
+    Random rng(72);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorStep = true;
+    cfg.combinatorNested = true;
+    int halfThreshold = 0, absStep = 0;
+    for (int i = 0; i < 4000; ++i) {
+        std::string text = generateRandomProgram(rng, 2, cfg)->toString();
+        if (text.find("/ 2)") != std::string::npos) halfThreshold++;
+        if (text.find("(0 - v") != std::string::npos) absStep++;
+    }
+    CHECK(halfThreshold > 0);
+    CHECK(absStep > 0);
+}

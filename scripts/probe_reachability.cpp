@@ -13,7 +13,8 @@
 // Build (after `make`):
 //   g++ -std=c++20 -O2 -Isrc scripts/probe_reachability.cpp \
 //       $(find build/lib -name '*.o' ! -name main.o) -o probe_reachability -lpthread
-// Usage: ./probe_reachability <problem> [samples=20000] [seed=1]
+// Usage: ./probe_reachability <problem> [samples=20000] [seed=1] [nested]
+// `nested` adds section 71's --combinator-nested pieces to the family.
 
 #include <iostream>
 #include <memory>
@@ -34,6 +35,7 @@ int main(int argc, char** argv) {
     std::string name = argc > 1 ? argv[1] : "max_profit";
     int samples = argc > 2 ? std::stoi(argv[2]) : 20000;
     uint64_t seed = argc > 3 ? std::stoull(argv[3]) : 1;
+    bool nested = argc > 4 && std::string(argv[4]) == "nested";
     const int numVars = 9;
     std::unique_ptr<Problem> p;
     int trainMax = 8;
@@ -64,6 +66,7 @@ int main(int argc, char** argv) {
     cfg.combinatorBias = 0.5;
     cfg.combinatorStep = true;
     cfg.combinatorState = true;
+    cfg.combinatorNested = nested;
     Interpreter interp(20000);
     std::vector<int> out;
     auto solved = [&](const Stmt& prog, const std::vector<Instance>& insts) {
