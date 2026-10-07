@@ -5706,3 +5706,38 @@ solve the same problem.
 current default (nested on, no CT) it is 6/10, 8/10 and 25/30 in the
 three measurements: solved by the generic piece in most seeds, with no
 skeleton.
+
+## 75. A frequency-table piece -- design registered before implementing
+
+Section 74 left count_unique at about 25/30 with the generic nested
+piece, and showed that *replacing* draws can cost other problems. This
+section *adds* one stateful piece. It is the classic "count per element"
+table, not a count_unique shape.
+
+**`--combinator-frequency`, opt-in, byte-identical when off.** It adds a
+fifth stateful piece, `FrequencyTable`, drawn uniformly with the other
+four when three loop slots are free. It runs on the whole-array or
+length-prefixed layout:
+1. **Table:** `aux[i]` = the number of j with cmp(elem(j), elem(i)),
+   with cmp one of `==`, `<`, `>`. That gives the frequency table, or
+   the rank of each element counted from below or from above.
+2. **Pass over the table:** one existing single-pass relation over
+   `aux[i]`. The relation is one of four:
+   - the largest aux;
+   - the smallest aux;
+   - count-if `aux[i] cmp2 thr`;
+   - exists `aux[i] cmp2 thr`.
+
+   cmp2 is any of the six comparators, and thr is one of 0, 1, 2 or n/2.
+
+It removes nothing, so every draw that used to solve has_majority is
+still there.
+
+**Protocol (as in section 71, with section 72's rule).**
+1. Implement and freeze.
+2. Write post-freeze problems and register predictions.
+3. A/B over every registered array/scalar problem: base (current
+   default) vs + `--combinator-frequency`, 10 matched seeds,
+   `--step-limit 20000`, per-seed `--benchmark`.
+
+Phase-1 sampling is reported as a diagnostic only. Time is not a gate.
