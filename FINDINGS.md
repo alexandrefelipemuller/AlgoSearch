@@ -5505,3 +5505,40 @@ one, one+T or two+T.
    has_majority) have >= 1 generalizing sample.
 2. The three predicted-reachable post-freeze problems have >= 1 each.
 3. max_drawdown and total_variation have 0.
+
+### 71, phase 1 results
+
+`data/reachability_nested_20261007/` (not versioned). 20,000 samples per
+problem, seed 1. Generalizing samples per shape (one / one+T / two+T):
+
+| problem | role | generalizing (one / one+T / two+T) |
+|---|---|---|
+| max_adjacent_gap | target | 6 / 6 / 3 |
+| max_profit | target | 4 / 4 / 4 |
+| count_leaders | target | 1 / 1 / 1 |
+| has_majority | target | 2 / 2 / 0 |
+| max_frequency | post-freeze, reachable | 11 / 11 / 10 |
+| count_dominated | post-freeze, reachable | 4 / 4 / 2 |
+| count_unique | post-freeze, reachable | **0 / 0 / 0** |
+| max_drawdown | post-freeze, unreachable | 0 / 0 / 0 |
+| total_variation | post-freeze, unreachable | 0 / 0 / 0 |
+
+- Prediction 1 **held**: all four targets were 0 in section 70 and are
+  now reached.
+- Prediction 3 **held**: both boundaries stay unreachable.
+- Prediction 2 **failed on count_unique**. A diagnostic run after the
+  fact (8 more seeds x 40,000 samples, 320,000 in all) still gave 0.
+- The diagnostic does not change the rule. A direct count over 400,000
+  pure-combinator blocks (combinator bias 1, no skeletons) found 47,466
+  blocks with the inner `==` count, 13,304 of them with an outer
+  `t == 1`, and **2 that solve count_unique**. Here is why most such
+  blocks still fail: the full loop must be paired with the
+  whole-array layout, the inner comparator must be `==`, and the outer
+  test must be `== 1` or `<= 1`.
+
+So count_unique is *in* the family, but about 5 in a million blocks
+build it. That is too rare for a 20,000-sample probe, and probably for
+the search as well. Rule (c) is therefore **not met**, and the flag
+cannot become the default from this section, whatever phase 2 shows.
+Phase 2 still runs, for rules (a) and (b), and to see whether search
+reaches count_unique through mutation where sampling did not.
