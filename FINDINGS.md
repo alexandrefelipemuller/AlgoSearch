@@ -5828,3 +5828,39 @@ second_smallest has now failed a 10-seed no-regression check three
 times (sections 56, 75 and, as a near miss, 58) and has never held one at
 30 seeds. Future batteries should either run it at 30 seeds from the
 start or treat its 10-seed differences of 2 as uninformative.
+
+## 77. A pointer-following piece -- design registered before implementing
+
+cycle is the last of section 70's five. It needs a loop whose next index
+comes from the data. Per the standing rule (generic pieces before
+skeletons), this is a new combinator family, not a cycle skeleton. This
+also retires cycle as the held-out "ruler" it has been since sections 25
+and 38. The boundaries below take over that role.
+
+**`--combinator-follow`, opt-in, byte-identical when off.** With the flag
+on, one combinator block in eight is a follow block.
+
+- **Layout.** Node i's pointer is `arr[base + i]`.
+  - `base = 1` with `start = arr[0]`: head-prefixed, cycle's encoding.
+  - `base = 0` with `start = 0`.
+  - `nodes = v0 - base`. A pointer outside `[0, nodes)` ends the walk,
+    which acts as the null.
+- **Loop.** `p = start; steps = 0; while (steps < v0 && 0 <= p < nodes)
+  { relation; p = arr[base + p]; steps++ }`. The cap of v0 steps is the
+  pigeonhole bound.
+- **Relation**, one of:
+  - `CountSteps`: acc = steps;
+  - `StillInRange`: acc = 1 if p is still in range after the loop, i.e.
+    the walk never ended;
+  - `VisitsKey`: acc = 1 if p == k at some step, k one of 0..2;
+  - `TwoSpeed`: a second pointer q advances two steps per iteration,
+    each step range-checked; acc = 1 if p == q after a move (Floyd).
+
+**Protocol** (sections 71-76, with section 72's rule):
+1. Implement and freeze.
+2. Write post-freeze problems on cycle's encoding and register
+   predictions.
+3. A/B: cycle and the post-freeze problems at 30 seeds, plus all
+   registered array/scalar problems at 10 seeds for no-regression.
+
+Time is not a gate.
