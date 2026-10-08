@@ -5967,3 +5967,42 @@ Candidate fixes, each needing its own registered A/B:
 - drawing follow blocks only when the input looks like a pointer array:
   values in [0, n], which is a cheap, problem-agnostic check of the
   instance data, not of the problem's name.
+
+## 79. Gating the follow piece on pointer-like inputs -- predictions registered before running
+
+Section 78 found that follow blocks dilute every problem's combinator
+draws (max_gap_sorted 28 -> 23 of 30). `--follow-pointer-inputs` enables
+the follow piece only when the inputs look like pointer arrays.
+- BeamSearch checks, before searching, whether every value of every
+  instance on the first six levels lies in [0, length), and sets
+  `GenConfig::pointerInput`.
+- The test reads the instance data, never the problem's name.
+- When it is false, generation is byte-identical to the follow piece
+  being off.
+
+**Pointer-like by this test, among the registered problems** (measured
+before registering):
+- cycle, walk_length, visits_zero, cycle_length, last_node;
+- two false positives: graph_reachability (0/1 adjacency) and substring
+  (small alphabet).
+
+Every other problem, max_gap_sorted included, is unaffected by
+construction.
+
+**Battery.** The seven pointer-like problems, base vs FG
+(`--follow-pointer-inputs`), 30 fresh matched seeds (29000-29029),
+section 77's budgets (cycle and the list problems: max-n 5, 180 s;
+graph_reachability: max-n 6, num-vars 6, 240 s; substring: max-n 6,
+180 s), per-seed `--benchmark`, `--step-limit 20000`. A byte-identity
+spot check: max_gap_sorted and second_smallest, 3 seeds each, logs
+compared between arms.
+
+**Predictions.**
+1. cycle, walk_length, visits_zero: FG >= base + 15 each.
+2. cycle_length and last_node: FG = 0.
+3. graph_reachability and substring: FG >= base - 3.
+4. The spot-check logs are identical apart from timings.
+
+**Decision rule, fixed now.** If 1, 3 and 4 hold,
+`--follow-pointer-inputs` becomes the default. Prediction 2 is a
+boundary check and does not block.

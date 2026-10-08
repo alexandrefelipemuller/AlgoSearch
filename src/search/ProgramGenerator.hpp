@@ -211,6 +211,14 @@ struct GenConfig {
     // byte-identical.
     bool combinatorFollow = false;
 
+    // Section 79: draw follow blocks only when the problem's inputs look like
+    // pointer arrays (`pointerInput`, every value of every instance in
+    // [0, length) -- set by BeamSearch from the instance data, never from the
+    // problem's name). With the gate on and pointerInput false, generation is
+    // byte-identical to combinatorFollow off. `--follow-pointer-inputs`.
+    bool followPointerInputsOnly = false;
+    bool pointerInput = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no

@@ -287,6 +287,22 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     int currentLevel = config_.startLevel;
     std::vector<SolutionRecord> solutions;
 
+    // Section 79: does the input look like a pointer array? Every value of
+    // every instance on the first (up to six) levels in [0, length). A
+    // property of the data only; it gates the follow blocks.
+    if (config_.genConfig.followPointerInputsOnly) {
+        bool pointers = false, allInRange = true;
+        int levels = 0;
+        for (int l = config_.startLevel; l <= config_.maxLevel && levels < 6 && allInRange; l = problem_.nextLevel(l), ++levels) {
+            for (const auto& inst : problem_.generateInstances(l)) {
+                pointers = pointers || !inst.input.empty();
+                for (int x : inst.input) allInRange = allInRange && x >= 0 && x < static_cast<int>(inst.input.size());
+            }
+        }
+        config_.genConfig.pointerInput = pointers && allInRange;
+        std::cout << "[pointer-input] " << (config_.genConfig.pointerInput ? "yes" : "no") << "\n";
+    }
+
     // Simulated-annealing walker: a SINGLE persistent solution, mutated
     // one local step at a time each round (never a fresh random restart --
     // that's what diversityRate already does), and accepted as the new

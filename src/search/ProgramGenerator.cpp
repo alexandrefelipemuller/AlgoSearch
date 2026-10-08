@@ -2195,7 +2195,9 @@ StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
     if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
-    if (cfg.combinatorFollow && rng.uniformInt(0, 7) == 0) return genFollowBlock(rng, cfg, loopsUsed);
+    if (cfg.combinatorFollow && (!cfg.followPointerInputsOnly || cfg.pointerInput) && rng.uniformInt(0, 7) == 0) {
+        return genFollowBlock(rng, cfg, loopsUsed);
+    }
     std::vector<int> v = pickDistinctVars(rng, cfg, 6);
     int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
 
