@@ -6195,3 +6195,42 @@ not a new family.
 3. A/B on every registered array/scalar problem, 10 matched seeds.
    Drops of 2 on second_smallest or max_gap_sorted are retested at 30
    seeds.
+
+### 82, post-freeze problems, base check, and predictions (registered after freeze 048fa42, before the A/B)
+
+Four problems were written after the freeze, each with labels and a
+verified reference program.
+- **Predicted reachable:**
+  - `argmax_index`: the index of the first maximum (plain Best arg,
+    first-wins);
+  - `least_frequent_value`: the least frequent value, the smallest on
+    ties (frequency min pass arg, smaller-wins).
+- **Predicted unreachable** (the new rulers):
+  - `majority_value`: the majority value, or -1 when there is none. That
+    needs an arg *and* a threshold with a fallback.
+  - `longest_run_value`: the value of the first longest run. RunBest has
+    no arg variant.
+
+**Base check (section 81's rule)**, current default, 10 seeds
+(31000-31009), `data/argbest_basecheck_20261008/` (not versioned):
+- mode 0/10;
+- **argmax_index 5/10**;
+- least_frequent_value 0/10;
+- majority_value 0/10;
+- longest_run_value 0/10.
+
+**A/B.** Every registered array/scalar problem plus these four, base vs
+AB (`--combinator-argbest`), 10 fresh matched seeds (32000-32009),
+`--step-limit 20000`, per-seed `--benchmark`. Script:
+`scripts/run_argbest_ab.sh`.
+
+**Predictions.**
+1. mode (the target): AB >= base + 7.
+2. least_frequent_value: AB >= base + 7. argmax_index, already 5/10 in
+   the base check: AB >= base + 3.
+3. majority_value and longest_run_value: AB = 0.
+4. No problem drops by more than 1. second_smallest's and
+   max_gap_sorted's drops of 2 are retested at 30 seeds first.
+
+**Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-argbest`
+becomes the default. Prediction 3 is a boundary check and does not block.
