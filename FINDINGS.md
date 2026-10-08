@@ -5772,3 +5772,33 @@ Script: `scripts/run_frequency_ab.sh`.
 becomes the default. Prediction 2 is a boundary check: if it fails, that
 is reported as the piece being more general than designed, and it does
 not block the promotion.
+
+### 75 (results). Every success prediction holds; second_smallest -2 trips the no-regression rule
+
+`data/frequency_ab_20261007/` (not versioned; 20:38-21:57; 1160 runs,
+112 wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (24000-24009), base / FR. Rows not listed are equal in
+both arms.
+
+| problem | base | FR |
+|---|---|---|
+| elements_twice (post-freeze) | 0 | **10** |
+| min_frequency (post-freeze) | 0 | **10** |
+| count_unique | 6 | **10** |
+| count_leaders | 8 | 10 |
+| min_gap | 6 | 7 |
+| mode / values_twice (boundaries) | 0 / 0 | 0 / 0 |
+| has_majority, max_frequency | 10 / 10 | 10 / 10 |
+| max_gap_sorted | 7 | 6 |
+| second_smallest | 10 | **8** |
+
+- Prediction 1 **held** (+10 and +10).
+- Prediction 2 **held**: both boundaries stay at 0.
+- Prediction 3 **held**: count_unique +4, to 10/10.
+- Prediction 4 **failed**: second_smallest dropped by 2.
+- **Decision: by the fixed rule, `--combinator-frequency` stays opt-in.**
+
+second_smallest is the same problem that tripped this rule in section 56
+(8 -> 6), and it moved by 1-3 in sections 58, 61 and 71. It has never
+held a 10-seed difference at 30 seeds. A 30-seed retest (as in sections
+54, 58 and 74) would settle whether this is the same noise.
