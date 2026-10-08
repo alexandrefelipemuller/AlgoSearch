@@ -1973,6 +1973,34 @@ ExprPtr elemAt(const ExprPtr& base, ExprPtr x) { return makeArrayAccess(makeBinO
 
 }  // namespace combinator
 
+// Section 82: arg-best update. When `value` beats `best` (keep: Gt for a
+// maximum, Lt for a minimum), take it and record `where` in `arg`. Ties:
+// 0 = the first wins (strict), 1 = the last wins (non-strict), 2 = the
+// smaller `where` wins.
+std::vector<StmtPtr> argBestUpdate(const Expr& value, int best, int arg, const Expr& where, ExprKind keep, int tie) {
+    auto take = [&] {
+        std::vector<StmtPtr> out;
+        out.push_back(makeAssign(best, value.clone()));
+        out.push_back(makeAssign(arg, where.clone()));
+        return out;
+    };
+    ExprKind cmp = keep;
+    if (tie == 1) cmp = keep == ExprKind::Gt ? ExprKind::Ge : ExprKind::Le;
+    std::vector<StmtPtr> out;
+    if (tie == 2) {
+        std::vector<StmtPtr> smaller;
+        std::vector<StmtPtr> retake;
+        retake.push_back(makeAssign(arg, where.clone()));
+        smaller.push_back(makeIf(makeCompare(ExprKind::Lt, where.clone(), makeVar(arg)), std::move(retake)));
+        std::vector<StmtPtr> tied;
+        tied.push_back(makeIf(makeCompare(ExprKind::Eq, value.clone(), makeVar(best)), std::move(smaller)));
+        out.push_back(makeIf(makeCompare(cmp, value.clone(), makeVar(best)), take(), std::move(tied)));
+    } else {
+        out.push_back(makeIf(makeCompare(cmp, value.clone(), makeVar(best)), take()));
+    }
+    return out;
+}
+
 // Section 55: stateful pieces -- relations whose state carries across
 // iterations in a way the section 38/52 relations cannot express. Drawn as
 // a quarter of combinator blocks when GenConfig::combinatorState is on, on
@@ -2010,6 +2038,7 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         return makeIf(makeCompare(keep, std::move(x), var(target)), one(makeAssign(target, std::move(copy))));
     };
     std::vector<StmtPtr> root;
+    int result = acc;  // section 82: the arg variable instead, on an arg-best pass
     // Layout: the whole array (elements arr[0..n)), or length-prefixed
     // (count in arr[0], elements arr[1..count]) -- section 38's two
     // single-sequence encodings. elem(i) = arr[base + i]; aux is indexed by i.
@@ -2083,10 +2112,30 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 });
                 outer.push_back(makeAssignAux(var(vi), var(tmp)));
             });
+            // Section 82: on a max/min pass, return elem(i) or i at the best.
+            bool argBest = pass < 2 && cfg.combinatorArgBest && rng.chance(0.5);
+            bool argIndex = argBest && rng.chance(0.5);
+            int tie = argBest ? rng.uniformInt(0, 2) : 0;
+            auto where = [&](ExprPtr i) { return argIndex ? std::move(i) : elem(std::move(i)); };
             root.push_back(makeAssign(acc, lit(0)));
-            if (pass < 2) root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(acc, aux(lit(0))))));
+            if (argBest) {
+                root.push_back(makeAssign(cur, lit(0)));
+                std::vector<StmtPtr> first;
+                first.push_back(makeAssign(acc, aux(lit(0))));
+                first.push_back(makeAssign(cur, where(lit(0))));
+                root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), std::move(first)));
+                result = cur;
+            } else if (pass < 2) {
+                root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(acc, aux(lit(0))))));
+            }
             root.push_back(makeAssign(vi, lit(0)));
             appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                if (argBest) {
+                    for (auto& st : argBestUpdate(*aux(var(vi)), acc, cur, *where(var(vi)), pass == 0 ? ExprKind::Gt : ExprKind::Lt, tie)) {
+                        body.push_back(std::move(st));
+                    }
+                    return;
+                }
                 if (pass < 2) {
                     body.push_back(keepBest(pass == 0 ? ExprKind::Gt : ExprKind::Lt, acc, aux(var(vi))));
                     return;
@@ -2121,7 +2170,7 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             break;
         }
     }
-    root.push_back(makeAssignArray(lit(0), var(acc)));
+    root.push_back(makeAssignArray(lit(0), var(result)));
     auto block = makeBlock();
     block->body = std::move(root);
     return block;
@@ -2304,6 +2353,7 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     bool writeBack = true;
     int accInit = 0;
     int resultVar = acc;
+    ExprPtr argInit;        // section 82: initial value of the arg variable
     bool absStep = false;   // section 71
     bool stepFlip = false;  // section 80
     ExprPtr rhs = b ? b->clone() : key->clone();
@@ -2315,10 +2365,19 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             inner.push_back(makeAssign(acc, makeBinOp(ExprKind::BitXor, makeVar(acc), a->clone())));
             break;
         case Relation::Best: {
-            std::vector<StmtPtr> then;
-            then.push_back(makeAssign(acc, a->clone()));
-            inner.push_back(makeIf(makeCompare(rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt, a->clone(), makeVar(acc)),
-                                   std::move(then)));
+            ExprKind keep = rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt;
+            // Section 82: arg-best returns the index i of the best (its
+            // value is already the element), in `found`.
+            if (cfg.combinatorArgBest && rng.chance(0.5)) {
+                int tie = rng.uniformInt(0, 2);
+                for (auto& st : argBestUpdate(*a, acc, found, *makeVar(vi), keep, tie)) inner.push_back(std::move(st));
+                resultVar = found;
+                argInit = makeIntConst(loopStart);
+            } else {
+                std::vector<StmtPtr> then;
+                then.push_back(makeAssign(acc, a->clone()));
+                inner.push_back(makeIf(makeCompare(keep, a->clone(), makeVar(acc)), std::move(then)));
+            }
             accInit = -1;  // sentinel: initialized from the first element below
             break;
         }
@@ -2433,7 +2492,15 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                                  : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
             }
             std::vector<StmtPtr> consume;
-            if (outerKind == 0) {
+            if (outerKind == 0 && cfg.combinatorArgBest && rng.chance(0.5)) {
+                // Section 82: the element (or index) with the best t, in capB.
+                bool index = rng.chance(0.5);
+                int tie = rng.uniformInt(0, 2);
+                ExprPtr where = index ? makeVar(vi) : a->clone();
+                for (auto& st : argBestUpdate(*makeVar(t), acc, capB, *where, ExprKind::Gt, tie)) perOuterConsume.push_back(std::move(st));
+                resultVar = capB;
+                argInit = makeIntConst(0);
+            } else if (outerKind == 0) {
                 consume.push_back(makeAssign(acc, makeVar(t)));
                 perOuterConsume.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(t), makeVar(acc)), std::move(consume)));
             } else {
@@ -2465,7 +2532,8 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         } else {
             root.push_back(makeAssign(acc, makeIntConst(accInit)));
         }
-        if (resultVar == found) root.push_back(makeAssign(found, makeIntConst(0)));
+        if (resultVar == found && !argInit) root.push_back(makeAssign(found, makeIntConst(0)));
+        if (argInit) root.push_back(makeAssign(resultVar, std::move(argInit)));
     }
 
     // Loop assembly.

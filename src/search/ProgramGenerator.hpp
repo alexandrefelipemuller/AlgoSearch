@@ -224,6 +224,13 @@ struct GenConfig {
     // section 81 (`--no-combinator-orthogonal` turns it off); false here is
     // byte-identical.
     bool combinatorOrthogonal = false;
+
+    // Section 82: arg-best -- the plain Best, the nested outer Best and the
+    // frequency table's max/min pass return where the best occurs (elem(i)
+    // or i) instead of its value, half the time, with a tie rule (first,
+    // last, or the smaller element wins). Opt-in (`--combinator-argbest`);
+    // false is byte-identical.
+    bool combinatorArgBest = false;
     bool pointerInput = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the

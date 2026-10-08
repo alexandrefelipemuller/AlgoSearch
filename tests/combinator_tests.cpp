@@ -268,3 +268,38 @@ TEST(orthogonal_modifiers_emit_step_sums) {
     }
     CHECK(sums > 0);
 }
+
+TEST(argbest_modifier_is_byte_identical_when_off) {
+    // Section 82: arg-best draws happen only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorState = b.combinatorState = true;
+    a.combinatorNested = b.combinatorNested = true;
+    a.combinatorFrequency = b.combinatorFrequency = true;
+    a.maxLoops = b.maxLoops = 4;
+    b.combinatorArgBest = false;
+    Random ra(82), rb(82);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(argbest_modifier_emits_index_of_first_maximum) {
+    // With the flag on, some block returns the index of the first maximum,
+    // which no relation returned before.
+    Random rng(83);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorArgBest = true;
+    Interpreter interp(100000);
+    const std::vector<std::pair<std::vector<int>, int>> cases = {{{3, 9, 2}, 1}, {{5, 1, 5}, 0}, {{1}, 0}, {{2, 7, 7}, 1}, {{4, 0, 6, 6}, 2}};
+    int found = 0;
+    for (int i = 0; i < 20000 && found == 0; ++i) {
+        Program p = generateRandomProgram(rng, 2, cfg);
+        bool all = true;
+        for (const auto& [input, want] : cases) {
+            std::vector<int> out;
+            all = all && interp.run(*p, input, cfg.numVars, out) == RunStatus::COMPLETED && out[0] == want;
+        }
+        found += all;
+    }
+    CHECK(found > 0);
+}
