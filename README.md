@@ -79,7 +79,10 @@ absolute step (default since section 72) add six more: max_adjacent_gap,
 max_profit, count_leaders, has_majority, count_dominated and count_unique
 (section 71); `--no-combinator-nested` turns them off. The frequency-table piece
 (default since section 76) adds elements_twice and min_frequency and takes
-count_unique to 10/10 (section 75); `--no-combinator-frequency` turns it off.
+count_unique to 10/10 (section 75); `--no-combinator-frequency` turns it off. Pointer-following blocks,
+drawn only when every input value is a valid index (default since section 79),
+solve cycle, walk_length and visits_zero (sections 77-79);
+`--no-follow-pointer-inputs` turns them off.
 Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core

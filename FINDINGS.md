@@ -6006,3 +6006,37 @@ compared between arms.
 **Decision rule, fixed now.** If 1, 3 and 4 hold,
 `--follow-pointer-inputs` becomes the default. Prediction 2 is a
 boundary check and does not block.
+
+## 79 (results). The gate keeps every gain and removes the cost; `--follow-pointer-inputs` becomes the default
+
+`data/follow_gate_20261008/` (not versioned; 06:33-07:03). Verified
+successes of 30 matched seeds, base / FG:
+
+| problem | base | FG |
+|---|---|---|
+| cycle | 0 | **30** |
+| walk_length | 0 | **30** |
+| visits_zero | 0 | **28** |
+| cycle_length / last_node (rulers) | 0 / 0 | 0 / 0 |
+| graph_reachability (false positive) | 29 | 29 |
+| substring (false positive) | 30 | 30 |
+
+Byte-identity spot check (max_gap_sorted and second_smallest, 3 seeds
+each): the logs are identical apart from the `[pointer-input] no` line
+and timing figures. Generated and scored candidate counts are the same,
+and so are the programs.
+
+- Predictions 1, 3 and 4 **held**.
+- Prediction 2 **held**: the rulers stay at 0.
+- **Decision: `--follow-pointer-inputs` is the CLI default.**
+  `--no-follow-pointer-inputs` turns follow blocks off;
+  `--combinator-follow` keeps section 77's ungated version.
+
+All five problems section 70 found unsolvable are now solved by
+default by generic pieces, with no new skeleton:
+- max_adjacent_gap, max_profit, count_leaders and has_majority by the
+  nested aggregates (sections 71-72);
+- cycle by the gated follow piece.
+
+The open rulers are mode, values_twice, max_drawdown, total_variation,
+cycle_length and last_node.
