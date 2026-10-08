@@ -220,8 +220,9 @@ struct GenConfig {
 
     // Section 80: difference direction (b - a or a - b) as an axis of every
     // difference-based relation (nested BestDiff, BestStep, the new
-    // SumStep), and |step| on both step relations. Opt-in
-    // (`--combinator-orthogonal`); false is byte-identical.
+    // SumStep), and |step| on both step relations. CLI default since
+    // section 81 (`--no-combinator-orthogonal` turns it off); false here is
+    // byte-identical.
     bool combinatorOrthogonal = false;
     bool pointerInput = false;
 

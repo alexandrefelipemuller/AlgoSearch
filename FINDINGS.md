@@ -6139,3 +6139,28 @@ both arms.
 stays opt-in.** The only failing condition is a prediction about a
 problem the base already solved. Promoting despite it is a decision for
 the project owner (sections 62 and 72), and is not made here.
+
+## 81. `--combinator-orthogonal` becomes the default by explicit decision, after section 80's data
+
+This decision was made *after* seeing section 80's results, as an
+exception to the fixed rule, and is recorded as such (as in sections 62
+and 72).
+
+The only failed condition was prediction 2 on first_minus_last, which
+the base already solved in 8/10 seeds. That prediction was miscalibrated,
+not a shortfall of the piece. Everything else is a clean gain:
+- max_drawdown and total_variation: 0 -> 10;
+- largest_drop_step: 1 -> 10;
+- sum_of_rises: search crossed that ruler once by composing on the
+  piece;
+- no drop beyond -1.
+
+The project owner promoted the flag on reachability and diversity.
+`--no-combinator-orthogonal` restores the old behavior. GenConfig's own
+default stays false, so the byte-identity tests are unchanged.
+
+**Rule added for future pieces.** Before registering a post-freeze
+problem as "predicted reachable, >= base + k", check what the current
+default already does on it (a quick 10-seed base run, or the phase-1
+probe). A problem the base already solves is reported as such, not used
+as a gain prediction.
