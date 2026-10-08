@@ -6164,3 +6164,34 @@ problem as "predicted reachable, >= base + k", check what the current
 default already does on it (a quick 10-seed base run, or the phase-1
 probe). A problem the base already solves is reported as such, not used
 as a gain prediction.
+
+## 82. Arg-best: returning *where* the best is, not its value -- design registered before implementing
+
+The second of section 79's gaps. Every best-type aggregate returns the
+best *value*:
+- the plain single-loop `Best`, which yields the element itself;
+- the nested outer `Best`, which yields the best t_i;
+- `FrequencyTable`'s max/min pass, which yields the best aux.
+
+None returns the element (or index) at which the best occurs, so `mode`
+is out of reach. `--combinator-argbest` (opt-in, byte-identical when off)
+adds an arg variant to those three aggregates, drawn half the time when
+the flag is on:
+- **Returns** `elem(i)` or `i` (the plain Best returns `i` only, since
+  its value is already the element).
+- **Ties** follow one of three rules:
+  - first wins (strict `>` / `<`);
+  - last wins (non-strict);
+  - the smaller element wins (`better || (equal && elem(i) < arg)`).
+
+This is the classic argmax. It is one modifier on existing aggregates,
+not a new family.
+
+**Protocol** (sections 71-81):
+1. Freeze.
+2. Write post-freeze problems. *Before registering gain predictions,
+   run the current default on each one (10 seeds) and report what it
+   already solves (section 81's rule).*
+3. A/B on every registered array/scalar problem, 10 matched seeds.
+   Drops of 2 on second_smallest or max_gap_sorted are retested at 30
+   seeds.
