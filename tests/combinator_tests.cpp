@@ -1,5 +1,6 @@
 #include <functional>
 #include <memory>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -209,4 +210,28 @@ TEST(frequency_table_piece_emits_table_passes) {
         if (generateRandomProgram(rng, 2, cfg)->toString().find("= aux[0]") != std::string::npos) tablePasses++;
     }
     CHECK(tablePasses > 0);
+}
+
+TEST(follow_piece_is_byte_identical_when_off) {
+    // Section 77: follow blocks are drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    b.combinatorFollow = false;
+    Random ra(77), rb(77);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(follow_piece_emits_pointer_walks) {
+    // With the flag on, some blocks advance a pointer through the array
+    // (p = arr[(base + p)]) and break out of range.
+    Random rng(78);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorFollow = true;
+    int walks = 0;
+    for (int i = 0; i < 2000; ++i) {
+        std::string text = generateRandomProgram(rng, 2, cfg)->toString();
+        if (text.find("break") != std::string::npos && std::regex_search(text, std::regex(R"(v(\d) = arr\[\(\d \+ v\1\)\])"))) walks++;
+    }
+    CHECK(walks > 0);
 }

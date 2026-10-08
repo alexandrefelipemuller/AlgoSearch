@@ -2127,9 +2127,75 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Section 77: pointer following -- the one loop kind no other family has,
+// whose next index comes from the data. Node x's pointer is arr[base + x];
+// a pointer outside [0, nodes) ends the walk (the null), and the walk is
+// capped at v0 steps (pigeonhole: a longer walk must be in a cycle).
+//   p = start; steps = 0;
+//   while (steps < v0) { if p out of range: break; [visits]; p = arr[base + p];
+//                        [two-speed: q advances twice, range-checked; meet?]; steps++ }
+// Layout: head-prefixed (base 1, start arr[0]: cycle's encoding) or bare
+// (base 0, start 0). Relation: CountSteps (acc = steps), StillInRange (acc =
+// 1 if the walk never ended), VisitsKey (acc = 1 if p == k, k in 0..2) or
+// TwoSpeed (Floyd: acc = 1 if the two pointers meet).
+StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> v = pickDistinctVars(rng, cfg, 5);
+    int p = v[0], q = v[1], steps = v[2], acc = v[3], nodes = v[4];
+    auto var = [](int x) { return makeVar(x); };
+    auto lit = [](int c) { return makeIntConst(c); };
+    auto one = [](StmtPtr st) {
+        std::vector<StmtPtr> out;
+        out.push_back(std::move(st));
+        return out;
+    };
+    bool headPrefixed = rng.chance(0.5);
+    int base = headPrefixed ? 1 : 0;
+    int relation = rng.uniformInt(0, 3);  // CountSteps, StillInRange, VisitsKey, TwoSpeed
+    int key = rng.uniformInt(0, 2);
+    auto next = [&](int x) { return makeArrayAccess(makeBinOp(ExprKind::Add, lit(base), var(x))); };
+    // if (x < 0) break; if (x >= nodes) break;
+    auto guard = [&](std::vector<StmtPtr>& body, int x) {
+        body.push_back(makeIf(makeCompare(ExprKind::Lt, var(x), lit(0)), one(makeBreak())));
+        body.push_back(makeIf(makeCompare(ExprKind::Ge, var(x), var(nodes)), one(makeBreak())));
+    };
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(nodes, makeBinOp(ExprKind::Sub, var(0), lit(base))));
+    root.push_back(makeAssign(p, headPrefixed ? makeArrayAccess(lit(0)) : lit(0)));
+    root.push_back(makeAssign(q, var(p)));
+    root.push_back(makeAssign(steps, lit(0)));
+    root.push_back(makeAssign(acc, lit(0)));
+    std::vector<StmtPtr> body;
+    guard(body, p);
+    if (relation == 2) body.push_back(makeIf(makeCompare(ExprKind::Eq, var(p), lit(key)), one(makeAssign(acc, lit(1)))));
+    body.push_back(makeAssign(p, next(p)));
+    if (relation == 3) {
+        for (int k = 0; k < 2; ++k) {
+            guard(body, q);
+            body.push_back(makeAssign(q, next(q)));
+        }
+        std::vector<StmtPtr> meet;
+        meet.push_back(makeAssign(acc, lit(1)));
+        meet.push_back(makeBreak());
+        body.push_back(makeIf(makeCompare(ExprKind::Eq, var(p), var(q)), std::move(meet)));
+    }
+    body.push_back(makeAssign(steps, makeBinOp(ExprKind::Add, var(steps), lit(1))));
+    loopsUsed++;
+    root.push_back(makeWhile(makeCompare(ExprKind::Lt, var(steps), var(0)), std::move(body)));
+    if (relation == 0) root.push_back(makeAssign(acc, var(steps)));
+    if (relation == 1) {
+        root.push_back(makeIf(makeCompare(ExprKind::Le, lit(0), var(p)),
+                              one(makeIf(makeCompare(ExprKind::Lt, var(p), var(nodes)), one(makeAssign(acc, lit(1)))))));
+    }
+    root.push_back(makeAssignArray(lit(0), var(acc)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
     if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
+    if (cfg.combinatorFollow && rng.uniformInt(0, 7) == 0) return genFollowBlock(rng, cfg, loopsUsed);
     std::vector<int> v = pickDistinctVars(rng, cfg, 6);
     int vi = v[0], vj = v[1], acc = v[2], capA = v[3], capB = v[4], found = v[5];
 

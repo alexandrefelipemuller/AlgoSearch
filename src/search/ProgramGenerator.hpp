@@ -204,6 +204,13 @@ struct GenConfig {
     // (`--no-combinator-frequency` turns it off); false here is byte-identical.
     bool combinatorFrequency = false;
 
+    // Section 77: pointer-following blocks (a walk p = arr[base + p] from a
+    // start node, capped at v0 steps, ended by a pointer out of range) with
+    // count-steps / still-in-range / visits-key / two-speed relations, one
+    // combinator block in eight. Opt-in (`--combinator-follow`); false is
+    // byte-identical.
+    bool combinatorFollow = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no
