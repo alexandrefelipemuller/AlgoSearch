@@ -5802,3 +5802,15 @@ second_smallest is the same problem that tripped this rule in section 56
 (8 -> 6), and it moved by 1-3 in sections 58, 61 and 71. It has never
 held a 10-seed difference at 30 seeds. A 30-seed retest (as in sections
 54, 58 and 74) would settle whether this is the same noise.
+
+## 76. Frequency piece: 30-seed retest of second_smallest -- prediction registered before running
+
+base vs FR (`--combinator-frequency`), second_smallest only, 30 fresh
+matched seeds (25000-25029), section 75's budget, per-seed `--benchmark`.
+Script: `scripts/run_frequency_retest_ab.sh`.
+
+**Prediction:** FR >= base - 3 (of 30).
+
+**Decision rule, fixed now.** If it holds, `--combinator-frequency`
+becomes the default (section 75's other predictions already held).
+Otherwise it stays opt-in.
