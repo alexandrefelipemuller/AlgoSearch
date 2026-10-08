@@ -217,6 +217,12 @@ struct GenConfig {
     // problem's name). With the gate on and pointerInput false, generation is
     // byte-identical to combinatorFollow off. `--follow-pointer-inputs`.
     bool followPointerInputsOnly = false;
+
+    // Section 80: difference direction (b - a or a - b) as an axis of every
+    // difference-based relation (nested BestDiff, BestStep, the new
+    // SumStep), and |step| on both step relations. Opt-in
+    // (`--combinator-orthogonal`); false is byte-identical.
+    bool combinatorOrthogonal = false;
     bool pointerInput = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the

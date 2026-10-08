@@ -1961,7 +1961,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2261,7 +2261,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     // Section 52: on an adjacent pass, the two step relations join the five
     // pair relations as equals (2 of 7). Drawn only with the flag on, so the
     // RNG stream is unchanged without it.
-    if (cfg.combinatorStep && loop == Loop::Adjacent && rng.uniformInt(0, 6) >= 5) {
+    if (cfg.combinatorStep && loop == Loop::Adjacent && cfg.combinatorOrthogonal) {
+        // Section 80: SumStep joins as a third step relation (3 of 8).
+        static const Relation stepRel[] = {Relation::BestStep, Relation::CountSegments, Relation::SumStep};
+        int r = rng.uniformInt(0, 7);
+        if (r >= 5) rel = stepRel[r - 5];
+    } else if (cfg.combinatorStep && loop == Loop::Adjacent && rng.uniformInt(0, 6) >= 5) {
         rel = rng.chance(0.5) ? Relation::BestStep : Relation::CountSegments;
     }
     // Section 71: on a nested loop over one sequence, the nested aggregate
@@ -2299,7 +2304,8 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     bool writeBack = true;
     int accInit = 0;
     int resultVar = acc;
-    bool absStep = false;  // section 71
+    bool absStep = false;   // section 71
+    bool stepFlip = false;  // section 80
     ExprPtr rhs = b ? b->clone() : key->clone();
     switch (rel) {
         case Relation::Sum:
@@ -2357,15 +2363,25 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             inner.push_back(makeSwap(posA->clone(), posB->clone()));
             writeBack = false;
             break;
+        case Relation::SumStep:
         case Relation::BestStep: {
-            // acc = min or max of elem(i) - elem(i-1); `found` holds the step.
-            inner.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
-            // Section 71: |step|, one time in three with the flag on.
-            absStep = cfg.combinatorNested && rng.uniformInt(0, 2) == 0;
+            // acc = min or max (BestStep) or the sum (SumStep, section 80) of
+            // elem(i) - elem(i-1), or of elem(i-1) - elem(i) when the
+            // direction axis flips it; `found` holds the step.
+            stepFlip = cfg.combinatorOrthogonal && rng.chance(0.5);
+            inner.push_back(makeAssign(found, stepFlip ? makeBinOp(ExprKind::Sub, a->clone(), b->clone())
+                                                       : makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
+            // Section 71: |step|, one time in three with the flag on (section
+            // 80 extends it to SumStep).
+            absStep = (rel == Relation::SumStep ? cfg.combinatorOrthogonal : cfg.combinatorNested) && rng.uniformInt(0, 2) == 0;
             if (absStep) {
                 std::vector<StmtPtr> negate;
                 negate.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(found))));
                 inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(negate)));
+            }
+            if (rel == Relation::SumStep) {
+                inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeVar(found))));
+                break;
             }
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeVar(found)));
@@ -2398,9 +2414,11 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 then.push_back(makeAssign(t, makeIntConst(0)));
                 inner.push_back(makeIf(makeCompare(cmp, b->clone(), a->clone()), std::move(then)));
             } else {
-                then.push_back(makeAssign(t, makeBinOp(ExprKind::Sub, b->clone(), a->clone())));
-                inner.push_back(makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, b->clone(), a->clone()), makeVar(t)),
-                                       std::move(then)));
+                // Section 80: elem(i) - elem(j) instead, half the time with the flag on.
+                bool flip = cfg.combinatorOrthogonal && rng.chance(0.5);
+                auto diff = [&] { return flip ? makeBinOp(ExprKind::Sub, a->clone(), b->clone()) : makeBinOp(ExprKind::Sub, b->clone(), a->clone()); };
+                then.push_back(makeAssign(t, diff()));
+                inner.push_back(makeIf(makeCompare(ExprKind::Gt, diff(), makeVar(t)), std::move(then)));
             }
             ExprPtr thr = thrKind == 0 ? makeIntConst(0)
                           : thrKind == 1 ? makeIntConst(1)
@@ -2434,10 +2452,10 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             // acc = 0; if (start + 1 < bound) acc = elem(start + 1) - elem(start);
             root.push_back(makeAssign(acc, makeIntConst(0)));
             std::vector<StmtPtr> first;
-            first.push_back(makeAssign(
-                acc, makeBinOp(ExprKind::Sub,
-                               makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart + 1))),
-                               makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart))))));
+            ExprPtr later = makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart + 1)));
+            ExprPtr earlier = makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart)));
+            first.push_back(makeAssign(acc, stepFlip ? makeBinOp(ExprKind::Sub, std::move(earlier), std::move(later))
+                                                     : makeBinOp(ExprKind::Sub, std::move(later), std::move(earlier))));
             root.push_back(makeIf(makeCompare(ExprKind::Lt, makeIntConst(loopStart + 1), bound->clone()), std::move(first)));
             if (absStep) {
                 std::vector<StmtPtr> negate;

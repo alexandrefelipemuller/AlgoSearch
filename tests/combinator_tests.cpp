@@ -235,3 +235,36 @@ TEST(follow_piece_emits_pointer_walks) {
     }
     CHECK(walks > 0);
 }
+
+TEST(orthogonal_modifiers_are_byte_identical_when_off) {
+    // Section 80: direction and SumStep draws happen only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorStep = b.combinatorStep = true;
+    a.combinatorNested = b.combinatorNested = true;
+    b.combinatorOrthogonal = false;
+    Random ra(80), rb(80);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(orthogonal_modifiers_emit_step_sums) {
+    // With the flag on, some adjacent blocks add the step into the
+    // accumulator (acc = acc + step), which no other relation does.
+    Random rng(81);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorStep = true;
+    cfg.combinatorOrthogonal = true;
+    int sums = 0;
+    for (int i = 0; i < 4000; ++i) {
+        std::string text = generateRandomProgram(rng, 2, cfg)->toString();
+        std::smatch m;
+        if (std::regex_search(text, m, std::regex(R"((v\d) = \((arr\[[^;]*\] - arr\[[^;]*\])\);)"))) {
+            if (text.find(m[1].str() + ")") != std::string::npos &&
+                std::regex_search(text, std::regex(R"(v(\d) = \(v\1 \+ )" + m[1].str() + R"(\))"))) {
+                sums++;
+            }
+        }
+    }
+    CHECK(sums > 0);
+}
