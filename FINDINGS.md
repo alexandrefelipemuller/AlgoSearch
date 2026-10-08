@@ -6040,3 +6040,36 @@ default by generic pieces, with no new skeleton:
 
 The open rulers are mode, values_twice, max_drawdown, total_variation,
 cycle_length and last_node.
+
+## 80. Orthogonal modifiers: difference direction and absolute value as axes -- design registered before implementing
+
+The first of section 79's four gaps. Two modifiers exist today only as
+special cases of single relations:
+- **direction**: the nested `BestDiff` uses `elem(j) - elem(i)` only;
+- **absolute value**: `|step|` exists only inside `BestStep`.
+
+That asymmetry is what keeps max_drawdown and total_variation out of
+reach (sections 71 and 79). `--combinator-orthogonal` (opt-in,
+byte-identical when off) turns both into axes:
+- **Direction** applies to every difference-based relation: nested
+  `BestDiff`, and the adjacent step relations `BestStep` and `SumStep`.
+  Each draws `b - a` or `a - b`, half and half.
+- **`SumStep`** is a new adjacent relation: acc += step. It is the step
+  counterpart of `Sum`, drawn as a step relation alongside `BestStep`
+  and `CountSegments`.
+- **Absolute value** applies one time in three to both step relations
+  (already true for `BestStep` since section 71).
+
+No new loop or layout: the change only multiplies options inside
+existing relations.
+
+**Protocol** (as in sections 71-79):
+1. Freeze.
+2. Write post-freeze problems with registered predictions, including at
+   least one designed boundary.
+3. A/B: base vs + `--combinator-orthogonal` on every registered
+   array/scalar problem, 10 matched seeds; drops of 2 on
+   second_smallest or max_gap_sorted are retested at 30 seeds (section
+   76) before counting.
+
+Time is not a gate.
