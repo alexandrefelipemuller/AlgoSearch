@@ -5898,3 +5898,38 @@ per-seed `--benchmark`, `--step-limit 20000`.
 
 **Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-follow`
 becomes the default. Prediction 3 is a boundary check and does not block.
+
+### 77 (results). cycle 0 -> 30/30, both reachable list problems solved, boundaries hold; max_gap_sorted -2 trips no-regression
+
+**Battery (i)** (`data/follow_lists_ab_20261008/`, not versioned;
+22:23-22:40). Verified successes of 30 matched seeds, base / FL;
+"rej" counts seeds where a SUCCESS-labeled program was rejected by
+re-verification.
+
+| problem | base | FL |
+|---|---|---|
+| cycle | 0 (rej 21) | **30** |
+| walk_length (post-freeze) | 0 | **30** |
+| visits_zero (post-freeze) | 0 (rej 28) | **22** (rej 7) |
+| cycle_length (boundary) | 0 | 0 |
+| last_node (boundary) | 0 | 0 |
+
+**Battery (ii)** (`data/follow_ab_20261008/`, not versioned;
+22:40-23:41). 10 matched seeds; rows not listed are equal in both arms:
+cycle 0 -> 10, min_gap 8 -> 9, second_smallest 10 -> 9,
+**max_gap_sorted 10 -> 8**.
+
+- Prediction 1 **held** (cycle +30).
+- Prediction 2 **held** (+30, +22).
+- Prediction 3 **held**: both new rulers stay at 0.
+- Prediction 4 **failed**: max_gap_sorted dropped by 2.
+- **Decision: `--combinator-follow` stays opt-in pending a 30-seed
+  retest of max_gap_sorted.**
+
+That retest is the same treatment section 76 gave second_smallest.
+max_gap_sorted also moved by 1-2 in sections 56 and 75 without a cause.
+The base column of battery (i) shows what the piece fixed: 21 of 30 cycle
+seeds and 28 of 30 visits_zero seeds produced SUCCESS-labeled programs
+that were rejected on re-verification. Those were fits, which is exactly
+section 25's warning about this problem. With the piece, cycle has no
+rejections at all.
