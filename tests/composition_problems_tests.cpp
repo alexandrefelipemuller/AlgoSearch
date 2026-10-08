@@ -38,6 +38,10 @@
 #include "problems/LargestDropStepProblem.hpp"
 #include "problems/SumAbsFromFirstProblem.hpp"
 #include "problems/SumOfRisesProblem.hpp"
+#include "problems/ArgmaxIndexProblem.hpp"
+#include "problems/LeastFrequentValueProblem.hpp"
+#include "problems/LongestRunValueProblem.hpp"
+#include "problems/MajorityValueProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -584,5 +588,64 @@ TEST(sum_abs_from_first_problem_labels_and_reference_solution) {
                                 stmts(makeAssign(5, sub(at(var(1)), at(lit(0)))),
                                       makeIf(cmp(ExprKind::Lt, var(5), lit(0)), stmts(makeAssign(5, sub(lit(0), var(5))))),
                                       makeAssign(3, add(var(3), var(5))), inc(1))));
+    checkProblem(problem, *finish(std::move(p)));
+}
+
+// -- Section 82 post-freeze problems --
+
+TEST(argmax_index_problem_labels_and_reference_solution) {
+    ArgmaxIndexProblem problem;
+    CHECK_EQ(problem.answer({3, 9, 2, 9}), 1);
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeAssign(1, lit(1)));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)),
+                                stmts(makeIf(cmp(ExprKind::Gt, at(var(1)), at(var(3))), stmts(makeAssign(3, var(1)))), inc(1))));
+    checkProblem(problem, *finish(std::move(p)));
+}
+
+TEST(least_frequent_value_problem_labels_and_reference_solution) {
+    LeastFrequentValueProblem problem;
+    CHECK_EQ(problem.answer({2, 2, 1, 3, 3}), 1);
+    CHECK_EQ(problem.answer({4, 1}), 1);  // tie: the smaller
+    // v6 = best count (0 = unset), v3 = its value.
+    auto take = [] { return stmts(makeAssign(6, var(4)), makeAssign(3, at(var(1)))); };
+    checkProblem(problem, *nestedPass(false, stmts(makeAssign(4, lit(0))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4)))),
+                                      stmts(makeIf(cmp(ExprKind::Eq, var(6), lit(0)), take()),
+                                            makeIf(cmp(ExprKind::Lt, var(4), var(6)), take()),
+                                            makeIf(cmp(ExprKind::Eq, var(4), var(6)),
+                                                   stmts(makeIf(cmp(ExprKind::Lt, at(var(1)), var(3)), take()))))));
+}
+
+TEST(majority_value_problem_labels_and_reference_solution) {
+    MajorityValueProblem problem;
+    CHECK_EQ(problem.answer({2, 1, 2}), 2);
+    CHECK_EQ(problem.answer({1, 2}), -1);
+    // v3 = -1; if count(arr[i]) * 2 > n then v3 = arr[i].
+    auto p = nestedPass(false, stmts(makeAssign(4, lit(0))),
+                        stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4)))),
+                        stmts(makeIf(cmp(ExprKind::Gt, add(var(4), var(4)), var(0)), stmts(makeAssign(3, at(var(1)))))));
+    p->body[0] = makeAssign(3, lit(-1));
+    checkProblem(problem, *p);
+}
+
+TEST(longest_run_value_problem_labels_and_reference_solution) {
+    LongestRunValueProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3}), 2);
+    CHECK_EQ(problem.answer({}), 0);
+    // v4 = current run, v6 = best run length, v3 = its value.
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeAssign(6, lit(0)));
+    p->body.push_back(makeAssign(4, lit(0)));
+    p->body.push_back(makeAssign(1, lit(0)));
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(4, add(var(4), lit(1))));
+    body.push_back(makeIf(cmp(ExprKind::Lt, lit(0), var(1)),
+                          stmts(makeIf(cmp(ExprKind::Ne, at(var(1)), at(sub(var(1), lit(1)))), stmts(makeAssign(4, lit(1)))))));
+    body.push_back(makeIf(cmp(ExprKind::Gt, var(4), var(6)), stmts(makeAssign(6, var(4)), makeAssign(3, at(var(1))))));
+    body.push_back(inc(1));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(body)));
     checkProblem(problem, *finish(std::move(p)));
 }
