@@ -6262,3 +6262,15 @@ step (sections 52 and 56). Its 10-seed results have swung widely before:
 does not touch `BestStep`. It only halves the share of the plain `Best`
 value form, so a direct mechanism is not obvious. A 30-seed retest is
 the way to tell noise from cost, as in sections 54, 58, 74, 76 and 78.
+
+## 83. Arg-best: 30-seed retest of min_gap -- prediction registered before running
+
+base vs AB (`--combinator-argbest`), min_gap only, 30 fresh matched
+seeds (33000-33029), section 82's budget, per-seed `--benchmark`.
+Script: `scripts/run_argbest_retest_ab.sh`.
+
+**Prediction:** AB >= base - 3 (of 30).
+
+**Decision rule, fixed now.** If it holds, `--combinator-argbest` becomes
+the default (section 82's other predictions already held). Otherwise it
+stays opt-in.
