@@ -6234,3 +6234,31 @@ AB (`--combinator-argbest`), 10 fresh matched seeds (32000-32009),
 
 **Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-argbest`
 becomes the default. Prediction 3 is a boundary check and does not block.
+
+### 82 (results). mode 0 -> 10 and every success prediction holds, but min_gap drops 7 -> 3
+
+`data/argbest_ab_20261008/` (not versioned; 18:47-20:09; 1480 runs,
+127 wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (32000-32009), base / AB. Rows not listed are equal in
+both arms.
+
+| problem | base | AB |
+|---|---|---|
+| mode (target) | 0 | **10** |
+| least_frequent_value (post-freeze) | 0 | **9** |
+| argmax_index (post-freeze, base check 5/10) | 5 | **10** |
+| majority_value / longest_run_value (rulers) | 0 / 0 | 0 / 0 |
+| has_majority, longest_run, second_smallest | 9, 9, 9 | 10, 10, 10 |
+| **min_gap** | **7** | **3** |
+
+- Predictions 1-3 **held**: mode +10, least_frequent_value +9,
+  argmax_index +5, rulers at 0.
+- Prediction 4 **failed on min_gap** (-4).
+- **Decision: by the fixed rule, `--combinator-argbest` stays opt-in.**
+
+min_gap is a composition problem: a sort, then an adjacent minimum
+step (sections 52 and 56). Its 10-seed results have swung widely before:
+6 -> 4 in section 56, 2 -> 8 in 71, 6 -> 7 in 75, 8 -> 9 in 77. Arg-best
+does not touch `BestStep`. It only halves the share of the plain `Best`
+value form, so a direct mechanism is not obvious. A 30-seed retest is
+the way to tell noise from cost, as in sections 54, 58, 74, 76 and 78.
