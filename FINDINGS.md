@@ -6102,3 +6102,40 @@ OR (`--combinator-orthogonal`), 10 matched seeds (30000-30009),
 
 **Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-orthogonal`
 becomes the default. Prediction 3 is a boundary check and does not block.
+
+### 80 (results). Both targets solved, no regression; one prediction miscalibrated, and search crossed a ruler on its own
+
+`data/orthogonal_ab_20261008/` (not versioned; 07:23-08:37; 1400 runs,
+109 wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (30000-30009), base / OR. Rows not listed are equal in
+both arms.
+
+| problem | base | OR |
+|---|---|---|
+| max_drawdown (target) | 0 | **10** |
+| total_variation (target) | 0 | **10** |
+| largest_drop_step (post-freeze) | 1 | **10** |
+| first_minus_last (post-freeze) | **8** | 10 |
+| sum_of_rises (ruler) | 0 | **1** |
+| sum_abs_from_first (ruler) | 0 | 0 |
+| count_ascending_runs, longest_non_increasing_run | 9, 9 | 10, 10 |
+| count_distinct, has_majority, max_gap_sorted | 10, 10, 10 | 9, 9, 9 |
+
+- Prediction 1 **held** (+10, +10).
+- Prediction 2 **failed on first_minus_last** (+2 against a required +5).
+  The base already solves it in 8 of 10 seeds, through a large, odd but
+  general program built from generic statements. The prediction was
+  miscalibrated: I did not check whether the base reached it. The other
+  post-freeze problem, largest_drop_step, gained +9.
+- Prediction 3 **failed on sum_of_rises**, and for an interesting
+  reason. In seed 30008 the search mutated the absolute-value step
+  `if (v5 < 0) v5 = 0 - v5` into `if (v5 < 0) v5 = v6`, where v6 is an
+  untouched 0. That is a per-step clamp, which no piece offers. The
+  program passed held-out and re-verification. The ruler was crossed by
+  search composing on top of the piece, not by the design.
+- Prediction 4 **held**: the worst drop is -1.
+
+**Decision: by the fixed rule (1, 2 and 4), `--combinator-orthogonal`
+stays opt-in.** The only failing condition is a prediction about a
+problem the base already solved. Promoting despite it is a decision for
+the project owner (sections 62 and 72), and is not made here.
