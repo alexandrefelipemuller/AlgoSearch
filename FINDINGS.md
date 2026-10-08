@@ -6274,3 +6274,20 @@ Script: `scripts/run_argbest_retest_ab.sh`.
 **Decision rule, fixed now.** If it holds, `--combinator-argbest` becomes
 the default (section 82's other predictions already held). Otherwise it
 stays opt-in.
+
+## 83 (results). min_gap 22 -> 18 of 30: the bound is missed by one; arg-best stays opt-in
+
+`data/argbest_retest_20261008/` (not versioned; 20:15-20:21; 60 runs):
+min_gap base **22/30**, AB **18/30**.
+
+**The prediction failed** (-4 against an allowed -3). The drop shrank from
+section 82's -4 in 10 seeds (-40%) to -4 in 30 (-13%). That is consistent
+either with noise around a much smaller cost, or with a real cost of
+about that size. **Decision: `--combinator-argbest` stays opt-in.**
+
+On the other side of the balance: mode 0 -> 10, least_frequent_value
+0 -> 9 and argmax_index 5 -> 10 in section 82, and no other problem
+dropped. The options are:
+- an owner's exception (as in sections 62, 72 and 81);
+- a smaller arg share (1/4 instead of 1/2) with its own registered A/B;
+- leaving the piece opt-in.
