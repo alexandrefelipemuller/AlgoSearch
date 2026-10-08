@@ -5864,3 +5864,37 @@ on, one combinator block in eight is a follow block.
    registered array/scalar problems at 10 seeds for no-regression.
 
 Time is not a gate.
+
+### 77, post-freeze problems and predictions (registered after freeze 247b473, before running)
+
+`ListQueryProblem` relabels cycle's own instances (same lists, other
+questions). Four problems were written after the freeze, each with labels
+and a verified reference program (`tests/list_query_tests.cpp`).
+- **Predicted reachable:**
+  - `walk_length`: nodes before null, or n + 1 if the walk never ends
+    (CountSteps);
+  - `visits_zero`: whether the walk visits node 0 (VisitsKey).
+- **Predicted unreachable** (boundaries of the frozen design, the new
+  rulers):
+  - `cycle_length`: the length of the cycle entered. That needs a
+    second walk around the cycle.
+  - `last_node`: the node before null. No relation keeps the previous
+    node.
+
+**Batteries.** base (current default) vs FL = + `--combinator-follow`,
+per-seed `--benchmark`, `--step-limit 20000`.
+- (i) cycle and the four list problems: 30 matched seeds (26000-26029),
+  max-n 5, 180 s wall (cycle's budget from section 56).
+- (ii) every registered array/scalar problem: 10 matched seeds
+  (27000-27009), for no-regression.
+
+**Predictions.**
+1. cycle: FL >= base + 15 (of 30).
+2. walk_length and visits_zero: FL >= base + 15 each.
+3. cycle_length and last_node: FL = 0.
+4. No problem in (ii) drops by more than 1. Per section 76,
+   second_smallest's 10-seed drops of 2 are retested at 30 seeds before
+   counting.
+
+**Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-follow`
+becomes the default. Prediction 3 is a boundary check and does not block.
