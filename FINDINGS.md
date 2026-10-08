@@ -6073,3 +6073,32 @@ existing relations.
    76) before counting.
 
 Time is not a gate.
+
+### 80, post-freeze problems and predictions (registered after freeze f1ee6dd, before running)
+
+Four problems were written after the freeze, each with labels and a
+verified reference program.
+- **Predicted reachable:**
+  - `first_minus_last`: arr[0] - arr[n-1] (SumStep, reversed);
+  - `largest_drop_step`: the largest arr[i-1] - arr[i], negative when
+    every step rises (BestStep max, reversed).
+- **Predicted unreachable** (the new rulers):
+  - `sum_of_rises`: the sum of max(0, step). A per-step clamp exists in
+    no relation.
+  - `sum_abs_from_first`: the sum of |arr[i] - arr[0]|. |.| applies to
+    steps, not to differences with a fixed element.
+
+**A/B.** Every registered array/scalar problem plus these four, base vs
+OR (`--combinator-orthogonal`), 10 matched seeds (30000-30009),
+`--step-limit 20000`, per-seed `--benchmark`. Script:
+`scripts/run_orthogonal_ab.sh`.
+
+**Predictions.**
+1. The targets max_drawdown and total_variation: OR >= base + 7 each.
+2. first_minus_last and largest_drop_step: OR >= base + 5 each.
+3. sum_of_rises and sum_abs_from_first: OR = 0.
+4. No problem drops by more than 1. second_smallest's and
+   max_gap_sorted's drops of 2 are retested at 30 seeds first.
+
+**Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-orthogonal`
+becomes the default. Prediction 3 is a boundary check and does not block.

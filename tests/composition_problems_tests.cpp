@@ -34,6 +34,10 @@
 #include "problems/MinFrequencyProblem.hpp"
 #include "problems/ModeProblem.hpp"
 #include "problems/ValuesTwiceProblem.hpp"
+#include "problems/FirstMinusLastProblem.hpp"
+#include "problems/LargestDropStepProblem.hpp"
+#include "problems/SumAbsFromFirstProblem.hpp"
+#include "problems/SumOfRisesProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -526,4 +530,59 @@ TEST(values_twice_problem_labels_and_reference_solution) {
     auto p = frequencyPass(stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(2)), stmts(inc(3)))));
     p->body.insert(p->body.end() - 1, makeAssign(3, makeBinOp(ExprKind::Div, var(3), lit(2))));
     checkProblem(problem, *p);
+}
+
+// -- Section 80 post-freeze problems: adjacent passes over the step v5. --
+
+namespace {
+
+// v3 = init; for each adjacent pair: v5 = step; `use`.
+Program adjacentStepPass(std::vector<StmtPtr> init, ExprPtr step, std::vector<StmtPtr> use) {
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    for (auto& st : init) p->body.push_back(std::move(st));
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(5, std::move(step)));
+    for (auto& st : use) body.push_back(std::move(st));
+    appendAdjacentPass(*p, std::move(body));
+    return finish(std::move(p));
+}
+
+}  // namespace
+
+TEST(first_minus_last_problem_labels_and_reference_solution) {
+    FirstMinusLastProblem problem;
+    CHECK_EQ(problem.answer({5, 1, 2}), 3);
+    CHECK_EQ(problem.answer({}), 0);
+    checkProblem(problem, *adjacentStepPass(stmts(), sub(prev(), cur()), stmts(makeAssign(3, add(var(3), var(5))))));
+}
+
+TEST(largest_drop_step_problem_labels_and_reference_solution) {
+    LargestDropStepProblem problem;
+    CHECK_EQ(problem.answer({5, 1, 2}), 4);
+    CHECK_EQ(problem.answer({1, 2, 4}), -1);  // every step rises: the least negative
+    CHECK_EQ(problem.answer({7}), 0);
+    checkProblem(problem, *adjacentStepPass(stmts(makeIf(cmp(ExprKind::Lt, lit(1), var(0)), stmts(makeAssign(3, sub(at(lit(0)), at(lit(1))))))),
+                                            sub(prev(), cur()),
+                                            stmts(makeIf(cmp(ExprKind::Gt, var(5), var(3)), stmts(makeAssign(3, var(5)))))));
+}
+
+TEST(sum_of_rises_problem_labels_and_reference_solution) {
+    SumOfRisesProblem problem;
+    CHECK_EQ(problem.answer({1, 4, 2, 3}), 4);
+    checkProblem(problem, *adjacentStepPass(stmts(), sub(cur(), prev()),
+                                            stmts(makeIf(cmp(ExprKind::Gt, var(5), lit(0)), stmts(makeAssign(3, add(var(3), var(5))))))));
+}
+
+TEST(sum_abs_from_first_problem_labels_and_reference_solution) {
+    SumAbsFromFirstProblem problem;
+    CHECK_EQ(problem.answer({2, 5, 0}), 5);
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(3, lit(0)));
+    p->body.push_back(makeAssign(1, lit(0)));
+    p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)),
+                                stmts(makeAssign(5, sub(at(var(1)), at(lit(0)))),
+                                      makeIf(cmp(ExprKind::Lt, var(5), lit(0)), stmts(makeAssign(5, sub(lit(0), var(5))))),
+                                      makeAssign(3, add(var(3), var(5))), inc(1))));
+    checkProblem(problem, *finish(std::move(p)));
 }
