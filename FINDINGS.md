@@ -5945,3 +5945,25 @@ per-seed `--benchmark`. Script: `scripts/run_follow_retest_ab.sh`.
 **Decision rule, fixed now.** If it holds, `--combinator-follow` becomes
 the default (section 77's other predictions already held). Otherwise it
 stays opt-in.
+
+## 78 (results). Not noise this time: max_gap_sorted 28 -> 23 of 30; `--combinator-follow` stays opt-in
+
+`data/follow_retest_20261008/` (not versioned; 00:13-00:16; 60 runs):
+max_gap_sorted base **28/30**, FL **23/30**.
+
+**The prediction failed** (-5 against an allowed -3). Unlike
+second_smallest in section 76, this drop grew from -2/10 to -5/30, so it
+is a real cost. **Decision: `--combinator-follow` stays opt-in.**
+
+Likely mechanism, not yet tested. max_gap_sorted is solved by composition:
+a sort block followed by an adjacent `BestStep` block (sections 52 and 56).
+Follow blocks take one combinator draw in eight on every problem, so the
+step block a sort has to be followed by is drawn less often.
+max_gap_sorted is the problem that most needs two specific combinator
+blocks in a row, which makes it the most exposed to this dilution.
+
+Candidate fixes, each needing its own registered A/B:
+- a smaller follow share (1/16);
+- drawing follow blocks only when the input looks like a pointer array:
+  values in [0, n], which is a cheap, problem-agnostic check of the
+  instance data, not of the problem's name.
