@@ -5933,3 +5933,15 @@ seeds and 28 of 30 visits_zero seeds produced SUCCESS-labeled programs
 that were rejected on re-verification. Those were fits, which is exactly
 section 25's warning about this problem. With the piece, cycle has no
 rejections at all.
+
+## 78. Follow piece: 30-seed retest of max_gap_sorted -- prediction registered before running
+
+base vs FL (`--combinator-follow`), max_gap_sorted only, 30 fresh
+matched seeds (28000-28029), section 77's budget (max-n 8, 180 s),
+per-seed `--benchmark`. Script: `scripts/run_follow_retest_ab.sh`.
+
+**Prediction:** FL >= base - 3 (of 30).
+
+**Decision rule, fixed now.** If it holds, `--combinator-follow` becomes
+the default (section 77's other predictions already held). Otherwise it
+stays opt-in.
