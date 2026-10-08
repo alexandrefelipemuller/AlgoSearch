@@ -200,8 +200,8 @@ struct GenConfig {
 
     // Section 75: a fifth stateful piece, FrequencyTable -- aux[i] = how many
     // j have cmp(elem(j), elem(i)) (frequency or rank), then one pass over
-    // aux (max, min, count-if, exists). Opt-in (`--combinator-frequency`);
-    // false is byte-identical.
+    // aux (max, min, count-if, exists). CLI default since section 76
+    // (`--no-combinator-frequency` turns it off); false here is byte-identical.
     bool combinatorFrequency = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the

@@ -77,7 +77,9 @@ on by default since section 62. With them, ten more array problems are
 solved 10/10 (section 61); `--no-combinator-state` reproduces the table. The nested aggregates and
 absolute step (default since section 72) add six more: max_adjacent_gap,
 max_profit, count_leaders, has_majority, count_dominated and count_unique
-(section 71); `--no-combinator-nested` turns them off.
+(section 71); `--no-combinator-nested` turns them off. The frequency-table piece
+(default since section 76) adds elements_twice and min_frequency and takes
+count_unique to 10/10 (section 75); `--no-combinator-frequency` turns it off.
 Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core

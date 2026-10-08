@@ -5814,3 +5814,17 @@ Script: `scripts/run_frequency_retest_ab.sh`.
 **Decision rule, fixed now.** If it holds, `--combinator-frequency`
 becomes the default (section 75's other predictions already held).
 Otherwise it stays opt-in.
+
+## 76 (results). Noise, as before: second_smallest 24 = 24 of 30; `--combinator-frequency` becomes the default
+
+`data/frequency_retest_20261007/` (not versioned; 22:15-22:17; 60 runs):
+second_smallest base **24/30**, FR **24/30**. **The prediction held.** By
+the rule, `--combinator-frequency` is now the CLI default, with no
+exception needed. `--no-combinator-frequency` restores the old behavior.
+GenConfig's own default stays false, so the byte-identity tests are
+unchanged.
+
+second_smallest has now failed a 10-seed no-regression check three
+times (sections 56, 75 and, as a near miss, 58) and has never held one at
+30 seeds. Future batteries should either run it at 30 seeds from the
+start or treat its 10-seed differences of 2 as uninformative.
