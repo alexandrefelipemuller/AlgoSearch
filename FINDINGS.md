@@ -6526,3 +6526,30 @@ DC (`--combinator-distinct`), 10 fresh matched seeds (38000-38009),
 
 **Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-distinct`
 becomes the default. Prediction 3 is a boundary check and does not block.
+
+### 87 (results, 10 seeds). Every gain prediction holds; three sensitive problems need the registered 30-seed retest
+
+`data/distinct_ab_20261009/` (not versioned; 06:48-08:27; 1620 runs,
+150 wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (38000-38009), base / DC. Rows not listed are equal in
+both arms.
+
+| problem | base | DC |
+|---|---|---|
+| values_twice (target) | 0 | **10** |
+| repeated_values | 3 | **10** |
+| rare_values | 0 | **8** |
+| frequent_values (post-freeze) | 0 | **9** |
+| has_double_value (already solved) | 10 | 10 |
+| odd_frequency_values / sum_distinct (rulers) | 0 / 1 | 0 / 0 |
+| min_gap / max_gap_sorted / second_smallest | 8 / 9 / 10 | **3 / 6 / 8** |
+| count_leaders, least_frequent_value | 10, 10 | 9, 9 |
+| lis | 6 | 7 |
+
+- Predictions 1 and 2 **held**: +10, +8, +9 and +7.
+- Prediction 3 **held**: the rulers stay at 0 under DC. The base crossed
+  sum_distinct once, by composition.
+- Prediction 4 is pending. min_gap (-5), max_gap_sorted (-3) and
+  second_smallest (-2) are retested at 30 seeds, as registered
+  (39000-39029, `scripts/run_distinct_retest_ab.sh`). For each, the
+  bound is DC >= base - 3 of 30.
