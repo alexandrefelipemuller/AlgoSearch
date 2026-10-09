@@ -6339,3 +6339,29 @@ default stays false, so the byte-identity tests are unchanged.
 
 **Watch item.** min_gap should be re-measured at 30 seeds in the next
 battery that touches combinator draws, to see whether the gap persists.
+
+## 86. First-occurrence filter: counting values, not elements -- design registered before implementing
+
+The third of section 79's gaps. The frequency table (section 75) counts
+*elements*: a count-if over `aux[i] == 2` counts both copies of a value
+that occurs twice. values_twice needs each *value* once.
+
+**`--combinator-first-occurrence`** (opt-in, byte-identical when off).
+On the frequency table's count-if and exists passes, half the time with
+the flag on, the table keeps `aux[i]` only at a value's first
+occurrence. The inner loop also notes whether an equal element appeared
+at some j < i; if so, `aux[i] = 0`. Every existing threshold test then
+counts distinct values instead of elements: `aux == 2`, `aux >= 2`,
+`aux > 0`, ... The max/min passes are left alone, since zeros would
+break a minimum.
+
+This is one modifier on one existing piece. "Deduplicate by first
+occurrence" is the classic way to go from elements to values.
+
+**Protocol** (sections 71-85):
+1. Freeze.
+2. Write post-freeze problems.
+3. Run a base check (section 81's rule) before registering predictions.
+4. A/B on every registered array/scalar problem, 10 matched seeds.
+   Drops of 2 on second_smallest, max_gap_sorted or min_gap (section
+   85's watch item) are retested at 30 seeds.
