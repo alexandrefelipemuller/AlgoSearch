@@ -704,7 +704,8 @@ TEST(equal_pairs_problem_labels_and_reference_solution) {
 TEST(frequent_values_problem_labels_and_reference_solution) {
     FrequentValuesProblem problem;
     CHECK_EQ(problem.answer({1, 1, 1, 2, 2, 3, 3, 3, 3}), 2);
-    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Gt, var(4), lit(2)), stmts(inc(3))))));
+    // n = 2 cannot hold a value three times: labels vary from n = 3.
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Gt, var(4), lit(2)), stmts(inc(3))))), 3);
 }
 
 TEST(has_double_value_problem_labels_and_reference_solution) {
