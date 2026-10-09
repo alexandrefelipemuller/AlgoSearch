@@ -371,6 +371,14 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
         postSolveWindowOpenedThisSize = false;
         std::vector<Instance> instances = problem_.generateInstances(currentLevel);
+        if (config_.regressionGuard > 0) {  // section 89
+            for (int l = config_.startLevel; l < currentLevel; l = problem_.nextLevel(l)) {
+                auto it = seenInstancesByLevel.find(l);
+                if (it == seenInstancesByLevel.end()) it = seenInstancesByLevel.emplace(l, problem_.generateInstances(l)).first;
+                size_t take = std::min(it->second.size(), static_cast<size_t>(config_.regressionGuard));
+                instances.insert(instances.end(), it->second.begin(), it->second.begin() + static_cast<long>(take));
+            }
+        }
         log::levelHeader(currentLevel, problem_.describeLevel(currentLevel), instances.size(), config_.beamWidth);
 
         // Build the candidate pool: grow each beam survivor to this size,

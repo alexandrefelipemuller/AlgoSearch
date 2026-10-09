@@ -203,6 +203,11 @@ struct SearchConfig {
     // the top `tailEnumTop` beam survivors at every size step. 0 = off,
     // byte-identical to before.
     int tailEnumTop = 0;
+    // Section 89: from the second level on, every level's scoring set also
+    // holds the first `regressionGuard` instances of each earlier level, so
+    // a program that breaks smaller n loses score instead of only being
+    // caught by the verifier. 0 = off, byte-identical.
+    int regressionGuard = 0;
 
     // Where to write the per-round adaptive-bias CSV log (round, level,
     // bias_before, skeleton_rate, bias_after, best_score). Only written
