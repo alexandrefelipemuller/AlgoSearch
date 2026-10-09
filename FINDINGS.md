@@ -6407,3 +6407,48 @@ FO (`--combinator-first-occurrence`), 10 fresh matched seeds
 **Decision rule, fixed now.** If 1, 2 and 4 hold,
 `--combinator-first-occurrence` becomes the default. Prediction 3 is a
 boundary check and does not block.
+
+### 86 (results). Below the bar: values_twice +5, repeated_values +4, rare_values +1; elements_twice -2
+
+`data/firstocc_ab_20261008/` (not versioned; 22:40-00:20; 1560 runs,
+133 wall timeouts, on problems neither arm solves). Verified successes of
+10 matched seeds (36000-36009), base / FO. Rows not listed are equal in
+both arms.
+
+| problem | base | FO |
+|---|---|---|
+| values_twice (target) | 0 | 5 |
+| repeated_values | 5 | 9 |
+| rare_values | 0 | 1 |
+| sum_distinct (ruler) / equal_pairs | 0 / 10 | 0 / 10 |
+| elements_twice | 10 | **8** |
+| lis, longest_run, longest_non_increasing_run, min_gap | 6, 9, 9, 5 | 7, 10, 10, 6 |
+| least_frequent_value, second_smallest, sum_abs_from_first | 10, 10, 1 | 9, 9, 0 |
+
+- Prediction 1 **failed**: values_twice +5, short of +7.
+- Prediction 2 **failed**: rare_values +1 and repeated_values +4, short
+  of +7 and +5.
+- Prediction 3 **held**.
+- Prediction 4 **failed**: elements_twice dropped by 2.
+- **Decision: `--combinator-first-occurrence` stays opt-in.**
+
+**Why, read from the design (found after the fact):**
+- **A sentinel collision.** Non-first occurrences get `aux = 0`. A test
+  like `aux <= 2` (rare_values) or `aux < 1` then also counts those
+  zeros, so rare_values is close to unreachable as built. Only tests
+  that exclude 0 (`== 2`, `>= 2`, `> 0`) work.
+- **Rarity.** A useful block needs a stack of draws: frequency table,
+  count-if pass, the filter, `==` table, and the right threshold test.
+  That puts it near the bottom of everything sampled. values_twice at
+  5/10 shows search does reach it, but not reliably.
+- **Dilution.** The filter halves the unfiltered count-if pass, which is
+  how elements_twice is solved. That fits its -2.
+
+A sound v2 would skip non-first occurrences in the pass (a guard
+`if (first)` around the test) instead of overwriting them with 0, and
+would not take its share from the unfiltered pass. It would be a new
+registered piece.
+
+**Incidental:** in this battery the base solved sum_abs_from_first in
+1 of 10 seeds, a section 80 ruler, by composition. That is now the
+second ruler crossed by search alone (after sum_of_rises).
