@@ -85,7 +85,9 @@ solve cycle, walk_length and visits_zero (sections 77-79);
 `--no-follow-pointer-inputs` turns them off. Orthogonal modifiers (difference
 direction and |.| on every step relation, default since section 81) solve
 max_drawdown, total_variation and largest_drop_step (section 80);
-`--no-combinator-orthogonal` turns them off.
+`--no-combinator-orthogonal` turns them off. Arg-best (return where the best
+is, default since section 85) solves mode, least_frequent_value and
+argmax_index (section 82); `--no-combinator-argbest` turns it off.
 Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core

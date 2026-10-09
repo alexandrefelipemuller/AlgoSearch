@@ -6319,3 +6319,23 @@ therefore stands isolated: same recipe, no mechanism, and its sibling is
 unmoved. Section 83's decision under the fixed rule does not change
 (arg-best stays opt-in). The evidence for an owner's exception is
 stronger than in section 83.
+
+## 85. `--combinator-argbest` becomes the default by explicit decision, after sections 82-84
+
+This decision was made *after* seeing the data, as an exception to
+section 83's fixed rule, and is recorded as such (as in sections 62, 72
+and 81).
+
+The only failed condition was min_gap: 22 -> 18 of 30, one beyond the
+allowed -3. Section 84 showed that its sibling, which uses the identical
+recipe (sort, then `BestStep`), is unmoved (23 -> 24 of 30), and arg-best
+touches neither part of that recipe. The drop is isolated and has no
+mechanism. Against it stand mode 0 -> 10, least_frequent_value 0 -> 9 and
+argmax_index 5 -> 10. The project owner promoted the flag on reachability
+and diversity.
+
+`--no-combinator-argbest` restores the old behavior. GenConfig's own
+default stays false, so the byte-identity tests are unchanged.
+
+**Watch item.** min_gap should be re-measured at 30 seeds in the next
+battery that touches combinator draws, to see whether the gap persists.
