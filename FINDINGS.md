@@ -6553,3 +6553,31 @@ both arms.
   second_smallest (-2) are retested at 30 seeds, as registered
   (39000-39029, `scripts/run_distinct_retest_ab.sh`). For each, the
   bound is DC >= base - 3 of 30.
+
+### 87 (results, 30-seed retest). max_gap_sorted and second_smallest clear; min_gap 20 -> 15 does not
+
+`data/distinct_retest_20261009/` (not versioned; ends 08:41). Verified
+successes of 30 matched seeds (39000-39029), base / DC:
+
+| problem | base | DC |
+|---|---|---|
+| min_gap | 20 | **15** |
+| max_gap_sorted | 24 | 25 |
+| second_smallest | 28 | 27 |
+
+- max_gap_sorted and second_smallest are within the bound.
+- **min_gap fails it (-5).**
+- **Decision: by the fixed rule, `--combinator-distinct` stays opt-in.**
+
+**A pattern now.** min_gap lost 4/30 to arg-best (section 83) and 5/30
+here. Both times its sibling max_gap_sorted, which uses the identical
+sort-then-step recipe, was unmoved. A mechanism specific to min_gap fits
+this better than dilution. Hypothesis, not tested: **min_gap's answer is
+0 whenever a value repeats.** On those instances, any block that detects
+or counts repeats (the frequency table, distinct counting, arg-best over
+frequencies) produces programs that score well without sorting at all.
+These are partial-credit attractors that crowd the beam. max_gap_sorted
+has no such shortcut. Each new repeat-aware piece would then cost min_gap
+a little more. The hypothesis is checkable: compare min_gap's failing DC
+runs' best programs (repeat-detectors or not), or measure min_gap on
+instances without repeated values.
