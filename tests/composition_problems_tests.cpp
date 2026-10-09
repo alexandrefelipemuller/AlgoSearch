@@ -46,6 +46,9 @@
 #include "problems/RareValuesProblem.hpp"
 #include "problems/RepeatedValuesProblem.hpp"
 #include "problems/SumDistinctProblem.hpp"
+#include "problems/FrequentValuesProblem.hpp"
+#include "problems/HasDoubleValueProblem.hpp"
+#include "problems/OddFrequencyValuesProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -694,4 +697,26 @@ TEST(equal_pairs_problem_labels_and_reference_solution) {
     CHECK_EQ(problem.answer({1, 1, 1, 2, 2}), 4);
     checkProblem(problem, *nestedPass(true, stmts(),
                                       stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(3)))), stmts()));
+}
+
+// -- Section 87 post-freeze problems (firstOccurrencePass from section 86) --
+
+TEST(frequent_values_problem_labels_and_reference_solution) {
+    FrequentValuesProblem problem;
+    CHECK_EQ(problem.answer({1, 1, 1, 2, 2, 3, 3, 3, 3}), 2);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Gt, var(4), lit(2)), stmts(inc(3))))));
+}
+
+TEST(has_double_value_problem_labels_and_reference_solution) {
+    HasDoubleValueProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 3}), 1);
+    CHECK_EQ(problem.answer({1, 1, 1}), 0);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Eq, var(4), lit(2)), stmts(makeAssign(3, lit(1)))))));
+}
+
+TEST(odd_frequency_values_problem_labels_and_reference_solution) {
+    OddFrequencyValuesProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 3}), 2);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Eq, makeBinOp(ExprKind::Mod, var(4), lit(2)), lit(1)),
+                                                             stmts(inc(3))))));
 }
