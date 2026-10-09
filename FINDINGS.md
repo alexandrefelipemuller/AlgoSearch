@@ -6291,3 +6291,19 @@ dropped. The options are:
 - an owner's exception (as in sections 62, 72 and 81);
 - a smaller arg share (1/4 instead of 1/2) with its own registered A/B;
 - leaving the piece opt-in.
+
+## 84. Arg-best: 30-seed check of max_gap_sorted (diagnostic for section 83) -- prediction registered before running
+
+All 22 base solutions of min_gap in section 83 use the same recipe as
+max_gap_sorted: selection sort, then `BestStep`. Arg-best touches neither
+part. If section 83's drop is dilution of that composition, max_gap_sorted
+should drop too. Setup: base vs AB, max_gap_sorted, 30 fresh matched
+seeds (34000-34029), section 82's budget.
+
+**Reading, fixed now:**
+- If AB < base - 3, dilution of the composition is real. The next step
+  is then a smaller arg share (1/4), with its own A/B.
+- If AB >= base - 3, min_gap's drop stands isolated and without a
+  mechanism.
+
+This is a diagnostic. It does not by itself change section 83's decision.
