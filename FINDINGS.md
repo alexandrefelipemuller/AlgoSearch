@@ -6489,3 +6489,40 @@ for each i:
 4. A/B on every registered array/scalar problem, 10 matched seeds,
    with 30-seed retests of drops of 2 on second_smallest,
    max_gap_sorted, min_gap and elements_twice.
+
+### 87, post-freeze problems, base check, and predictions (freeze b58dc89; problems d661d37 + 4c9e7ba; before the A/B)
+
+Three problems were written after the freeze, each with labels and a
+verified reference program:
+- `frequent_values`: distinct values occurring >= 3 times;
+- `has_double_value`: 1 if some value occurs exactly twice;
+- `odd_frequency_values`: distinct values with odd frequency. This is a
+  new ruler, since it needs `% 2`, which no test offers.
+
+**Base check (section 81's rule)**, 10 seeds (37000-37009),
+`data/distinct_basecheck_20261009/` (not versioned):
+- frequent_values 0/10;
+- **has_double_value 10/10**, already reached through the frequency
+  table's exists `aux == 2`. It is reported as already solved and has
+  no prediction;
+- odd_frequency_values 0/10.
+
+The targets' base, from section 86: values_twice 0/10 (in both the base
+check and the A/B), repeated_values 2/10 and 5/10, rare_values 0/10.
+
+**A/B.** Every registered array/scalar problem plus these three, base vs
+DC (`--combinator-distinct`), 10 fresh matched seeds (38000-38009),
+`--step-limit 20000`, per-seed `--benchmark`. Script:
+`scripts/run_distinct_ab.sh`.
+
+**Predictions.**
+1. values_twice: DC >= base + 7.
+2. rare_values and frequent_values: DC >= base + 7 each.
+   repeated_values: DC >= base + 4.
+3. odd_frequency_values and sum_distinct: DC = 0.
+4. No problem drops by more than 1. Drops of 2 on second_smallest,
+   max_gap_sorted, min_gap or elements_twice are retested at 30 seeds
+   first.
+
+**Decision rule, fixed now.** If 1, 2 and 4 hold, `--combinator-distinct`
+becomes the default. Prediction 3 is a boundary check and does not block.
