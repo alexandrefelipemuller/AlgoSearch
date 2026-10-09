@@ -232,11 +232,12 @@ struct GenConfig {
     // (`--no-combinator-argbest` turns it off); false here is byte-identical.
     bool combinatorArgBest = false;
 
-    // Section 86: on the frequency table's count-if / exists passes, half
-    // the time, keep aux[i] only at a value's first occurrence (0 when an
-    // equal element came earlier), so the pass counts values, not elements.
-    // Opt-in (`--combinator-first-occurrence`); false is byte-identical.
-    bool combinatorFirstOccurrence = false;
+    // Section 87: a sixth stateful piece, DistinctCount -- per element, the
+    // number of equal elements and whether one came earlier; only first
+    // occurrences reach a threshold test, counted or tested for existence.
+    // Opt-in (`--combinator-distinct`); false is byte-identical. (Replaces
+    // section 86's refuted first-occurrence filter.)
+    bool combinatorDistinct = false;
     bool pointerInput = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the

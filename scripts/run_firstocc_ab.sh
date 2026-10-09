@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# NOTE (section 87): --combinator-first-occurrence was removed after being refuted; to rerun,
+# build the tree at commit 1861fae first (git checkout 1861fae -- src && make).
 # FINDINGS.md section 86: base (current default) vs FO
 # (--combinator-first-occurrence) on every
 # registered array/scalar problem at --step-limit 20000, matched fresh seeds. One --benchmark

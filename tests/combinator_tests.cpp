@@ -304,28 +304,28 @@ TEST(argbest_modifier_emits_index_of_first_maximum) {
     CHECK(found > 0);
 }
 
-TEST(first_occurrence_filter_is_byte_identical_when_off) {
-    // Section 86: the filter draw happens only with the flag on.
+TEST(distinct_count_piece_is_byte_identical_when_off) {
+    // Section 87: the sixth stateful piece is drawn only with the flag on.
     GenConfig a = combinatorOnly(), b = combinatorOnly();
     a.combinatorState = b.combinatorState = true;
     a.combinatorFrequency = b.combinatorFrequency = true;
     a.combinatorArgBest = b.combinatorArgBest = true;
     a.maxLoops = b.maxLoops = 4;
-    b.combinatorFirstOccurrence = false;
+    b.combinatorDistinct = false;
     Random ra(86), rb(86);
     for (int i = 0; i < 300; ++i) {
         CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
     }
 }
 
-TEST(first_occurrence_filter_counts_distinct_values) {
-    // With the flag on, some block counts distinct values (count-if aux > 0
-    // over first occurrences), which counting elements never gives.
+TEST(distinct_count_piece_counts_distinct_values) {
+    // With the flag on, some block counts distinct values, which counting
+    // elements never gives.
     Random rng(87);
     GenConfig cfg = combinatorOnly();
     cfg.combinatorState = true;
     cfg.combinatorFrequency = true;
-    cfg.combinatorFirstOccurrence = true;
+    cfg.combinatorDistinct = true;
     cfg.maxLoops = 4;
     Interpreter interp(100000);
     const std::vector<std::pair<std::vector<int>, int>> cases = {{{3, 3, 1}, 2}, {{2, 2, 2, 2}, 1}, {{1, 2, 3}, 3}, {{5, 1, 5, 1, 4}, 3}};

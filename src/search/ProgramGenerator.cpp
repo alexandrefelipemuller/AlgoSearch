@@ -2051,7 +2051,11 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     bool nestedOk = (cfg.maxLoops - loopsUsed) >= 2;
     // Section 75: FrequencyTable needs three loops (two nested, one pass).
     bool frequencyOk = cfg.combinatorFrequency && (cfg.maxLoops - loopsUsed) >= 3;
-    int piece = rng.uniformInt(0, frequencyOk ? 4 : nestedOk ? 3 : 1);
+    int maxPiece = frequencyOk ? 4 : nestedOk ? 3 : 1;
+    // Section 87: DistinctCount is one more equal option (two loops).
+    bool distinctOk = cfg.combinatorDistinct && nestedOk;
+    int piece = rng.uniformInt(0, maxPiece + (distinctOk ? 1 : 0));
+    if (distinctOk && piece == maxPiece + 1) piece = 5;
     ExprKind keep = rng.chance(0.5) ? ExprKind::Gt : ExprKind::Lt;
     switch (piece) {
         case 0: {  // RunBest
@@ -2102,23 +2106,14 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             int pass = rng.uniformInt(0, 3);  // max, min, count-if, exists
             ExprKind cmp2 = combinator::drawComparator(rng);
             int thrKind = rng.uniformInt(0, 3);  // 0, 1, 2, n / 2
-            // Section 86: first occurrences only (`cur` flags an earlier equal element).
-            bool firstOnly = pass >= 2 && cfg.combinatorFirstOccurrence && rng.chance(0.5);
             root.push_back(makeAssign(vi, lit(0)));
             appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
                 outer.push_back(makeAssign(tmp, lit(0)));
-                if (firstOnly) outer.push_back(makeAssign(cur, lit(0)));
                 outer.push_back(makeAssign(vj, lit(0)));
                 appendCountingWhile(outer, vj, bound(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
                     inner.push_back(makeIf(makeCompare(tableCmp, elem(var(vj)), elem(var(vi))),
                                            one(makeAssign(tmp, add(var(tmp), lit(1))))));
-                    if (firstOnly) {
-                        inner.push_back(makeIf(makeCompare(ExprKind::Lt, var(vj), var(vi)),
-                                               one(makeIf(makeCompare(ExprKind::Eq, elem(var(vj)), elem(var(vi))),
-                                                          one(makeAssign(cur, lit(1)))))));
-                    }
                 });
-                if (firstOnly) outer.push_back(makeIf(makeCompare(ExprKind::Eq, var(cur), lit(1)), one(makeAssign(tmp, lit(0)))));
                 outer.push_back(makeAssignAux(var(vi), var(tmp)));
             });
             // Section 82: on a max/min pass, return elem(i) or i at the best.
@@ -2152,6 +2147,31 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 ExprPtr thr = thrKind < 3 ? lit(thrKind) : makeBinOp(ExprKind::Div, bound(), lit(2));
                 body.push_back(makeIf(makeCompare(cmp2, aux(var(vi)), std::move(thr)),
                                       one(makeAssign(acc, pass == 2 ? add(var(acc), lit(1)) : lit(1)))));
+            });
+            break;
+        }
+        case 5: {  // DistinctCount (section 87)
+            // Per element i: t (tmp) = how many equal it, seen (cur) = an
+            // equal element earlier. Only first occurrences reach the test.
+            ExprKind cmp2 = combinator::drawComparator(rng);
+            int thrKind = rng.uniformInt(0, 3);  // 0, 1, 2, n / 2
+            bool count = rng.chance(0.5);       // count, or exists
+            root.push_back(makeAssign(acc, lit(0)));
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
+                outer.push_back(makeAssign(tmp, lit(0)));
+                outer.push_back(makeAssign(cur, lit(0)));
+                outer.push_back(makeAssign(vj, lit(0)));
+                appendCountingWhile(outer, vj, bound(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
+                    std::vector<StmtPtr> equal;
+                    equal.push_back(makeAssign(tmp, add(var(tmp), lit(1))));
+                    equal.push_back(makeIf(makeCompare(ExprKind::Lt, var(vj), var(vi)), one(makeAssign(cur, lit(1)))));
+                    inner.push_back(makeIf(makeCompare(ExprKind::Eq, elem(var(vj)), elem(var(vi))), std::move(equal)));
+                });
+                ExprPtr thr = thrKind < 3 ? lit(thrKind) : makeBinOp(ExprKind::Div, bound(), lit(2));
+                outer.push_back(makeIf(makeCompare(ExprKind::Eq, var(cur), lit(0)),
+                                       one(makeIf(makeCompare(cmp2, var(tmp), std::move(thr)),
+                                                  one(makeAssign(acc, count ? add(var(acc), lit(1)) : lit(1)))))));
             });
             break;
         }
