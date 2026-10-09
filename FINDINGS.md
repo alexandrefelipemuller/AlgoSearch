@@ -6307,3 +6307,15 @@ seeds (34000-34029), section 82's budget.
   mechanism.
 
 This is a diagnostic. It does not by itself change section 83's decision.
+
+## 84 (results). max_gap_sorted 23 -> 24 of 30: no dilution of the shared recipe
+
+`data/argbest_maxgap_20261008/` (not versioned): max_gap_sorted base
+**23/30**, AB **24/30**.
+
+By section 84's reading, the composition recipe (sort, then
+`BestStep`) is **not** diluted by arg-best. min_gap's -4/30 in section 83
+therefore stands isolated: same recipe, no mechanism, and its sibling is
+unmoved. Section 83's decision under the fixed rule does not change
+(arg-best stays opt-in). The evidence for an owner's exception is
+stronger than in section 83.
