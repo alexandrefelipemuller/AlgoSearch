@@ -6365,3 +6365,45 @@ occurrence" is the classic way to go from elements to values.
 4. A/B on every registered array/scalar problem, 10 matched seeds.
    Drops of 2 on second_smallest, max_gap_sorted or min_gap (section
    85's watch item) are retested at 30 seeds.
+
+### 86, post-freeze problems, base check, and predictions (registered after freeze cbc0be4, before the A/B)
+
+Four problems were written after the freeze (commit b9df47d), each with
+labels and a verified reference program:
+- `repeated_values`: distinct values occurring >= 2 times;
+- `rare_values`: distinct values occurring <= 2 times;
+- `sum_distinct`: the sum of the distinct values;
+- `equal_pairs`: pairs i < j with equal values.
+
+**Base check (section 81's rule)**, current default, 10 seeds
+(35000-35009), `data/firstocc_basecheck_20261008/` (not versioned):
+
+| problem | base |
+|---|---|
+| values_twice (target) | 0/10 |
+| repeated_values | 2/10 |
+| rare_values | 0/10 |
+| sum_distinct | 0/10 |
+| **equal_pairs** | **10/10** |
+
+equal_pairs was written as a ruler, but the old triangular count-if
+(`if (arr[i] == arr[j]) acc++`) already counts exactly those pairs. The
+base check caught it, as section 81's rule intends. It is reported as
+already solved and plays no part in the predictions. sum_distinct stays
+as the ruler: the pass counts and never sums.
+
+**A/B.** Every registered array/scalar problem plus these four, base vs
+FO (`--combinator-first-occurrence`), 10 fresh matched seeds
+(36000-36009), `--step-limit 20000`, per-seed `--benchmark`. Script:
+`scripts/run_firstocc_ab.sh`.
+
+**Predictions.**
+1. values_twice (the target): FO >= base + 7.
+2. rare_values: FO >= base + 7. repeated_values: FO >= base + 5.
+3. sum_distinct: FO = 0.
+4. No problem drops by more than 1. Drops of 2 on second_smallest,
+   max_gap_sorted or min_gap are retested at 30 seeds first.
+
+**Decision rule, fixed now.** If 1, 2 and 4 hold,
+`--combinator-first-occurrence` becomes the default. Prediction 3 is a
+boundary check and does not block.
