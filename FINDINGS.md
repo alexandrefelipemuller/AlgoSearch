@@ -6648,3 +6648,46 @@ gates (as in section 79) are worth applying to other pieces.
 
 **Next, already identified:** close the n = 1 training gap (section 87's
 investigation).
+
+## 89. Correction to section 87's investigation, and a regression guard -- design registered before implementing
+
+**Correction.** Section 87's investigation said that training starts at
+n = 2. That is wrong: the search starts at level 1 (`--start-level 1`).
+The real gap:
+- A champion is checked only *forward*. The invariance lookahead runs
+  the unmutated program on the following levels.
+- It is never re-checked on the levels *before* the one where it was
+  found.
+- The rejected min_gap programs were found at N = 3 (80/80), cascaded
+  forward to N = 8, and broke at n = 1. By then the search had
+  mutated away the accumulator's `= 0` initialization, and no score
+  ever covered n = 1 again.
+
+The section 88 decision stands; the cause it cites (n = 1 rejections hit
+both arms equally) is unchanged.
+
+**Regression guard, `--regression-guard K`** (opt-in; 0 = off and
+byte-identical). From the second level on, each level's scoring set also
+contains the first K instances of every earlier level. Those include the
+exhaustive tiny arrays, which come first in the array problems'
+generators. A program that breaks smaller n then loses score at once and
+is outranked, instead of being discovered only by the verifier. **K = 12**,
+fixed before running. That costs at most 12 x (levels so far) extra
+instances per evaluation.
+
+**A/B.**
+- (i) min_gap and max_gap_sorted at 30 matched seeds (40000-40029).
+- (ii) Every registered array/scalar problem at 10 seeds (41000-41009),
+  base (current default) vs RG (`--regression-guard 12`), per-seed
+  `--benchmark`, `--step-limit 20000`.
+
+**Predictions.**
+1. In (i), "failed exhaustively at n=1" rejections drop to <= 1 per
+   problem under RG (base: about 1/4 to 1/3 of seeds).
+2. In (i), min_gap: RG >= base + 4; max_gap_sorted: RG >= base + 2.
+3. In (ii), no problem drops by more than 1. Drops of 2 on the four
+   sensitive problems are retested at 30 seeds.
+
+**Decision rule, fixed now.** If 1, 2 and 3 hold, `--regression-guard 12`
+becomes the default. Time is not a gate, but RG's wall cost will be
+reported, per section 88's tracking item.
