@@ -6452,3 +6452,40 @@ registered piece.
 **Incidental:** in this battery the base solved sum_abs_from_first in
 1 of 10 seeds, a section 80 ruler, by composition. That is now the
 second ruler crossed by search alone (after sum_of_rises).
+
+## 87. Distinct counting, v2 -- design registered before implementing
+
+Section 86's first-occurrence filter had two defects: a 0-sentinel that
+collides with `<=` tests, and a share taken from the unfiltered count-if
+pass. v2 replaces it. The v1 code and flag are removed; section 86's
+batteries need commit 1861fae to rerun.
+
+**`--combinator-distinct`** (opt-in, byte-identical when off) adds a sixth
+stateful piece, `DistinctCount`, drawn as one more equal option among the
+stateful pieces when two loops are free. The other pieces keep their own
+slots, so no single pass is halved. In a single nested pass:
+
+```
+for each i:
+    t = #{ j : elem(j) == elem(i) }
+    seen = exists j < i with elem(j) == elem(i)
+    if (seen == 0) { if (t cmp2 thr) acc += 1 (count) | acc = 1 (exists) }
+```
+
+- No sentinel and no aux: repeats are *skipped*, so every threshold
+  test means what it says.
+- cmp2 is one of the six comparators; thr is one of 0, 1, 2, n/2; the
+  aggregate is count or exists.
+
+**Targets:**
+- values_twice;
+- repeated_values;
+- rare_values (all three written before this freeze).
+
+**Protocol:**
+1. Freeze.
+2. Write new post-freeze problems.
+3. Base check (section 81).
+4. A/B on every registered array/scalar problem, 10 matched seeds,
+   with 30-seed retests of drops of 2 on second_smallest,
+   max_gap_sorted, min_gap and elements_twice.
