@@ -6581,3 +6581,43 @@ has no such shortcut. Each new repeat-aware piece would then cost min_gap
 a little more. The hypothesis is checkable: compare min_gap's failing DC
 runs' best programs (repeat-detectors or not), or measure min_gap on
 instances without repeated values.
+
+### 87, investigation. min_gap's losses are wall timeouts plus a standing n = 1 gap, not repeat-detectors
+
+The hypothesis from the retest (repeat-detecting blocks as attractors) is
+**refuted**. Not one champion of a failing min_gap run in either arm
+contains an element `==` test or an `aux` table. The failures break down
+as follows (30-seed retest, `data/distinct_retest_20261009/`):
+
+| failure cause | base | DC |
+|---|---|---|
+| rejected: "failed exhaustively at n=1" | 8 | 9 |
+| wall timeout (180 s) | 2 | 6 |
+| other | 0 | 0 |
+| **total failures** | **10** | **15** |
+
+1. **The extra losses under DC are wall-clock timeouts.** DC's finished
+   min_gap runs average 27.5 s against base's 18.8 s, so more of them
+   cross the 180 s wall. That is a time cost. By section 62's principle
+   (time is not a gate), it is not a reachability loss.
+2. **About a third of min_gap runs fail in both arms on an n = 1 gap.**
+   - The rejected champions are the correct sort-then-min-step program,
+     53/53 at N = 8, but mutation dropped the accumulator's `= 0`
+     initialization.
+   - Training starts at n = 2, so nothing ever tests the single-element
+     case.
+   - With n = 1, the program returns whatever the sort left in that
+     variable, and the verifier's exhaustive n = 1 check rejects it.
+   - max_gap_sorted shows the same failure (4 and 3 seeds), which is why
+     both siblings swing so much at 10 seeds.
+
+   This is a standing problem-generator gap, independent of any piece.
+
+**Consequences.**
+- Sections 83 and 87's min_gap "losses" were measured through these two
+  artifacts: a wall budget and an untrained edge case. Neither is a
+  reachability cost of the pieces.
+- Follow-up, not done: training levels for array/scalar problems should
+  include n = 1 (or verification and training should agree on the
+  smallest n). That should remove most of min_gap's and
+  max_gap_sorted's variance.
