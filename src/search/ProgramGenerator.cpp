@@ -2102,14 +2102,23 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             int pass = rng.uniformInt(0, 3);  // max, min, count-if, exists
             ExprKind cmp2 = combinator::drawComparator(rng);
             int thrKind = rng.uniformInt(0, 3);  // 0, 1, 2, n / 2
+            // Section 86: first occurrences only (`cur` flags an earlier equal element).
+            bool firstOnly = pass >= 2 && cfg.combinatorFirstOccurrence && rng.chance(0.5);
             root.push_back(makeAssign(vi, lit(0)));
             appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
                 outer.push_back(makeAssign(tmp, lit(0)));
+                if (firstOnly) outer.push_back(makeAssign(cur, lit(0)));
                 outer.push_back(makeAssign(vj, lit(0)));
                 appendCountingWhile(outer, vj, bound(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
                     inner.push_back(makeIf(makeCompare(tableCmp, elem(var(vj)), elem(var(vi))),
                                            one(makeAssign(tmp, add(var(tmp), lit(1))))));
+                    if (firstOnly) {
+                        inner.push_back(makeIf(makeCompare(ExprKind::Lt, var(vj), var(vi)),
+                                               one(makeIf(makeCompare(ExprKind::Eq, elem(var(vj)), elem(var(vi))),
+                                                          one(makeAssign(cur, lit(1)))))));
+                    }
                 });
+                if (firstOnly) outer.push_back(makeIf(makeCompare(ExprKind::Eq, var(cur), lit(1)), one(makeAssign(tmp, lit(0)))));
                 outer.push_back(makeAssignAux(var(vi), var(tmp)));
             });
             // Section 82: on a max/min pass, return elem(i) or i at the best.

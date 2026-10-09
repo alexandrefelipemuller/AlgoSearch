@@ -231,6 +231,12 @@ struct GenConfig {
     // last, or the smaller element wins). CLI default since section 85
     // (`--no-combinator-argbest` turns it off); false here is byte-identical.
     bool combinatorArgBest = false;
+
+    // Section 86: on the frequency table's count-if / exists passes, half
+    // the time, keep aux[i] only at a value's first occurrence (0 when an
+    // equal element came earlier), so the pass counts values, not elements.
+    // Opt-in (`--combinator-first-occurrence`); false is byte-identical.
+    bool combinatorFirstOccurrence = false;
     bool pointerInput = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the
