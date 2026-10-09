@@ -235,8 +235,9 @@ struct GenConfig {
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first
     // occurrences reach a threshold test, counted or tested for existence.
-    // Opt-in (`--combinator-distinct`); false is byte-identical. (Replaces
-    // section 86's refuted first-occurrence filter.)
+    // CLI default since section 88 (`--no-combinator-distinct` turns it off);
+    // false here is byte-identical. (Replaces section 86's refuted
+    // first-occurrence filter.)
     bool combinatorDistinct = false;
     bool pointerInput = false;
 

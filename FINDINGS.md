@@ -6621,3 +6621,30 @@ as follows (30-seed retest, `data/distinct_retest_20261009/`):
   include n = 1 (or verification and training should agree on the
   smallest n). That should remove most of min_gap's and
   max_gap_sorted's variance.
+
+## 88. `--combinator-distinct` becomes the default by explicit decision, after section 87's investigation
+
+This decision was made after seeing the data, as an exception to section
+87's fixed rule, and is recorded as such (as in sections 62, 72, 81 and
+85).
+
+The gain predictions held with margin: values_twice 0 -> 10,
+repeated_values 3 -> 10, rare_values 0 -> 8, frequent_values 0 -> 9. The
+only failed condition was min_gap at 30 seeds (20 -> 15). The
+investigation traced the whole difference to wall-clock timeouts (2 vs 6
+of 30): min_gap runs average 27.5 s under DC against 18.8 s. That is a
+time cost, which section 62 excludes as a gate. The rest is the n = 1
+training gap, which hits both arms equally. The project owner promoted the
+flag. `--no-combinator-distinct` restores the old behavior. GenConfig's
+own default stays false, so the byte-identity tests are unchanged.
+
+**Tracking item: cumulative time cost.** Time is still not a promotion
+gate. But each promoted piece enlarges the draw space, and under a fixed
+wall budget the costs add up and eventually become reachability losses.
+Seven pieces have been promoted since section 61. Their joint cost should
+be measured next: the default battery's total wall time now against
+section 61's, reported, not gated. That will tell whether data-derived
+gates (as in section 79) are worth applying to other pieces.
+
+**Next, already identified:** close the n = 1 training gap (section 87's
+investigation).

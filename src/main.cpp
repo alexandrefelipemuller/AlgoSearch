@@ -138,7 +138,7 @@ struct CliArgs {
     bool followPointerInputsOnly = true;   // FINDINGS.md section 79
     bool combinatorOrthogonal = true;  // default since FINDINGS.md section 81; --no-combinator-orthogonal restores the old default
     bool combinatorArgBest = true;  // default since FINDINGS.md section 85; --no-combinator-argbest restores the old default
-    bool combinatorDistinct = false;  // FINDINGS.md section 87
+    bool combinatorDistinct = true;  // default since FINDINGS.md section 88; --no-combinator-distinct restores the old default
     bool combinatorStep = true;  // default since FINDINGS.md section 53; --no-combinator-step restores the old default
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
@@ -214,7 +214,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-combinator-orthogonal") args.combinatorOrthogonal = false;
         else if (arg == "--combinator-argbest") args.combinatorArgBest = true;  // now the default; kept so section 82-84 scripts still run
         else if (arg == "--no-combinator-argbest") args.combinatorArgBest = false;
-        else if (arg == "--combinator-distinct") args.combinatorDistinct = true;
+        else if (arg == "--combinator-distinct") args.combinatorDistinct = true;  // now the default; kept so section 87 scripts still run
+        else if (arg == "--no-combinator-distinct") args.combinatorDistinct = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -245,7 +246,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--combinator-distinct] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] "
