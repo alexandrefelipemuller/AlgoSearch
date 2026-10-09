@@ -42,6 +42,10 @@
 #include "problems/LeastFrequentValueProblem.hpp"
 #include "problems/LongestRunValueProblem.hpp"
 #include "problems/MajorityValueProblem.hpp"
+#include "problems/EqualPairsProblem.hpp"
+#include "problems/RareValuesProblem.hpp"
+#include "problems/RepeatedValuesProblem.hpp"
+#include "problems/SumDistinctProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -648,4 +652,46 @@ TEST(longest_run_value_problem_labels_and_reference_solution) {
     body.push_back(inc(1));
     p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(body)));
     checkProblem(problem, *finish(std::move(p)));
+}
+
+// -- Section 86 post-freeze problems: frequency v4 and an earlier-equal flag v6
+// per outer element v1; the outer step only sees first occurrences. --
+
+namespace {
+
+Program firstOccurrencePass(std::vector<StmtPtr> consume) {
+    std::vector<StmtPtr> guarded;
+    guarded.push_back(makeIf(cmp(ExprKind::Eq, var(6), lit(0)), std::move(consume)));
+    return nestedPass(false, stmts(makeAssign(4, lit(0)), makeAssign(6, lit(0))),
+                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(4))),
+                            makeIf(cmp(ExprKind::Lt, var(2), var(1)),
+                                   stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(makeAssign(6, lit(1))))))),
+                      std::move(guarded));
+}
+
+}  // namespace
+
+TEST(repeated_values_problem_labels_and_reference_solution) {
+    RepeatedValuesProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 3}), 2);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Ge, var(4), lit(2)), stmts(inc(3))))));
+}
+
+TEST(rare_values_problem_labels_and_reference_solution) {
+    RareValuesProblem problem;
+    CHECK_EQ(problem.answer({1, 2, 2, 3, 3, 3}), 2);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeIf(cmp(ExprKind::Le, var(4), lit(2)), stmts(inc(3))))));
+}
+
+TEST(sum_distinct_problem_labels_and_reference_solution) {
+    SumDistinctProblem problem;
+    CHECK_EQ(problem.answer({4, 1, 4, 2}), 7);
+    checkProblem(problem, *firstOccurrencePass(stmts(makeAssign(3, add(var(3), at(var(1)))))));
+}
+
+TEST(equal_pairs_problem_labels_and_reference_solution) {
+    EqualPairsProblem problem;
+    CHECK_EQ(problem.answer({1, 1, 1, 2, 2}), 4);
+    checkProblem(problem, *nestedPass(true, stmts(),
+                                      stmts(makeIf(cmp(ExprKind::Eq, at(var(2)), at(var(1))), stmts(inc(3)))), stmts()));
 }
