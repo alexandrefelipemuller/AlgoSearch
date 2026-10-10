@@ -63,4 +63,20 @@ public:
     int answer(const std::vector<int>& input) const override;
 };
 
+// Section 90 post-freeze ruler: the first node of the cycle the walk
+// enters; n when the walk ends at null.
+class CycleEntryProblem : public ListQueryProblem {
+public:
+    using ListQueryProblem::ListQueryProblem;
+    int answer(const std::vector<int>& input) const override;
+};
+
+// Section 90 post-freeze ruler: the node before the last node before null;
+// n when the walk has fewer than two nodes or never ends.
+class SecondLastNodeProblem : public ListQueryProblem {
+public:
+    using ListQueryProblem::ListQueryProblem;
+    int answer(const std::vector<int>& input) const override;
+};
+
 }  // namespace algosearch

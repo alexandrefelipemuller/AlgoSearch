@@ -109,3 +109,19 @@ TEST(last_node_problem_labels_and_reference_solution) {
     p->body.push_back(makeAssignArray(lit(0), var(5)));
     checkReference(problem, *p);
 }
+
+TEST(cycle_entry_and_second_last_node_labels) {
+    // Section 90 rulers: labels only (their reference programs would need
+    // the very pieces the rulers measure the absence of).
+    CycleEntryProblem entry;
+    CHECK_EQ(entry.answer({0, 1, 2, 1}), 1);  // 0 -> 1 -> 2 -> 1: enters at 1
+    CHECK_EQ(entry.answer({0, 1, 2, 3}), 3);  // ends at null: n
+    SecondLastNodeProblem second;
+    CHECK_EQ(second.answer({0, 1, 2, 3}), 1);  // 0 -> 1 -> 2 -> null
+    CHECK_EQ(second.answer({2, 3, 3, 3}), 3);  // one node only: n
+    CHECK_EQ(second.answer({0, 1, 2, 1}), 3);  // cyclic: n
+    for (int n = 1; n <= 6; ++n) {
+        for (const auto& inst : entry.generateInstances(n)) CHECK_EQ(inst.expectedOutput[0], entry.answer(inst.input));
+        for (const auto& inst : second.generateInstances(n)) CHECK_EQ(inst.expectedOutput[0], second.answer(inst.input));
+    }
+}

@@ -47,4 +47,18 @@ int LastNodeProblem::answer(const std::vector<int>& input) const {
     return (cyclic || nodes.empty()) ? n : nodes.back();
 }
 
+int CycleEntryProblem::answer(const std::vector<int>& input) const {
+    bool cyclic = false;
+    std::vector<int> nodes = walk(input, cyclic);
+    int n = static_cast<int>(input.size()) - 1;
+    return cyclic ? input[static_cast<size_t>(1 + nodes.back())] : n;
+}
+
+int SecondLastNodeProblem::answer(const std::vector<int>& input) const {
+    bool cyclic = false;
+    std::vector<int> nodes = walk(input, cyclic);
+    int n = static_cast<int>(input.size()) - 1;
+    return (cyclic || nodes.size() < 2) ? n : nodes[nodes.size() - 2];
+}
+
 }  // namespace algosearch
