@@ -6727,3 +6727,38 @@ that a forward-only confirmation let break at n = 1. With the guard,
 min_gap is 30/30. min_gap and max_gap_sorted can leave the
 "sensitive, retest at 30 seeds" list once a later battery confirms the
 stability.
+
+## 90. Follow-piece extensions: trailing node and loop length -- design registered before implementing
+
+The fourth and last of section 79's gaps. The follow piece (sections
+77-79) walks pointers but keeps neither the node before the end
+(last_node) nor a second walk around the cycle it reached (cycle_length).
+
+**`--follow-extended`** (opt-in, byte-identical when off) adds two
+relations to the follow block's draw, which becomes six-way when the flag
+is on:
+- **`Trailing`**: acc = the last in-range node visited. Before advancing,
+  `acc = p`. If the walk never ended (still in range after the v0 cap),
+  acc = nodes (the null value). An empty walk also yields nodes.
+- **`LoopLength`**: after the capped walk, if p is still in range (so
+  on a cycle), walk once more from p, counting steps until p returns to
+  where it started; acc = that count, 0 if the walk ended.
+
+**An honest limit.** These two relations are narrow, and each is close to
+one target's algorithm. No post-freeze problem I could write is reachable
+by them without being a restatement of a target. This piece therefore
+tests reach on the two targets plus two new rulers, *not* generalization.
+The cost of six-way dilution falls on cycle, walk_length and
+visits_zero, which the gate (section 79) confines to pointer-like
+inputs.
+
+**Post-freeze rulers** (written after the freeze, base-checked first):
+- `cycle_entry`: the first node of the cycle the walk enters (n if
+  none);
+- `second_last_node`: the node before the last node (n if none).
+
+**A/B.** The seven pointer-like problems (cycle, walk_length,
+visits_zero, cycle_length, last_node, graph_reachability, substring)
+plus the two rulers, 30 matched seeds, base vs FX. Non-pointer problems
+are byte-identical by section 79's gate. A 3-seed spot check confirms
+this, as in section 79.
