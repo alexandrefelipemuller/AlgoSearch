@@ -6762,3 +6762,27 @@ visits_zero, cycle_length, last_node, graph_reachability, substring)
 plus the two rulers, 30 matched seeds, base vs FX. Non-pointer problems
 are byte-identical by section 79's gate. A 3-seed spot check confirms
 this, as in section 79.
+
+### 90, base check and predictions (freeze 0f3f77d; rulers 99120da; before the A/B)
+
+**Base check** (current default, 10 seeds 42000-42009, max-n 5,
+`data/follow_ext_basecheck_20261010/`, not versioned):
+- last_node 0/10;
+- cycle_length 0/10;
+- cycle_entry 0/10;
+- second_last_node 0/10.
+
+**A/B.** The seven pointer-like problems plus the two rulers, base vs FX
+(`--follow-extended`), 30 matched seeds (43000-43029), section 79's
+budgets. Byte-identity spot check: max_gap_sorted and second_smallest,
+3 seeds. Script: `scripts/run_follow_extended_ab.sh`.
+
+**Predictions.**
+1. last_node and cycle_length: FX >= base + 15 each.
+2. cycle_entry and second_last_node: FX = 0.
+3. cycle, walk_length, visits_zero, graph_reachability, substring:
+   FX >= base - 3 each (six-way dilution of the follow relations).
+4. The spot-check logs are identical apart from timings.
+
+**Decision rule, fixed now.** If 1, 3 and 4 hold, `--follow-extended`
+becomes the default. Prediction 2 is a boundary check and does not block.
