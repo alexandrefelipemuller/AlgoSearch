@@ -6786,3 +6786,37 @@ budgets. Byte-identity spot check: max_gap_sorted and second_smallest,
 
 **Decision rule, fixed now.** If 1, 3 and 4 hold, `--follow-extended`
 becomes the default. Prediction 2 is a boundary check and does not block.
+
+### 90 (results). last_node and cycle_length 0 -> 30 of 30; nothing else moves; default
+
+`data/follow_extended_20261010/` (not versioned; 21:32-22:19). Verified
+successes of 30 matched seeds (43000-43029), base / FX:
+
+| problem | base | FX |
+|---|---|---|
+| last_node (target) | 0 | **30** |
+| cycle_length (target) | 0 | **30** |
+| cycle_entry / second_last_node (rulers) | 0 / 0 | 0 / 0 |
+| cycle, walk_length, graph_reachability, substring | 30 each | 30 each |
+| visits_zero | 22 | 23 |
+
+The byte-identity spot check passed: max_gap_sorted and second_smallest,
+3 seeds each, are identical apart from timings.
+
+- Predictions 1-4 **held**.
+- **Decision: `--follow-extended` is the CLI default.**
+  `--no-follow-extended` restores the old behavior.
+
+**Section 79's four-gap plan is complete.** Every ruler open at section
+79 is now solved by default by a generic piece:
+- max_drawdown and total_variation: orthogonal modifiers (section 81);
+- mode: arg-best (section 85);
+- values_twice: distinct counting (section 88);
+- last_node and cycle_length: follow extensions (this section).
+
+None needed a new skeleton.
+
+The open rulers now are the ones written alongside those pieces:
+sum_of_rises and sum_abs_from_first (each crossed once by search alone),
+majority_value, longest_run_value, sum_distinct, odd_frequency_values,
+cycle_entry and second_last_node.

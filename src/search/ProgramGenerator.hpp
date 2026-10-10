@@ -243,8 +243,9 @@ struct GenConfig {
 
     // Section 90: two more follow relations -- Trailing (the last in-range
     // node, or the null value when the walk never ends) and LoopLength (the
-    // length of the cycle the capped walk ended on, 0 if it ended). Opt-in
-    // (`--follow-extended`); false is byte-identical.
+    // length of the cycle the capped walk ended on, 0 if it ended). CLI
+    // default since section 90 (`--no-follow-extended` turns it off); false
+    // here is byte-identical.
     bool followExtended = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the
