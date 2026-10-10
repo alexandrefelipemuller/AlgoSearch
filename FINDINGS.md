@@ -6851,3 +6851,12 @@ should be concentrated, not uniform:
 - the median per-problem ratio on shared 10/10 problems is <= 1.5x;
 - at least one problem is >= 3x slower;
 - NEW solves at least 20 more problems x seeds than OLD.
+
+### 91, first attempt aborted
+
+The first run (`data/time_audit_20261010_aborted/`, not versioned; 757
+of 1580 runs) was stopped by hand. Unrelated applications (four JVMs and
+a qemu emulator, about 11 GB) were loading the machine during the run,
+and for a *time* audit that adds noise to both arms. The audit will be
+rerun as registered, on an otherwise idle machine. The partial data is
+kept but not reported.
