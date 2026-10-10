@@ -6820,3 +6820,34 @@ The open rulers now are the ones written alongside those pieces:
 sum_of_rises and sum_abs_from_first (each crossed once by search alone),
 majority_value, longest_run_value, sum_distinct, odd_frequency_values,
 cycle_entry and second_last_node.
+
+## 91. Cumulative time audit of the nine pieces promoted since section 61 -- design and expectations registered before running
+
+This is the tracking item from section 88. It **is not a gate**: nothing
+is promoted or demoted by it.
+
+**Arms.**
+- **OLD**: the default as of section 61, with all nine pieces off:
+  `--no-combinator-state --no-combinator-nested
+  --no-combinator-frequency --no-follow-pointer-inputs
+  --no-combinator-orthogonal --no-combinator-argbest
+  --no-combinator-distinct --regression-guard 0 --no-follow-extended`.
+- **NEW**: the current default.
+
+**Problems and settings.** Every registered array/scalar problem plus the
+seven list/pointer problems and their rulers. 10 matched seeds
+(44000-44009), section 71's budgets, `--step-limit 20000`, per-seed
+`--benchmark`. Script: `scripts/run_time_audit.sh`.
+
+**Reported:**
+- total wall time of finished runs;
+- wall timeouts;
+- verified successes per arm;
+- per-problem mean wall ratio NEW/OLD on problems both arms solve 10/10,
+  as the median ratio and the five slowest.
+
+**Expectations, registered so the result can surprise.** The time cost
+should be concentrated, not uniform:
+- the median per-problem ratio on shared 10/10 problems is <= 1.5x;
+- at least one problem is >= 3x slower;
+- NEW solves at least 20 more problems x seeds than OLD.
