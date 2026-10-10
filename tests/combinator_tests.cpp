@@ -341,3 +341,38 @@ TEST(distinct_count_piece_counts_distinct_values) {
     }
     CHECK(found > 0);
 }
+
+TEST(follow_extended_is_byte_identical_when_off) {
+    // Section 90: the two extra follow relations are drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.combinatorFollow = b.combinatorFollow = true;
+    b.followExtended = false;
+    Random ra(90), rb(90);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(follow_extended_emits_trailing_and_loop_length_walks) {
+    // With the flag on, some follow block reports the last node before null
+    // ({0, 1, 2, 3}: 0 -> 1 -> 2 -> null gives 2) and some the cycle length
+    // ({0, 1, 2, 1}: cycle 1 -> 2 -> 1 gives 2; {0, 1, 2, 3} gives 0).
+    Random rng(91);
+    GenConfig cfg = combinatorOnly();
+    cfg.combinatorFollow = true;
+    cfg.followExtended = true;
+    cfg.maxLoops = 4;
+    Interpreter interp(100000);
+    auto runs = [&](const Stmt& p, const std::vector<int>& in, int want) {
+        std::vector<int> out;
+        return interp.run(p, in, cfg.numVars, out) == RunStatus::COMPLETED && out[0] == want;
+    };
+    int trailing = 0, loops = 0;
+    for (int i = 0; i < 20000 && (trailing == 0 || loops == 0); ++i) {
+        Program p = generateRandomProgram(rng, 2, cfg);
+        trailing += runs(*p, {0, 1, 2, 3}, 2) && runs(*p, {0, 1, 2, 1}, 3) && runs(*p, {2, 3, 3, 0}, 0);
+        loops += runs(*p, {0, 1, 2, 1}, 2) && runs(*p, {0, 1, 2, 3}, 0) && runs(*p, {0, 1, 2, 0}, 3);
+    }
+    CHECK(trailing > 0);
+    CHECK(loops > 0);
+}

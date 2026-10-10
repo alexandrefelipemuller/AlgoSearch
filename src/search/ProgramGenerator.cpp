@@ -2228,7 +2228,8 @@ StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     };
     bool headPrefixed = rng.chance(0.5);
     int base = headPrefixed ? 1 : 0;
-    int relation = rng.uniformInt(0, 3);  // CountSteps, StillInRange, VisitsKey, TwoSpeed
+    // CountSteps, StillInRange, VisitsKey, TwoSpeed; section 90 adds Trailing, LoopLength.
+    int relation = rng.uniformInt(0, cfg.followExtended ? 5 : 3);
     int key = rng.uniformInt(0, 2);
     auto next = [&](int x) { return makeArrayAccess(makeBinOp(ExprKind::Add, lit(base), var(x))); };
     // if (x < 0) break; if (x >= nodes) break;
@@ -2242,8 +2243,10 @@ StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     root.push_back(makeAssign(q, var(p)));
     root.push_back(makeAssign(steps, lit(0)));
     root.push_back(makeAssign(acc, lit(0)));
+    if (relation == 4) root.push_back(makeAssign(acc, var(nodes)));  // Trailing: null until a node is seen
     std::vector<StmtPtr> body;
     guard(body, p);
+    if (relation == 4) body.push_back(makeAssign(acc, var(p)));
     if (relation == 2) body.push_back(makeIf(makeCompare(ExprKind::Eq, var(p), lit(key)), one(makeAssign(acc, lit(1)))));
     body.push_back(makeAssign(p, next(p)));
     if (relation == 3) {
@@ -2260,9 +2263,26 @@ StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     loopsUsed++;
     root.push_back(makeWhile(makeCompare(ExprKind::Lt, var(steps), var(0)), std::move(body)));
     if (relation == 0) root.push_back(makeAssign(acc, var(steps)));
-    if (relation == 1) {
+    // `onCycle` runs only if the walk never ended (p still in range).
+    auto ifStillInRange = [&](std::vector<StmtPtr> onCycle) {
         root.push_back(makeIf(makeCompare(ExprKind::Le, lit(0), var(p)),
-                              one(makeIf(makeCompare(ExprKind::Lt, var(p), var(nodes)), one(makeAssign(acc, lit(1)))))));
+                              one(makeIf(makeCompare(ExprKind::Lt, var(p), var(nodes)), std::move(onCycle)))));
+    };
+    if (relation == 1) ifStillInRange(one(makeAssign(acc, lit(1))));
+    if (relation == 4) ifStillInRange(one(makeAssign(acc, var(nodes))));
+    if (relation == 5) {
+        // q = p; steps = 0; while (steps < v0) { p = next(p); acc++; if (p == q) break; steps++ }
+        std::vector<StmtPtr> loop;
+        loop.push_back(makeAssign(p, next(p)));
+        loop.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, var(acc), lit(1))));
+        loop.push_back(makeIf(makeCompare(ExprKind::Eq, var(p), var(q)), one(makeBreak())));
+        loop.push_back(makeAssign(steps, makeBinOp(ExprKind::Add, var(steps), lit(1))));
+        std::vector<StmtPtr> onCycle;
+        onCycle.push_back(makeAssign(q, var(p)));
+        onCycle.push_back(makeAssign(steps, lit(0)));
+        loopsUsed++;
+        onCycle.push_back(makeWhile(makeCompare(ExprKind::Lt, var(steps), var(0)), std::move(loop)));
+        ifStillInRange(std::move(onCycle));
     }
     root.push_back(makeAssignArray(lit(0), var(acc)));
     auto block = makeBlock();
