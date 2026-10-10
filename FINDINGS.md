@@ -6860,3 +6860,50 @@ a qemu emulator, about 11 GB) were loading the machine during the run,
 and for a *time* audit that adds noise to both arms. The audit will be
 rerun as registered, on an otherwise idle machine. The partial data is
 kept but not reported.
+
+### 91 (results). The nine pieces cost 1.08x median on shared problems, and the default as a whole is now faster: 709 vs 332 solved, 53 vs 322 timeouts
+
+`data/time_audit_20261010/` (not versioned; 23:30-02:48, idle machine,
+1580 runs, 79 problems x 10 seeds x 2 arms):
+
+| | OLD (section 61 default) | NEW (current default) |
+|---|---|---|
+| verified successes (of 790) | 332 | **709** |
+| wall timeouts (180-240 s) | 322 | **53** |
+| finished-run wall total | 12,921 s over 468 runs | **5,126 s over 737 runs** |
+
+**Shared 10/10 problems (31).** Median per-problem wall ratio NEW/OLD
+**1.08**.
+- Slowest five:
+  - min_step 3.15x (1.25 s -> 3.93 s);
+  - has_adjacent_equal 2.03x;
+  - max_rise 1.96x;
+  - max 1.92x (0.13 s -> 0.24 s);
+  - count_runs 1.78x.
+- Fastest:
+  - reverse 0.58x;
+  - sum 0.81x;
+  - sorting 0.83x.
+
+**Changed problems.** All 40 went *up*; none went down. Mostly 0 -> 10:
+the nested, frequency, follow, orthogonal, arg-best, distinct and state
+targets and their post-freeze problems, plus min_gap 3 -> 10,
+max_gap_sorted 4 -> 10, count_distinct 1 -> 10 and second_smallest
+9 -> 10 (the regression guard).
+
+**Expectations.** All three held:
+- median <= 1.5x (1.08);
+- at least one problem >= 3x (min_step);
+- NEW solves >= 20 more (+377).
+
+**Reading.**
+- The per-problem time cost of nine promoted pieces is small and
+  concentrated: a handful of adjacent-pass problems at 2-3x, all still a
+  few seconds.
+- The battery as a whole got much *cheaper*. OLD spends most of its
+  wall budget timing out on the 40 problems it cannot solve. NEW solves
+  them, often in seconds.
+- Section 88's worry, that accumulated pieces might turn time cost into
+  reachability loss, is not borne out at this point. No gate is needed
+  now. min_step (3.15x) is the candidate to watch if a future piece
+  slows adjacent passes further.
