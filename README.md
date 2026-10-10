@@ -89,7 +89,10 @@ max_drawdown, total_variation and largest_drop_step (section 80);
 is, default since section 85) solves mode, least_frequent_value and
 argmax_index (section 82); `--no-combinator-argbest` turns it off. Distinct counting (default
 since section 88) solves values_twice, repeated_values, rare_values and
-frequent_values (section 87); `--no-combinator-distinct` turns it off.
+frequent_values (section 87); `--no-combinator-distinct` turns it off. Every level's scoring set
+also holds the first 12 instances of each earlier level (`--regression-guard
+12`, default since section 89), so a champion can no longer break smaller
+n unnoticed; `--regression-guard 0` turns it off.
 Every row is a solution that survived `--benchmark`'s independent adversarial
 re-check, not just the training score. "Time to generate" is the search
 wall-clock time per seed (mean across the 5 benchmark seeds) on an 8-core

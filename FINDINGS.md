@@ -6691,3 +6691,39 @@ instances per evaluation.
 **Decision rule, fixed now.** If 1, 2 and 3 hold, `--regression-guard 12`
 becomes the default. Time is not a gate, but RG's wall cost will be
 reported, per section 88's tracking item.
+
+## 89 (results). The guard removes every n = 1 rejection: min_gap 18 -> 30 of 30, no regression, no extra wall time; default
+
+`data/regression_guard_20261009/` (not versioned; 19:42-21:23; 1580 runs).
+
+**(i), 30 matched seeds (40000-40029):**
+
+| problem | arm | verified | n = 1 rejections | wall timeouts |
+|---|---|---|---|---|
+| min_gap | base | 18 | 11 | 1 |
+| min_gap | RG | **30** | **0** | 0 |
+| max_gap_sorted | base | 26 | 2 | 2 |
+| max_gap_sorted | RG | **29** | **0** | 1 |
+
+**(ii), every registered array/scalar problem, 10 matched seeds
+(41000-41009).** The only differences are gains: lis 9 -> 10, min_gap
+7 -> 8, rare_values 9 -> 10. Finished-run wall time: base 3642 s over 668
+runs, RG 3398 s over 666 runs. Wall timeouts: 62 and 65.
+
+- Prediction 1 **held**: n = 1 rejections fell from 11 and 2 to 0 and 0.
+- Prediction 2 **held**: min_gap +12, max_gap_sorted +3.
+- Prediction 3 **held**: no drop at all.
+- **Decision: `--regression-guard 12` is the CLI default.**
+  `--regression-guard 0` restores the old behavior.
+
+**The cost is nil here.** A battery-wide wall time 7% *lower* is within
+noise. The smoke test's 2x on one seed did not generalize, probably
+because the guard also prunes broken lineages earlier.
+
+**What it says about earlier sections.** min_gap's notorious instability
+(sections 56, 71, 75, 82-88) and max_gap_sorted's (56, 75, 77-78) were
+mostly this gap. About a third of their seeds produced a correct program
+that a forward-only confirmation let break at n = 1. With the guard,
+min_gap is 30/30. min_gap and max_gap_sorted can leave the
+"sensitive, retest at 30 seeds" list once a later battery confirms the
+stability.
