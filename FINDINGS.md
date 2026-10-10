@@ -6907,3 +6907,50 @@ max_gap_sorted 4 -> 10, count_distinct 1 -> 10 and second_smallest
   reachability loss, is not borne out at this point. No gate is needed
   now. min_step (3.15x) is the candidate to watch if a future piece
   slows adjacent passes further.
+
+## 92. Long sorting run (5 h) after sections 45-91: heap sort in a minute, still two algorithm families, stall at N=37
+
+**Run.** `scripts/run_sorting_20h.sh data/sorting_5h_20261010_b 18000` --
+section 29's exact profile (seed 42, beam 500, candidates 3000,
+`--post-solve-sizes 150 --composite-bias 0.15 --recursion-call-bias 0.1
+--second-array-bias 0.05`, all niche/crossover rates) on top of the
+current combinator defaults. Ended by `timeout` (exit 124) after 5 h. A
+first attempt (`data/sorting_5h_20261010/`) was killed at 2 h by the tool
+harness's background limit, not by the search; it had reached the same
+N=37.
+
+**Triage tool.** `scripts/triage_sorting.py RUN_DIR` re-executes every
+archived program outside the engine (Python port of `Interpreter.cpp`:
+C-truncating `/` `%`, 200-deep `call`, v1/v2 seeded to 0/n), on fresh
+inputs up to n=256 (duplicates, negatives, sorted, reversed, constant),
+fits the step-count exponent over n=32..256, and groups programs by a
+hash of their full sequence of array/aux mutations (no-op writes
+ignored). Same class = same swaps in the same order = one algorithm
+modulo renaming and dead code. Writes `triage.md`/`triage.json`.
+
+**Results.**
+- Progress: N=32 in ~1 min, N=37 in < 2 h, then stuck at N=37 for ~3 h
+  (best score 467/467, best size growing 949 -> 1122, no promotion);
+  reached N=38 only in the last minutes. Section 29's growth stall
+  persists, one level earlier.
+- Archive: 1252 records, 598 distinct `program_id`.
+  - All 188 `SUCCESS` programs generalize (no false positive).
+  - All 410 `UNCONFIRMED` (N=1-2 windows) fail held-out tests, as expected.
+- 13 behavior classes, **2 algorithm families**:
+  - selection sort (N=2, exponent 1.97, 464k steps at n=256), 3 programs;
+  - heap sort (exponent ~1.23, ~82k steps at n=256, 5.6x cheaper), 185
+    programs. 4 classes at N=32 are genuine sift-down variants. 8 classes
+    at N=37 (419-1094 nodes, identical 82561-82563 steps) are the N=32
+    heap sort behind a junk prefix that swaps a few leading elements and
+    writes `aux` cells nothing reads.
+- Zero programs use `call`: no merge sort, quicksort or insertion sort.
+  `aux` appears only as inert writes.
+
+**Reading.**
+- Reachability improved sharply: heap sort in ~1 min vs hours in
+  section 29, and every confirmed program is genuinely correct.
+- Algorithmic diversity did not improve. Archive growth past N=32 is
+  bloat on one heap sort, not new algorithms.
+- A single long run spends most of its budget stuck on one level.
+  Next: many short seeds (section 93) to test whether diversity comes
+  from seed variety rather than budget.
