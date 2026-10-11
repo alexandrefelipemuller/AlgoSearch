@@ -7182,3 +7182,43 @@ Diversity here is bounded by the search order (smallest program first),
 not by budget or seeds. Finding the slower algorithms would need an
 explicit novelty objective (e.g. reward a correct program whose cost
 profile differs from every archived one), not more restarts.
+
+## 97. `--confirm-reseed L` (opt-in): fresh-seed confirmation catches one of section 96's two control false positives
+
+**Mechanism.** `SearchConfig::confirmProblem`/`confirmReseedLevels`: before
+labeling `SUCCESS`, the program must also pass the training and adversarial
+instances of levels 1..L of the same problem built with seed
+`seed ^ 0x5bd1e995` (new inputs that stay valid for the problem: graphs,
+TSP and so on). Labels only, like the invariance gate. Tests
+`confirm_reseed_unconfirms_a_program_that_fails_fresh_seed_instances` and
+`confirm_reseed_keeps_success_when_fresh_instances_pass`; `make test` 193/193.
+
+**Alternatives rejected first** (Python replay of the three section 96
+false positives):
+- Benchmark's exhaustive small-n check (all arrays over [-1, 2], n <= 6)
+  catches 1/3; over [-3, 3], n <= 5, 2/3.
+- Fresh-seed instances modelled on `ScalarFromArrayProblem` catch 2/3 for
+  10 of 10 seeds once L >= 12.
+
+**Run.** Section 96's control rerun with `--confirm-reseed 12`
+(`EXTRA="--confirm-reseed 12" PROBLEM=max_subarray_sum MAX_N=64
+scripts/run_sorting_seeds.sh data/msub_seeds_reseed_20261011 1200`).
+
+- Archives identical to `data/msub_seeds_20261011` (same program_id and
+  level in every seed): labels only, as designed.
+- All 1008 triage-correct `SUCCESS` programs keep `SUCCESS`.
+- 1 of 2 false positives becomes `UNCONFIRMED` (breaks on fresh N=4
+  instances).
+- The other stays: Kadane plus a Fibonacci-like loop bounded by `arr[0]`
+  that overflows only for large values (`[193, -459, -499]`). Every
+  instance the problem generates, any seed, keeps values in about
+  [-2n, 7n]. Within the problem's own input distribution the program is
+  correct, so no seed change can catch it. It is a value-range
+  generalization question, not a verifier bug; scaling inputs would fix it
+  only for problems where any integer array is valid, so it is not done
+  here.
+
+**Decision.** Opt-in for now. It costs nothing in discovery (identical
+search) and removes a real class of mislabels, so it is a candidate
+default, to be decided by the user (verification, not discovery, so the
+usual merge rule does not apply directly).

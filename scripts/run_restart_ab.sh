@@ -5,7 +5,8 @@
 # via --wall-seconds 9600; master seed fixed for replay. Arms run
 # sequentially (each uses every thread). Triage with scripts/triage_sorting.py.
 #
-# PROBLEM and MAX_N env vars override sorting / 3000 (section 96).
+# PROBLEM and MAX_N env vars override sorting / 3000 (section 96); EXTRA
+# appends flags (section 97).
 # Usage: scripts/run_restart_ab.sh [output_root] [K...]
 
 set -uo pipefail
@@ -28,7 +29,7 @@ for k in "${KS[@]}"; do
     --post-solve-sizes 150 --composite-bias 0.15 --recursion-call-bias 0.1 \
     --second-array-bias 0.05 --diversity-rate 0.1 --crossover-rate 0.05 \
     --shape-niche-rate 0.05 --behavior-niche-rate 0.05 --speed-bonus-weight 0.02 \
-    --threads 0 --restart-on-stall "$k" --wall-seconds 9600 \
+    --threads 0 ${EXTRA:-} --restart-on-stall "$k" --wall-seconds 9600 \
     --output "$dir/solutions.json" --checkpoint-path "$dir/solutions.json" \
     > "$dir/log.txt" 2>&1
   rc=$?

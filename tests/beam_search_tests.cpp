@@ -464,3 +464,61 @@ TEST(restart_on_stall_restarts_a_run_that_solves_every_level) {
     CHECK(search.restarts() >= 2);
     CHECK_EQ(solutions.size(), static_cast<size_t>(3));  // program@level dedup across runs
 }
+
+namespace {
+
+// Section 97: every input value equals the problem's seed and output[0]
+// must be 0, so the no-op program solves every level with seed 0 but fails
+// every fresh instance built with any other seed -- a stand-in for a
+// value-gated junk branch the fixed instance set never triggers.
+class SeedValuedProblem : public Problem {
+public:
+    explicit SeedValuedProblem(int seed) : seed_(seed) {}
+    std::vector<Instance> generateInstances(int level) const override {
+        return {Instance{std::vector<int>(static_cast<size_t>(level), seed_), {0}}};
+    }
+    std::string describeLevel(int level) const override { return "N = " + std::to_string(level); }
+    int nextLevel(int level) const override { return level + 1; }
+    bool isSolution(const std::vector<int>&, const std::vector<int>& output) const override {
+        return !output.empty() && output[0] == 0;
+    }
+    int numVars() const override { return 3; }
+
+private:
+    int seed_;
+};
+
+SearchConfig reseedConfig() {
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 2;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 5;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 3;
+    return cfg;
+}
+
+}  // namespace
+
+TEST(confirm_reseed_unconfirms_a_program_that_fails_fresh_seed_instances) {
+    SeedValuedProblem problem(0), fresh(5);
+    SearchConfig cfg = reseedConfig();
+    cfg.confirmProblem = &fresh;
+    cfg.confirmReseedLevels = 3;
+    auto solutions = BeamSearch(problem, cfg).run();
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.front().finalStatus, std::string("UNCONFIRMED"));
+}
+
+TEST(confirm_reseed_keeps_success_when_fresh_instances_pass) {
+    SeedValuedProblem problem(0), fresh(0);
+    SearchConfig cfg = reseedConfig();
+    cfg.confirmProblem = &fresh;
+    cfg.confirmReseedLevels = 3;
+    auto solutions = BeamSearch(problem, cfg).run();
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.front().finalStatus, std::string("SUCCESS"));
+}

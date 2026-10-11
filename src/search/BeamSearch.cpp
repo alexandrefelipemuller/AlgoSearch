@@ -867,8 +867,32 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             // instances. What the gate actually changes is which cascades
             // get labeled a confirmed, validated algorithm vs. a provisional
             // fit -- pure bookkeeping on top of unchanged search dynamics.
-            std::string status = invarianceHolds ? "SUCCESS" : "UNCONFIRMED";
-            if (!invarianceHolds && !lookaheadPossible) {
+            // Section 97: a program that passes the invariance check must
+            // also pass the training and adversarial instances of the first
+            // confirmReseedLevels levels of the same problem built with
+            // another seed (fresh inputs, still valid for the problem).
+            // Catches value-gated junk branches the fixed instance sets never
+            // trigger. Labels only, like the invariance gate.
+            int reseedFailLevel = 0;
+            if (invarianceHolds && config_.confirmProblem && config_.confirmReseedLevels > 0) {
+                int checked = 0;
+                for (int l = config_.startLevel; l <= level && checked < config_.confirmReseedLevels && !reseedFailLevel;
+                     l = problem_.nextLevel(l), ++checked) {
+                    std::vector<Instance> fresh = config_.confirmProblem->generateInstances(l);
+                    for (auto& inst : config_.confirmProblem->generateAdversarialInstances(l)) fresh.push_back(std::move(inst));
+                    for (const auto& inst : fresh) {
+                        if (problem_.evaluate(*provenProgram, inst, interp).status != ExecStatus::SUCCESS) {
+                            reseedFailLevel = l;
+                            break;
+                        }
+                    }
+                }
+            }
+            std::string status = invarianceHolds && !reseedFailLevel ? "SUCCESS" : "UNCONFIRMED";
+            if (reseedFailLevel) {
+                log::info("  UNCONFIRMED (fails reseeded confirmation): breaks on fresh N=" +
+                          std::to_string(reseedFailLevel) + " instances from another seed");
+            } else if (!invarianceHolds && !lookaheadPossible) {
                 log::info("  UNCONFIRMED (no lookahead possible): first solves N=" + std::to_string(currentLevel) +
                           " at the maximum level, so nothing beyond it can confirm the program generalizes");
             } else if (!invarianceHolds) {

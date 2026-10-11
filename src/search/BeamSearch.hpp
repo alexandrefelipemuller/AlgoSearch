@@ -242,6 +242,11 @@ struct SearchConfig {
     // Stop cleanly (archive kept, normal exit) once this much wall time has
     // elapsed. 0 = no limit, as before.
     double wallSeconds = 0.0;
+    // Section 97: when set and confirmReseedLevels > 0, SUCCESS also needs
+    // the instances of the first confirmReseedLevels levels of this
+    // problem built with another seed (not owned). nullptr/0 = off.
+    const Problem* confirmProblem = nullptr;
+    int confirmReseedLevels = 0;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.

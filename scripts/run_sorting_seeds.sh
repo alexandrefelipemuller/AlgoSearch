@@ -5,7 +5,8 @@
 # variety rather than from one long budget, which section 92 showed stalls.
 # Triage each with scripts/triage_sorting.py.
 #
-# PROBLEM and MAX_N env vars override sorting / 3000 (section 96).
+# PROBLEM and MAX_N env vars override sorting / 3000 (section 96); EXTRA
+# appends flags (section 97).
 # Usage: scripts/run_sorting_seeds.sh [output_root] [wall_seconds_per_seed] [seeds...]
 
 set -uo pipefail
@@ -29,7 +30,7 @@ for seed in "${SEEDS[@]}"; do
     --post-solve-sizes 150 --composite-bias 0.15 --recursion-call-bias 0.1 \
     --second-array-bias 0.05 --diversity-rate 0.1 --crossover-rate 0.05 \
     --shape-niche-rate 0.05 --behavior-niche-rate 0.05 --speed-bonus-weight 0.02 \
-    --threads 0 \
+    --threads 0 ${EXTRA:-} \
     --output "$dir/solutions.json" --checkpoint-path "$dir/solutions.json" \
     > "$dir/log.txt" 2>&1
   rc=$?
