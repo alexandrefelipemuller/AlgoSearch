@@ -7222,3 +7222,57 @@ scripts/run_sorting_seeds.sh data/msub_seeds_reseed_20261011 1200`).
 search) and removes a real class of mislabels, so it is a candidate
 default, to be decided by the user (verification, not discovery, so the
 usual merge rule does not apply directly).
+
+## 98. Cost-profile novelty -- design registered before implementing
+
+**Problem** (sections 92-96). More budget, more seeds and restarts only
+multiply variants of the algorithms already found. On max_subarray_sum the
+smallest correct program (Kadane, ~45 nodes, N=2) wins the size-ordered
+race; the divergence window then archives Kadane with different junk,
+because it accepts any new program text that solves the current N. Also,
+every run since section 92 used `--speed-bonus-weight 0.02`, which rewards
+the fastest correct program and so actively pushes away from O(n^2)/O(n^3)
+alternatives.
+
+**Profile.** For a candidate that fully solves the current level, run it on
+the instances of three probe levels (current N, 2N, 4N, capped at
+`--max-n`) and record mean interpreter steps per level. The profile is
+`(log steps(N), fitted exponent over the three levels)`. Generic: any
+problem with levels, no problem-specific code. Cost: computed only for
+full-solve candidates in the top of the scored pool, not for every
+candidate.
+
+**Mechanism** (opt-in `--profile-novelty W`):
+1. Archive gate: during the divergence window a new champion is archived
+   only if its exponent differs from every archived champion's by more than
+   0.3, or its log-steps by more than log(1.5). This replaces "new program
+   text" and removes junk padding from the archive.
+2. Fitness bonus: a full-solve candidate gets `+ W * min(1, d / 0.5)`,
+   where d is its exponent distance to the nearest archived champion. It
+   is added after the speed bonus, so it can outweigh it.
+3. Nothing changes outside the divergence window or before the first full
+   solve of a level.
+
+**A/B** (matched seeds 1-8, section 96 control protocol, max-n 64):
+- max_subarray_sum: control (current profile) vs `--profile-novelty 0.5`;
+  also an arm with `--speed-bonus-weight 0` and no novelty, to separate
+  "the speed bonus suppresses slow algorithms" from "novelty finds them".
+- sorting (seeds 1-8, 20 min each): control vs `--profile-novelty 0.5`.
+- Metric: families by `scripts/triage_sorting.py` (exponent ~1, ~2, ~3,
+  n log n), classes, archive size.
+
+**Predictions.**
+1. max_subarray_sum with novelty archives at least one quadratic (exponent
+   ~2) correct program in at least 4 of 8 seeds; control archives none.
+2. The speed-bonus-off arm alone archives no quadratic program: the size
+   ordering, not the speed bonus, is the main blocker.
+3. Archive sizes drop sharply under the novelty gate (junk variants no
+   longer archived), with no loss of families.
+4. Sorting: no new family (merge/quick need live recursion), but the
+   exchange sort (exponent 2, steps differ from selection by ~1.5x) is
+   archived in more seeds than control's 7 of 8 -- weak prediction.
+
+**Falsification.** If prediction 1 fails, cost-profile novelty is not
+enough on its own: slower algorithms never reach a full solve inside the
+window. The next lever would then be partial credit for not-yet-correct
+programs with a novel profile.
