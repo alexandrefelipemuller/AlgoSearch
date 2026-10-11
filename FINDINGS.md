@@ -7064,3 +7064,39 @@ archive heap sort, and any program that really recurses.
 **Decision rule** (merge policy): promote to default only if a K arm finds
 a family control does not, or matches families with strictly more classes
 and a higher heap-sort rate. Otherwise keep it opt-in.
+
+## 95 (results). Restarts reach heap sort in every run but add no family; stays opt-in
+
+**Runs** (`data/restart_ab_20261011/`, 9600 s each, master seed 1):
+- K=200: 3 restarts (stalls at best N=38, 37, 39), 4 runs; last run at N=37.
+- K=300: 2 restarts (best N=38, 37), 3 runs; last run at N=39.
+- Restart seeds are identical across arms (same master stream), as designed.
+
+| arm | runs | runs with heap sort | families | behavior classes | generalizing programs |
+|---|---|---|---|---|---|
+| control (sec. 93) | 8 | 5 (62%) | selection, exchange, heap | 19 | 1664 |
+| K=200 | 4 | 4 (100%) | selection, exchange, heap | 20 | 949 |
+| K=300 | 3 | 3 (100%) | selection, exchange, heap | 19 | 701 |
+
+- Exchange sort only in the first run (seed 1) of each arm; none of the
+  three restart seeds archived it (control: 7 of 8 seeds).
+- 165 (K=200) / 116 (K=300) generalizing programs contain `call`, but the
+  triage counts zero executed recursive calls in every one: dead code.
+
+**Predictions.**
+1. 3-6 runs per arm: held (4 and 3).
+2. Same 3 families, no real recursion: held.
+3. Heap sort in >= 80% of runs: held (100% vs 62%).
+4. Classes vs 19: 20 and 19, a tie.
+
+**Decision.** No new family and no clear gain in classes, so the merge
+rule is not met: `--restart-on-stall` stays opt-in. What it does buy is
+reliability: every run reaches heap sort, because no run is cut before it
+stops climbing. It loses runs, though: the N=32-39 plateau costs K steps
+(~30-40 min) before each restart, so a run takes 40-55 min vs a 20-min slice.
+Fixed slices give more seeds and so more cheap selection/exchange variants.
+
+**Reading.** On sorting, how the budget is split into seeds does not
+change the three-family ceiling. Getting past it needs a new generation
+lever (e.g. making `call` reachable as live code), not a different budget
+schedule.
