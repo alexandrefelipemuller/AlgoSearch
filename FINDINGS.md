@@ -7276,3 +7276,8 @@ candidate.
 enough on its own: slower algorithms never reach a full solve inside the
 window. The next lever would then be partial credit for not-yet-correct
 programs with a novel profile.
+
+## 97 (decision). `--confirm-reseed 12` is the default
+
+By the user's decision (verification, not discovery; identical search,
+section 97). `--confirm-reseed 0` restores the old labeling.

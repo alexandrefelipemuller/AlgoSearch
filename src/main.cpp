@@ -108,7 +108,7 @@ struct CliArgs {
     bool seedGiven = false;
     int restartOnStall = 0;  // section 94
     double wallSeconds = 0.0;
-    int confirmReseed = 0;  // section 97
+    int confirmReseed = 12;  // default since section 97; --confirm-reseed 0 turns it off
     int startLevel = 1;
     int candidatesPerSize = 800;
     int numVars = 4;
