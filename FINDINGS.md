@@ -7281,3 +7281,42 @@ programs with a novel profile.
 
 By the user's decision (verification, not discovery; identical search,
 section 97). `--confirm-reseed 0` restores the old labeling.
+
+## 98 (implementation). `--profile-novelty W`, and the search pads to game it
+
+Implemented as registered (`b2e42f0` plus the reduction below; off by
+default, byte-identical: sorting seed 3, max-n 12, `--post-solve-sizes 10`,
+same log md5 as the previous HEAD build; `make test` 194/194, new test
+`profile_novelty_archives_fewer_alternative_champions`).
+
+**Smoke runs on max_subarray_sum** (seed 1, max-n 64, 600 s, W=0.5):
+1. Profile on the whole program (`data/novelty_smoketest_20261011`): the
+   archive held a "quadratic" correct program (exponent 1.97). It was
+   Kadane, answer already in `arr[0]`, followed by an O(n^2) loop swapping
+   `arr[1..]` -- cost padding, not an algorithm.
+2. Profile on the shortest correct top-level prefix
+   (`data/novelty_smoketest2_20261011`): the search moved the padding in
+   front -- an O(n^2) block writing `aux` that nothing reads, then Kadane
+   (exponent 1.92).
+3. Profile on a greedy reduction (`data/novelty_smoketest3_20261011`):
+   delete, deepest statement lists first, every statement at any depth
+   whose removal keeps every probe instance correct, then profile what is
+   left. Result: 300 alternative champions rejected as known profile,
+   only Kadane archived (2 program ids, vs hundreds without the gate).
+
+**Reading.** Cost-profile novelty is a strong selection pressure and the
+search satisfies it the cheapest way: padding a known algorithm with junk
+work, wherever junk is not removed. Any novelty or speed-diversity signal
+must be measured on a reduced program. The triage now does the same
+(`core exp` column, `removed_statements`): both padded programs above
+reduce to exponent ~1.0, so section 92-96 families are unaffected (their
+families were already read from code).
+
+**A/B launched** as registered, with the reduction in place:
+`EXTRA=... scripts/run_sorting_seeds.sh`, seeds 1-8, 20 min max each:
+- `data/novelty_msub_20261011`: max_subarray_sum, max-n 64, W=0.5;
+- `data/speedoff_msub_20261011`: max_subarray_sum, max-n 64,
+  `--speed-bonus-weight 0`, no novelty;
+- `data/novelty_sorting_20261011`: sorting, W=0.5.
+Controls: `data/msub_seeds_reseed_20261011` (identical search to section
+96's control, current default labels) and section 93.

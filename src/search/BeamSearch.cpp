@@ -274,8 +274,8 @@ struct CostProfile {
 
 constexpr size_t profileProbeInstances = 8;
 
-CostProfile costProfile(const Stmt& program, const Problem& problem, const Interpreter& probeInterp, int level,
-                        int maxLevel, std::map<int, std::vector<Instance>>& probeCache) {
+CostProfile profileOf(const Stmt& program, const Problem& problem, const Interpreter& probeInterp, int level,
+                      int maxLevel, std::map<int, std::vector<Instance>>& probeCache) {
     CostProfile p;
     std::vector<double> xs, ys;
     std::vector<int> output;
@@ -310,6 +310,45 @@ CostProfile costProfile(const Stmt& program, const Problem& problem, const Inter
     p.exponent = p.valid ? num / den : 0.0;
     p.logSteps = ys.back();
     return p;
+}
+
+// Every statement list in `s` (bodies and else-bodies at any depth), the
+// outermost first.
+void collectBodies(Stmt& s, std::vector<std::vector<StmtPtr>*>& out) {
+    out.push_back(&s.body);
+    if (!s.elseBody.empty()) out.push_back(&s.elseBody);
+    for (auto& c : s.body) collectBodies(*c, out);
+    for (auto& c : s.elseBody) collectBodies(*c, out);
+}
+
+// The profile of `program` after greedily deleting every statement, at any
+// depth, whose removal keeps all probe instances correct (one pass, deepest
+// lists and last statements first). Junk work anywhere -- before the
+// algorithm, after the answer is final, or nested inside it -- is removed,
+// so a cost profile cannot be made novel by padding a known algorithm
+// (section 98 smoke runs: the search padded Kadane with O(n^2) junk loops
+// both after and before it).
+CostProfile costProfile(const Stmt& program, const Problem& problem, const Interpreter& probeInterp, int level,
+                        int maxLevel, std::map<int, std::vector<Instance>>& probeCache) {
+    CostProfile best = profileOf(program, problem, probeInterp, level, maxLevel, probeCache);
+    if (!best.valid) return best;
+    StmtPtr reduced = program.clone();
+    std::vector<std::vector<StmtPtr>*> bodies;
+    collectBodies(*reduced, bodies);
+    for (auto it = bodies.rbegin(); it != bodies.rend(); ++it) {
+        std::vector<StmtPtr>& body = **it;
+        for (size_t i = body.size(); i-- > 0;) {
+            StmtPtr removed = std::move(body[i]);
+            body.erase(body.begin() + static_cast<long>(i));
+            CostProfile p = profileOf(*reduced, problem, probeInterp, level, maxLevel, probeCache);
+            if (p.valid) {
+                best = p;  // the deleted statement (and anything nested in it) was not needed
+            } else {
+                body.insert(body.begin() + static_cast<long>(i), std::move(removed));
+            }
+        }
+    }
+    return best;
 }
 
 // Distance in exponent to the nearest archived profile (infinity if none).

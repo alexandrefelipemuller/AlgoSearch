@@ -20,7 +20,7 @@ barely write -- the read pattern is what tells Kadane from O(n^2) scans.
 Usage: scripts/triage_sorting.py RUN_DIR [--problem sorting|max_subarray_sum] [--no-seed-recursion]
 Writes RUN_DIR/triage.json and RUN_DIR/triage.md.
 """
-import hashlib, json, math, multiprocessing, os, random, re, sys
+import copy, hashlib, json, math, multiprocessing, os, random, re, sys
 
 sys.setrecursionlimit(100000)
 
@@ -293,8 +293,43 @@ def triage(sol, num_vars, seed_rec, tests, cost_inputs, fp_inputs):
     xs = [math.log(n) for n in ns]
     xb, yb = sum(xs) / 4, sum(ys) / 4
     slope = sum((x - xb) * (y - yb) for x, y in zip(xs, ys)) / sum((x - xb) ** 2 for x in xs)
+    # Section 98: the exponent after greedily deleting every statement (any
+    # depth, deepest lists first) whose removal keeps every test passing --
+    # a known algorithm padded with slow junk keeps its own exponent.
+    reduced = copy.deepcopy(prog)
+    lists = []
+    def collect(body):
+        lists.append(body)
+        for st in body:
+            if st[0] == 'if':
+                collect(st[2]); collect(st[3])
+            elif st[0] == 'while':
+                collect(st[2])
+    collect(reduced)
+    mp = Machine(reduced, num_vars, seed_rec, 5_000_000, None)
+    def passes():
+        try:
+            return all(CHECK(a, mp.run(a)) for a in tests)
+        except Abort:
+            return False
+    removed_statements = 0
+    for body in reversed(lists):
+        for i in range(len(body) - 1, -1, -1):
+            st = body.pop(i)
+            if passes():
+                removed_statements += 1
+            else:
+                body.insert(i, st)
+    ys_c = []
+    for n in ns:
+        mp.run(dict(cost_inputs)['rand%d' % n])
+        ys_c.append(math.log(mp.steps))
+    yb_c = sum(ys_c) / 4
+    core_exponent = round(sum((x - xb) * (y - yb_c) for x, y in zip(xs, ys_c)) / sum((x - xb) ** 2 for x in xs), 2)
+    core_statements = removed_statements
     src = sol['program']
     return {
+        'core_exponent': core_exponent, 'removed_statements': core_statements,
         'status': 'OK', 'empty_ok': empty_ok,
         'exponent': round(slope, 2),
         'steps_rand256': cost['rand256'], 'steps_sorted256': cost['sorted256'], 'steps_rev256': cost['rev256'],
@@ -355,14 +390,14 @@ def main():
         st[r['status']] = st.get(r['status'], 0) + 1
     out.append('- outcome on held-out tests (n up to 256): ' + ', '.join('%s=%d' % kv for kv in sorted(st.items())))
     out.append('- distinct behavior classes among generalizing programs: %d' % len(classes))
-    out += ['', '| class | members | levels | exp | steps rand256 | sorted256 | rev256 | call | aux | rep size |', '|---|---|---|---|---|---|---|---|---|---|']
+    out += ['', '| class | members | levels | exp | core exp | steps rand256 | sorted256 | rev256 | call | aux | rep size |', '|---|---|---|---|---|---|---|---|---|---|---|']
     reps = []
     for b, mem in sorted(classes.items(), key=lambda kv: (min(r['level_found'] for r in kv[1]))):
         rep = min(mem, key=lambda r: r['size'])
         reps.append((b, rep, mem))
         lv = sorted(r['level_found'] for r in mem)
-        out.append('| %s | %d | %d-%d | %.2f | %d | %d | %d | %s | %s | %d |' % (
-            b, len(mem), lv[0], lv[-1], rep['exponent'], rep['steps_rand256'], rep['steps_sorted256'],
+        out.append('| %s | %d | %d-%d | %.2f | %.2f | %d | %d | %d | %s | %s | %d |' % (
+            b, len(mem), lv[0], lv[-1], rep['exponent'], rep['core_exponent'], rep['steps_rand256'], rep['steps_sorted256'],
             rep['steps_rev256'], rep['uses_call'], rep['uses_aux'], rep['size']))
     out += ['', '## Representatives (smallest program per class)', '']
     for b, rep, mem in reps:
