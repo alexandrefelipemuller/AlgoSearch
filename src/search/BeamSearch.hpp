@@ -234,6 +234,8 @@ struct SearchConfig {
     // from a master stream seeded by `seed` (each run's seed is logged and
     // stored in its SolutionRecords). The archive persists across restarts.
     // Counts divergence-window steps too, so it must exceed postSolveSizes.
+    // A run that solves past maxLevel also restarts (section 96), so the
+    // search then ends only on maxProgramSize or wallSeconds.
     // maxProgramSize then bounds total size steps across all restarts.
     // 0 = off, byte-identical.
     int restartOnStall = 0;

@@ -5,6 +5,7 @@
 # variety rather than from one long budget, which section 92 showed stalls.
 # Triage each with scripts/triage_sorting.py.
 #
+# PROBLEM and MAX_N env vars override sorting / 3000 (section 96).
 # Usage: scripts/run_sorting_seeds.sh [output_root] [wall_seconds_per_seed] [seeds...]
 
 set -uo pipefail
@@ -22,7 +23,7 @@ for seed in "${SEEDS[@]}"; do
   mkdir -p "$dir"
   echo "=== $(date '+%Y-%m-%d %H:%M:%S') seed $seed starting wall=${WALL}s ===" | tee -a "$OUT_ROOT/driver.log"
   timeout "$WALL" stdbuf -oL -eL ./algosearch \
-    --problem sorting --max-n 3000 --num-vars 8 \
+    --problem "${PROBLEM:-sorting}" --max-n "${MAX_N:-3000}" --num-vars 8 \
     --beam-width 500 --candidates 3000 --max-program-size 20000 \
     --step-limit 8000 --seed "$seed" --loop-bias 0.4 \
     --post-solve-sizes 150 --composite-bias 0.15 --recursion-call-bias 0.1 \

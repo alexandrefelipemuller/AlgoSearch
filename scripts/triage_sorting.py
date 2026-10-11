@@ -13,7 +13,11 @@ v1/v2 seeded to 0/n when the run used --recursion-call-bias > 0) and reports:
     swaps in the SAME order, i.e. are one algorithm modulo dead code and
     renaming. The smallest program per class is its representative.
 
-Usage: scripts/triage_sorting.py RUN_DIR [--seed-recursion | --no-seed-recursion]
+Scalar problems (--problem max_subarray_sum): the answer is arr[0], n >= 1,
+and the behavior hash also records every array READ, since such programs
+barely write -- the read pattern is what tells Kadane from O(n^2) scans.
+
+Usage: scripts/triage_sorting.py RUN_DIR [--problem sorting|max_subarray_sum] [--no-seed-recursion]
 Writes RUN_DIR/triage.json and RUN_DIR/triage.md.
 """
 import hashlib, json, math, multiprocessing, os, random, re, sys
@@ -146,6 +150,7 @@ class Machine:
             i = self.ev(e[1])
             a = self.a if k == 'arr' else self.x
             if not 0 <= i < len(a): raise Abort('oob')
+            if self.trace is not None and READ_TRACE: self.trace.append(('r' + k[1], i))
             return a[i]
         op, x = e[1], self.ev(e[2])
         y = self.ev(e[3])
@@ -228,6 +233,21 @@ class Machine:
 
 # ----------------------------------------------------------------- triage
 
+def kadane(a):
+    best, cur = a[0], 0
+    for i, x in enumerate(a):
+        cur = x if i == 0 or cur < 0 else cur + x
+        best = max(best, cur)
+    return best
+
+# problem -> (is the program's final array correct for input a, read trace on)
+ORACLES = {
+    'sorting': (lambda a, out: out == sorted(a), False),
+    'max_subarray_sum': (lambda a, out: len(out) == len(a) and out[0] == kadane(a), True),
+}
+CHECK, READ_TRACE = ORACLES['sorting']
+READ_TRACE_FOR = {k: v[1] for k, v in ORACLES.items()}
+
 def gen_tests(rng):
     tests = []
     for n in list(range(1, 9)) * 6 + [12, 17, 25, 33, 50, 64, 100, 128, 200, 256]:
@@ -249,12 +269,12 @@ def triage(sol, num_vars, seed_rec, tests, cost_inputs, fp_inputs):
     m = Machine(prog, num_vars, seed_rec, 5_000_000, None)
     for a in tests:
         try:
-            if m.run(a) != sorted(a):
+            if not CHECK(a, m.run(a)):
                 return {'status': 'WRONG', 'fail_n': len(a), 'fail_input': a if len(a) <= 12 else None}
         except Abort as ex:
             return {'status': 'ABORT:' + str(ex), 'fail_n': len(a)}
     try:
-        empty_ok = m.run([]) == []
+        empty_ok = CHECK([], m.run([])) if not READ_TRACE else None
     except Abort:
         empty_ok = False
     cost = {}
@@ -285,8 +305,11 @@ def triage(sol, num_vars, seed_rec, tests, cost_inputs, fp_inputs):
     }
 
 _ctx = None
+_problem = 'sorting'
 
 def _work(s):
+    global CHECK, READ_TRACE
+    CHECK, READ_TRACE = ORACLES[_problem]
     r = triage(s, *_ctx)
     r.update(program_id=s['program_id'], size=s['program_size'], level_found=s['level_found'],
              final_status=s.get('final_status'), program=s['program'])
@@ -295,13 +318,21 @@ def _work(s):
 def main():
     run = sys.argv[1]
     seed_rec = '--no-seed-recursion' not in sys.argv
+    global _problem
+    if '--problem' in sys.argv:
+        _problem = sys.argv[sys.argv.index('--problem') + 1]
     sols = json.load(open(os.path.join(run, 'solutions.json')))
     num_vars = 8
     rng = random.Random(20261010)
     tests = gen_tests(rng)
+    if READ_TRACE_FOR[_problem]:  # scalar answers: many mixed-sign and all-negative arrays
+        for n in list(range(1, 13)) * 4 + [40, 100, 256]:
+            neg = rng.random() < 0.3
+            tests.append([rng.randint(-2 * n, -1) if neg else rng.randint(-n, n) for _ in range(n)])
     cost_inputs = []
     for n in (32, 64, 128, 256):
-        cost_inputs.append(('rand%d' % n, [rng.randint(0, 10**6) for _ in range(n)]))
+        lo = -1000 if READ_TRACE_FOR[_problem] else 0
+        cost_inputs.append(('rand%d' % n, [rng.randint(lo, 10**6 if lo == 0 else 1000) for _ in range(n)]))
     cost_inputs += [('sorted256', list(range(256))), ('rev256', list(range(256, 0, -1)))]
     fp_inputs = [[rng.randint(0, 20) for _ in range(n)] for n in (5, 9, 16, 23)] + [list(range(12, 0, -1)), [3, 1, 3, 1, 2, 2, 0]]
     by_id = {}
@@ -317,7 +348,7 @@ def main():
             classes.setdefault(r['behavior'], []).append(r)
     json.dump({'records': len(sols), 'distinct_ids': len(by_id), 'results': results}, open(os.path.join(run, 'triage.json'), 'w'), indent=1)
 
-    out = ['# Sorting run triage: %s' % run, '',
+    out = ['# %s run triage: %s' % (_problem, run), '',
            '- archived records: %d, distinct program_id: %d' % (len(sols), len(by_id))]
     st = {}
     for r in results:

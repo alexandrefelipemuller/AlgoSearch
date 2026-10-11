@@ -443,3 +443,24 @@ TEST(wall_seconds_stops_the_run_early) {
     BeamSearch search(problem, cfg);
     CHECK(search.run().empty());
 }
+
+TEST(restart_on_stall_restarts_a_run_that_solves_every_level) {
+    // Section 96: AlwaysZeroProblem is solved through maxLevel at once.
+    // Without restarts the search ends; with them it starts a new run.
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 6;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 3;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.restartOnStall = 100;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK(search.restarts() >= 2);
+    CHECK_EQ(solutions.size(), static_cast<size_t>(3));  // program@level dedup across runs
+}

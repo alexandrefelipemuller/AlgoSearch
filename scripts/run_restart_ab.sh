@@ -5,6 +5,7 @@
 # via --wall-seconds 9600; master seed fixed for replay. Arms run
 # sequentially (each uses every thread). Triage with scripts/triage_sorting.py.
 #
+# PROBLEM and MAX_N env vars override sorting / 3000 (section 96).
 # Usage: scripts/run_restart_ab.sh [output_root] [K...]
 
 set -uo pipefail
@@ -21,7 +22,7 @@ for k in "${KS[@]}"; do
   mkdir -p "$dir"
   echo "=== $(date '+%Y-%m-%d %H:%M:%S') K=$k starting ===" | tee -a "$OUT_ROOT/driver.log"
   stdbuf -oL -eL ./algosearch \
-    --problem sorting --max-n 3000 --num-vars 8 \
+    --problem "${PROBLEM:-sorting}" --max-n "${MAX_N:-3000}" --num-vars 8 \
     --beam-width 500 --candidates 3000 --max-program-size 2000000 \
     --step-limit 8000 --seed 1 --loop-bias 0.4 \
     --post-solve-sizes 150 --composite-bias 0.15 --recursion-call-bias 0.1 \

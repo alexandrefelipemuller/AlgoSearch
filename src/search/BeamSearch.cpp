@@ -981,16 +981,21 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         }
 
         if (config_.restartOnStall > 0) {
-            if (currentLevel > restartBestLevel) {
+            // A run that passed maxLevel is exhausted too: restart instead
+            // of ending the whole search.
+            bool completed = currentLevel > config_.maxLevel;
+            if (!completed && currentLevel > restartBestLevel) {
                 restartBestLevel = currentLevel;
                 stallSteps = 0;
-            } else if (++stallSteps >= config_.restartOnStall) {
+            } else if (completed || ++stallSteps >= config_.restartOnStall) {
                 runSeed = masterRng.engine()();
                 rng = Random(runSeed);
                 restarts_++;
-                log::info("  RESTART " + std::to_string(restarts_) + ": no level gain in " +
-                          std::to_string(stallSteps) + " size steps (best N=" + std::to_string(restartBestLevel) +
-                          "), new seed " + std::to_string(runSeed));
+                log::info("  RESTART " + std::to_string(restarts_) + ": " +
+                          (completed ? std::string("solved past the maximum level")
+                                     : "no level gain in " + std::to_string(stallSteps) + " size steps (best N=" +
+                                           std::to_string(restartBestLevel) + ")") +
+                          ", new seed " + std::to_string(runSeed));
                 beam.clear();
                 dedup = Dedup();
                 annealState.reset();

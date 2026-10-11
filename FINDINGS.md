@@ -7100,3 +7100,41 @@ Fixed slices give more seeds and so more cheap selection/exchange variants.
 change the three-family ceiling. Getting past it needs a new generation
 lever (e.g. making `call` reachable as live code), not a different budget
 schedule.
+
+## 96. Restart A/B on `max_subarray_sum` -- design and predictions registered before running
+
+**Why this problem.** It has many classic solutions (O(n^3) brute force,
+O(n^2) running sums, Kadane O(n), prefix-minimum O(n), divide and conquer
+O(n log n)). A 5-min calibration run (`data/msub_smoketest_20261011`,
+section 92 profile, seed 1) found Kadane by N=2 in about a minute; it
+cascaded straight to N=320 and every generalizing class was linear
+(6 classes, exponent 0.99).
+
+**Engine change.** With `--restart-on-stall`, a run that solves past
+`--max-n` now restarts too, instead of ending the search (new test
+`restart_on_stall_restarts_a_run_that_solves_every_level`, 191/191; off by
+default, unchanged). `scripts/triage_sorting.py --problem max_subarray_sum`
+checks `arr[0]` against Kadane on extra mixed-sign and all-negative inputs
+and adds array reads to the behavior hash; sorting triage output is
+unchanged (checked on section 93's seed 4: identical triage.json).
+
+**Arms** (`PROBLEM=max_subarray_sum MAX_N=64`, section 92 profile):
+- Control: `scripts/run_sorting_seeds.sh data/msub_seeds_20261011 1200`,
+  seeds 1-8, at most 20 min each (a seed that solves to N=64 ends early).
+- Restart: `scripts/run_restart_ab.sh data/msub_restart_20261011 200`,
+  master seed 1, K=200, 9600 s.
+
+**Metrics.** Families by measured exponent (~1 linear, ~2 quadratic, ~3
+cubic, ~1.2 n log n), behavior classes, runs, wall actually used.
+
+**Predictions.**
+1. Each control seed finishes in a few minutes, so control uses far less
+   than 2 h 40; the restart arm uses all of it with dozens of runs.
+2. Kadane-like linear programs dominate both arms; no quadratic or cubic
+   family is archived, since the size-ordered search reaches the smallest
+   correct program first and the window only keeps alternatives at N=2.
+3. The restart arm has more behavior classes than control (more runs),
+   all in the linear family.
+
+**Decision rule.** As section 95: a new family, or strictly more classes
+at equal families with a real gain, before any default change.
