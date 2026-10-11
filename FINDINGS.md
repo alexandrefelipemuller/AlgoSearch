@@ -6954,3 +6954,47 @@ modulo renaming and dead code. Writes `triage.md`/`triage.json`.
 - A single long run spends most of its budget stuck on one level.
   Next: many short seeds (section 93) to test whether diversity comes
   from seed variety rather than budget.
+
+## 93. Eight short sorting seeds beat one long run on algorithmic diversity
+
+**Run.** `scripts/run_sorting_seeds.sh data/sorting_seeds_20261010 1200`:
+section 92's profile, seeds 1-8, 20 min each, sequential (2 h 40 total),
+each triaged with `scripts/triage_sorting.py`.
+
+**Results.**
+
+| seed | final N | generalizing programs | behavior classes | families |
+|---|---|---|---|---|
+| 1 | 38 | 299 | 14 | selection, exchange, heap |
+| 2 | 32 | 152 | 5 | selection, exchange |
+| 3 | 37 | 302 | 12 | selection, exchange, heap |
+| 4 | 37 | 153 | 5 | selection, heap |
+| 5 | 37 | 302 | 12 | selection, exchange, heap |
+| 6 | 37 | 157 | 8 | selection, exchange, heap |
+| 7 | 32 | 148 | 6 | selection, exchange |
+| 8 | 32 | 151 | 5 | selection, exchange |
+
+- Every `SUCCESS` program in every seed generalizes; every failure is an
+  `UNCONFIRMED` early-window program, as in section 92.
+- 19 distinct behavior classes across all seeds (section 92: 13), in
+  **3 families**:
+  - selection sort (all seeds), plus variants that only add inert `aux`
+    writes;
+  - **exchange sort**, new vs section 92: `for i, for j > i: if arr[i] >
+    arr[j] swap`, ~707k steps at n=256 (selection 464k), in `>` and `>=`
+    variants; 7 of 8 seeds;
+  - heap sort, up to 7 sift-down variants per seed, 5 of 8 seeds (seeds
+    2, 7, 8 end at N=32 before archiving it -- the archive is written at
+    promotion, so a level in progress is not in it).
+- Still zero programs that actually recurse (`call`), and no merge sort,
+  quicksort or insertion sort.
+
+**Reading.**
+- With half the compute (2 h 40 vs 5 h), seed variety found one more
+  family than the long run. Exchange sort is a small step from selection
+  sort; seed 42 simply never archived it.
+- The ceiling is unchanged: three families, all reachable at N <= 32.
+  Beyond N=32 no seed found anything new; growth there is padding.
+- For "how many algorithms does the search know" questions, many short
+  seeds plus behavior-level triage is the cheaper and stronger protocol.
+  New families (merge, quick, insertion) need a new lever, not more budget.
