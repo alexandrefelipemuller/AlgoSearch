@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <fstream>
+#include <set>
 
 #include "problems/SortingProblem.hpp"
 #include "search/BeamSearch.hpp"
@@ -521,4 +522,31 @@ TEST(confirm_reseed_keeps_success_when_fresh_instances_pass) {
     auto solutions = BeamSearch(problem, cfg).run();
     CHECK(!solutions.empty());
     CHECK_EQ(solutions.front().finalStatus, std::string("SUCCESS"));
+}
+
+TEST(profile_novelty_archives_fewer_alternative_champions) {
+    // Section 98: every correct AlwaysZeroProblem program has constant cost,
+    // so the gate drops alternative champions whose steps match an archived
+    // one (8 -> 6 program ids here; tiny programs can still differ by > 1.5x).
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 12;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 3;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 20;
+    cfg.genConfig.numVars = 3;
+    cfg.invarianceLookahead = 1;
+    cfg.postSolveSizes = 8;
+
+    auto plain = BeamSearch(problem, cfg).run();
+    cfg.profileNovelty = 0.5;
+    auto gated = BeamSearch(problem, cfg).run();
+
+    std::set<std::string> plainIds, gatedIds;
+    for (const auto& r : plain) plainIds.insert(r.programId);
+    for (const auto& r : gated) gatedIds.insert(r.programId);
+    CHECK(!gated.empty());
+    CHECK(gatedIds.size() < plainIds.size());
 }

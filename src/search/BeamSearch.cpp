@@ -7,6 +7,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <limits>
 #include <array>
 #include <map>
 #include <sstream>
@@ -259,6 +260,78 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
     }
 }
 
+// Section 98: a correct program's cost profile -- mean interpreter steps on
+// the first probe instances of levels N, 2N and 4N (capped at maxLevel),
+// summarized as the fitted log-log exponent and log steps at the top
+// probe level. Invalid when the program fails any probe instance. Generic:
+// only assumes a level's index grows with its input size.
+struct CostProfile {
+    bool valid = false;
+    double exponent = 0.0;
+    double logSteps = 0.0;
+    int topLevel = 0;
+};
+
+constexpr size_t profileProbeInstances = 8;
+
+CostProfile costProfile(const Stmt& program, const Problem& problem, const Interpreter& probeInterp, int level,
+                        int maxLevel, std::map<int, std::vector<Instance>>& probeCache) {
+    CostProfile p;
+    std::vector<double> xs, ys;
+    std::vector<int> output;
+    for (int l : {level, 2 * level, 4 * level}) {
+        l = std::min(l, maxLevel);
+        if (!xs.empty() && std::log(static_cast<double>(l)) <= xs.back()) continue;
+        auto it = probeCache.find(l);
+        if (it == probeCache.end()) {
+            std::vector<Instance> all = problem.generateInstances(l);
+            if (all.size() > profileProbeInstances) all.resize(profileProbeInstances);
+            it = probeCache.emplace(l, std::move(all)).first;
+        }
+        if (it->second.empty()) return p;
+        double total = 0.0;
+        for (const auto& inst : it->second) {
+            long steps = 0;
+            if (problem.evaluateInto(program, inst, probeInterp, output, &steps) != ExecStatus::SUCCESS) return p;
+            total += static_cast<double>(steps);
+        }
+        xs.push_back(std::log(static_cast<double>(l)));
+        ys.push_back(std::log(std::max(1.0, total / static_cast<double>(it->second.size()))));
+        p.topLevel = l;
+    }
+    if (xs.size() < 2) return p;
+    double xb = 0, yb = 0;
+    for (size_t i = 0; i < xs.size(); ++i) xb += xs[i], yb += ys[i];
+    xb /= static_cast<double>(xs.size());
+    yb /= static_cast<double>(xs.size());
+    double num = 0, den = 0;
+    for (size_t i = 0; i < xs.size(); ++i) num += (xs[i] - xb) * (ys[i] - yb), den += (xs[i] - xb) * (xs[i] - xb);
+    p.valid = den > 0;
+    p.exponent = p.valid ? num / den : 0.0;
+    p.logSteps = ys.back();
+    return p;
+}
+
+// Distance in exponent to the nearest archived profile (infinity if none).
+double exponentDistance(const CostProfile& p, const std::vector<CostProfile>& archive) {
+    double d = std::numeric_limits<double>::infinity();
+    for (const auto& a : archive) d = std::min(d, std::abs(p.exponent - a.exponent));
+    return d;
+}
+
+// Section 98's archive gate: new if the exponent differs from every archived
+// profile by > 0.3, or steps differ by > 1.5x from every archived profile
+// measured at the same top probe level.
+bool profileIsNovel(const CostProfile& p, const std::vector<CostProfile>& archive) {
+    if (!p.valid) return false;
+    for (const auto& a : archive) {
+        bool sameExponent = std::abs(p.exponent - a.exponent) <= 0.3;
+        bool sameCost = a.topLevel != p.topLevel || std::abs(p.logSteps - a.logSteps) <= std::log(1.5);
+        if (sameExponent && sameCost) return false;
+    }
+    return true;
+}
+
 std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfig& cfg) {
     return {
         {"beam_width", std::to_string(cfg.beamWidth)},
@@ -376,6 +449,11 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     int stallSteps = 0;
     restarts_ = 0;
     int sizeSteps = 0;
+    // Section 98: cost-profile novelty state, global across levels and restarts.
+    std::vector<CostProfile> archivedProfiles;
+    std::map<int, std::vector<Instance>> probeCache;
+    Interpreter probeInterp(config_.stepLimit * 50, /*maxRecursionDepth=*/200, config_.genConfig.recursionCallBias > 0.0);
+    long profileBonusesGiven = 0;
 
     for (int size = 1; sizeSteps < config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size, ++sizeSteps) {
         if (config_.wallSeconds > 0.0 &&
@@ -599,6 +677,29 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (scored.empty()) {
             log::progress(0, 0, static_cast<int>(instances.size()), 0, timeouts, errors);
             continue;
+        }
+
+        // Section 98: inside the divergence window, a random sample of the
+        // full solvers gets a bonus for a cost profile far (in exponent)
+        // from every archived champion's, so a slower or faster algorithm
+        // can outrank the many junk variants of the archived one.
+        if (config_.profileNovelty > 0.0 && postSolveWindowOpen && !archivedProfiles.empty()) {
+            std::vector<size_t> solvers;
+            for (size_t i = 0; i < scored.size(); ++i) {
+                if (scored[i].score == static_cast<int>(instances.size())) solvers.push_back(i);
+            }
+            std::shuffle(solvers.begin(), solvers.end(), rng.engine());
+            if (solvers.size() > static_cast<size_t>(config_.profileNoveltyTop)) solvers.resize(static_cast<size_t>(config_.profileNoveltyTop));
+            for (size_t i : solvers) {
+                CostProfile p = costProfile(*scored[i].program, problem_, probeInterp, currentLevel, config_.maxLevel, probeCache);
+                if (!p.valid) continue;
+                double d = exponentDistance(p, archivedProfiles);
+                double bonus = config_.profileNovelty * std::min(1.0, d / 0.5);
+                if (bonus > 0.0) {
+                    scored[i].fitness += bonus;
+                    profileBonusesGiven++;
+                }
+            }
         }
 
         // Rank primarily by exact solved-count (the only metric that ever
@@ -900,7 +1001,24 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                           " but breaks before N=" + std::to_string(requiredLevel) +
                           " with the same unmutated program -- likely fit to that N's instances, not a general algorithm");
             }
+            // Section 98: with profile novelty on, the first champion of a
+            // window always enters the profile archive; a later champion in
+            // the same window is archived only if its cost profile is new.
+            bool skipArchive = false;
+            if (config_.profileNovelty > 0.0) {
+                CostProfile p = costProfile(*provenProgram, problem_, probeInterp, currentLevel, config_.maxLevel, probeCache);
+                bool alternative = postSolveWindowOpen && frozenChampions.count(canonicalProgText) == 0;
+                if (alternative && !profileIsNovel(p, archivedProfiles)) {
+                    skipArchive = true;
+                    log::info("  profile novelty: alternative champion not archived (cost profile already known)");
+                } else if (p.valid && (alternative ? true : profileIsNovel(p, archivedProfiles))) {
+                    archivedProfiles.push_back(p);
+                    log::info("  profile novelty: archived profile exponent=" + std::to_string(p.exponent) +
+                              " log_steps=" + std::to_string(p.logSteps) + " at N=" + std::to_string(p.topLevel));
+                }
+            }
             for (const auto& lr : cascade) {
+                if (skipArchive) break;
                 // Dedup guard: with a divergence window the same program can be
                 // re-found as champion at a level it already recorded during an
                 // earlier cascade; keep only the first record per program@level.
@@ -1041,6 +1159,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     }
 
     double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
+    if (config_.profileNovelty > 0.0) {
+        log::info("  profile novelty: " + std::to_string(archivedProfiles.size()) + " archived profiles, " +
+                  std::to_string(profileBonusesGiven) + " bonuses given");
+    }
     log::searchFinished(elapsed);
     if (elapsed > 0.0) {
         double genRate = totalCandidatesGenerated / elapsed;

@@ -247,6 +247,14 @@ struct SearchConfig {
     // problem built with another seed (not owned). nullptr/0 = off.
     const Problem* confirmProblem = nullptr;
     int confirmReseedLevels = 0;
+    // Section 98: cost-profile novelty. Inside a divergence window, up to
+    // profileNoveltyTop random full solvers per size step get
+    // + profileNovelty * min(1, d / 0.5) fitness, d = exponent distance to
+    // the nearest archived champion profile (steps on levels N, 2N, 4N), and
+    // an alternative champion is archived only if its profile is new
+    // (exponent differs by > 0.3 or steps by > 1.5x). 0 = off, byte-identical.
+    double profileNovelty = 0.0;
+    int profileNoveltyTop = 64;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
