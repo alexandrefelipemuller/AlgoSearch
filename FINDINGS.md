@@ -7320,3 +7320,62 @@ families were already read from code).
 - `data/novelty_sorting_20261011`: sorting, W=0.5.
 Controls: `data/msub_seeds_reseed_20261011` (identical search to section
 96's control, current default labels) and section 93.
+
+## 98 (results). Novelty compresses the archive 100x and finds heap sort in 8/8 seeds, but discovers no new family
+
+**Runs.** Seeds 1-8, 20 min each, section 93/96 profiles:
+`data/novelty_msub_20261011` (`--profile-novelty 0.5`, max_subarray_sum, MAX_N=64),
+`data/speedoff_msub_20261011` (`--speed-bonus-weight 0`, no novelty),
+`data/novelty_sorting_20261011` (sorting, `--profile-novelty 0.5`). Controls:
+`data/msub_seeds_reseed_20261011` and section 93. All triaged with
+`scripts/triage_sorting.py`; families judged by `core exp`.
+
+**max_subarray_sum.**
+
+| arm | archived records / seed | distinct ids | generalizing | core exponents |
+|---|---|---|---|---|
+| control | 4398-9664 | 302 | 1008 | all 1.0 |
+| speed-off | 5882-9664 | 302 | 1070 | all 1.0 |
+| novelty | 64-127 | 2-3 | 9 | all 1.0 |
+
+The novelty log says, per seed, "1 archived profiles, ~5400 bonuses given".
+
+**sorting.** Every seed reached N=36 (control: 32-38).
+
+| family | control (sec. 93) | novelty |
+|---|---|---|
+| selection (464k steps @256) | 8/8 | 7/8 (not seed 2) |
+| exchange, j > i (707k) | 7/8 | 1/8 (seed 2) |
+| exchange, j over all n (~1.30M; "I can't believe it can sort") | 0/8 | 7/8 |
+| heap (core exp 1.22) | 5/8 | **8/8** |
+
+The novelty archive per seed holds 59-110 records with 3-4 generalizing
+programs, against 1092-5406 records and 148-302 programs in the control.
+
+**Predictions.**
+1. A quadratic msub program in at least 4/8 novelty seeds: **falsified, 0/8.**
+   After reduction, every bonus went to Kadane plus noise.
+2. Speed-off archives no quadratic program: **held**. The speed bonus is
+   not what hides the brute-force algorithms.
+3. Archive shrinks sharply with no lost family: **held**. Records drop
+   about 100x (msub) and about 50x (sorting), keeping the same families.
+4. Sorting has no new family; exchange is weakly more frequent: **mixed.**
+   - No new exponent class appears.
+   - The full-range exchange sort (`for i, for j in 0..n: if a[i] < a[j]
+     swap`) is a behavior class section 93 never archived, and it shows
+     up in 7/8 seeds. It costs about 1.8x the steps of the j > i variant,
+     which is exactly what the profile gate (">1.5x steps") rewards.
+   - Heap sort goes from 5/8 to 8/8.
+
+**Reading.**
+- With reduced profiles, novelty works as a *deduplicator*: one archive
+  entry per cost class instead of thousands of renamings. It is not a
+  *generator*: no new algorithmic family appears on either problem.
+- O(n^2) brute force for max_subarray_sum is still unreachable. The
+  limit is reachability in the grammar and beam, not selection pressure;
+  section 93's conclusion ("new families need a new lever") holds.
+- The heap 8/8 result is a small sample. It is plausible that the gate
+  frees beam slots from same-profile duplicates, but this is not shown.
+- Stays opt-in. The compression makes it a good candidate default for
+  diversity-triage runs (merge policy: only measurable discovery gains
+  are promoted, and heap 5/8 → 8/8 would need a replication to count).
