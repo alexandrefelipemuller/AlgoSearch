@@ -7035,3 +7035,32 @@ at N=37 (~8 s each, ~4.5 h); N=1, 2 and 32 took 151 each (one window).
 K=300 is therefore ~40 min of no progress at N=37, K=200 ~27 min.
 The A/B against section 93 (8 seeds x 20 min, same profile, 2 h 40 compute)
 is still to be designed and registered.
+
+## 95. A/B: `--restart-on-stall` vs fixed short seeds -- design and predictions registered before running
+
+**Arms** (sorting, section 92-93 profile, 2 h 40 of compute each):
+- Control: section 93 as already run (`data/sorting_seeds_20261010`,
+  8 seeds x 20 min). Not rerun.
+- K=200 and K=300: one process each, `--restart-on-stall K
+  --wall-seconds 9600 --seed 1` (`scripts/run_restart_ab.sh
+  data/restart_ab_20261011`), sequential.
+
+**Metrics** (`scripts/triage_sorting.py`, grouped by the record's `seed`
+for per-run counts): families (selection / exchange / heap / other),
+distinct behavior classes, number of runs (seeds) and how many of them
+archive heap sort, and any program that really recurses.
+
+**Predictions.**
+1. Each K arm makes 3-6 runs: low levels climb in minutes and the N=32-37
+   plateau triggers the restart (K=200 ~27 min, K=300 ~40 min at N=37).
+2. Families: the same 3 as control; no merge/quick/insertion sort and no
+   real `call` (restarts change the seed, not the grammar).
+3. Heap sort in >= 80% of K-arm runs vs 5 of 8 (62%) in control: a run is
+   only cut after it stops climbing, so none is cut mid-way at N=32 the way
+   section 93's 20-min slices were.
+4. Distinct classes >= control's 19 is uncertain: fewer runs than 8 may
+   mean fewer selection/exchange variants.
+
+**Decision rule** (merge policy): promote to default only if a K arm finds
+a family control does not, or matches families with strictly more classes
+and a higher heap-sort rate. Otherwise keep it opt-in.
