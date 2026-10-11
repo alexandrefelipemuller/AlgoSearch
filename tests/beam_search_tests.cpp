@@ -382,3 +382,64 @@ TEST(first_solve_at_max_level_is_unconfirmed_not_vacuously_success) {
     CHECK_EQ(solutions.front().firstLevel, 5);
     CHECK_EQ(solutions.front().finalStatus, std::string("UNCONFIRMED"));
 }
+
+TEST(restart_on_stall_restarts_a_stuck_run_and_keeps_the_archive) {
+    // Section 94: GambiarraTrapProblem solves level 1 at once and can never
+    // solve level 2, so the run stalls there. With restartOnStall = 3 it
+    // must start over from level 1 with a new seed, keep the level-1 record
+    // across restarts, and still stop after maxProgramSize total steps.
+    GambiarraTrapProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 20;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 4;
+    cfg.seed = 7;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.restartOnStall = 3;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK(search.restarts() >= 2);
+    CHECK(!solutions.empty());
+    CHECK_EQ(solutions.front().levelReached, 1);
+    CHECK_EQ(solutions.front().seed, static_cast<uint64_t>(7));
+}
+
+TEST(restart_on_stall_off_never_restarts) {
+    GambiarraTrapProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 20;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 4;
+    cfg.seed = 7;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+
+    CHECK_EQ(search.restarts(), 0);
+    CHECK_EQ(solutions.size(), static_cast<size_t>(1));
+}
+
+TEST(wall_seconds_stops_the_run_early) {
+    // A wall budget already spent at the first size step stops the run
+    // before anything is searched.
+    AlwaysZeroProblem problem;
+    SearchConfig cfg;
+    cfg.beamWidth = 10;
+    cfg.maxProgramSize = 5;
+    cfg.stepLimit = 200;
+    cfg.maxLevel = 5;
+    cfg.seed = 1;
+    cfg.candidatesPerSize = 10;
+    cfg.genConfig.numVars = 3;
+    cfg.wallSeconds = 1e-9;
+
+    BeamSearch search(problem, cfg);
+    CHECK(search.run().empty());
+}

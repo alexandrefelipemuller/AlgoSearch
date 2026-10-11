@@ -368,7 +368,21 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     std::unordered_set<std::string> recordedKeys;  // "programId@levelReached"
     std::map<int, std::vector<Instance>> seenInstancesByLevel;  // tail enumeration (section 51)
 
-    for (int size = 1; size <= config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size) {
+    // Section 94: restart-on-stall state. runSeed is the seed of the
+    // current run; without restarts it is config_.seed throughout.
+    uint64_t runSeed = config_.seed;
+    Random masterRng(config_.seed ^ 0x9e3779b97f4a7c15ULL);
+    int restartBestLevel = currentLevel;
+    int stallSteps = 0;
+    restarts_ = 0;
+    int sizeSteps = 0;
+
+    for (int size = 1; sizeSteps < config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size, ++sizeSteps) {
+        if (config_.wallSeconds > 0.0 &&
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count() >= config_.wallSeconds) {
+            log::info("  wall budget of " + std::to_string(config_.wallSeconds) + "s reached, stopping");
+            break;
+        }
         postSolveWindowOpenedThisSize = false;
         std::vector<Instance> instances = problem_.generateInstances(currentLevel);
         if (config_.regressionGuard > 0) {  // section 89
@@ -895,7 +909,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 rec.adversarialTotal = advTotal;
                 rec.beamDiversity = beamDiversity;
                 rec.beamSize = beamSizeNow;
-                rec.seed = config_.seed;
+                rec.seed = runSeed;
                 rec.config = configToPairs(config_);
                 solutions.push_back(std::move(rec));
                 if (outPrograms) outPrograms->push_back(provenProgram->clone());
@@ -962,6 +976,36 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 postSolveBestSize = 0;
                 frozenChampions.clear();
                 log::info("  divergence window closed: promoting to N=" + std::to_string(currentLevel));
+                if (!config_.checkpointPath.empty()) saveSolutions(config_.checkpointPath, solutions);
+            }
+        }
+
+        if (config_.restartOnStall > 0) {
+            if (currentLevel > restartBestLevel) {
+                restartBestLevel = currentLevel;
+                stallSteps = 0;
+            } else if (++stallSteps >= config_.restartOnStall) {
+                runSeed = masterRng.engine()();
+                rng = Random(runSeed);
+                restarts_++;
+                log::info("  RESTART " + std::to_string(restarts_) + ": no level gain in " +
+                          std::to_string(stallSteps) + " size steps (best N=" + std::to_string(restartBestLevel) +
+                          "), new seed " + std::to_string(runSeed));
+                beam.clear();
+                dedup = Dedup();
+                annealState.reset();
+                annealFitness = -1.0;
+                currentLevel = config_.startLevel;
+                postSolveWindowOpen = false;
+                postSolveRemaining = 0;
+                postSolvePendingAdvance = 0;
+                postSolveBestCascadeLevel = 0;
+                postSolveBestSize = 0;
+                postSolveBestFitness = 0.0;
+                frozenChampions.clear();
+                restartBestLevel = currentLevel;
+                stallSteps = 0;
+                size = 0;  // ++size makes the new run start at size 1
                 if (!config_.checkpointPath.empty()) saveSolutions(config_.checkpointPath, solutions);
             }
         }

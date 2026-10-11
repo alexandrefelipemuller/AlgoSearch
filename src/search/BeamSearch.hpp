@@ -227,6 +227,19 @@ struct SearchConfig {
     // leaves the last-promoted level's solutions on disk. Cheap: writes at
     // most once per level, not per candidate or per size step.
     std::string checkpointPath;
+
+    // Section 94: restart on stall. When > 0, a run whose highest level
+    // reached has not risen for this many consecutive size steps starts
+    // over from startLevel with an empty beam and a fresh search seed drawn
+    // from a master stream seeded by `seed` (each run's seed is logged and
+    // stored in its SolutionRecords). The archive persists across restarts.
+    // Counts divergence-window steps too, so it must exceed postSolveSizes.
+    // maxProgramSize then bounds total size steps across all restarts.
+    // 0 = off, byte-identical.
+    int restartOnStall = 0;
+    // Stop cleanly (archive kept, normal exit) once this much wall time has
+    // elapsed. 0 = no limit, as before.
+    double wallSeconds = 0.0;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.
@@ -248,10 +261,13 @@ public:
     // (for JSON persistence), but callers that need to actually execute a
     // discovered program again (e.g. the benchmark tool) need the AST.
     std::vector<SolutionRecord> run(std::vector<Program>* outPrograms = nullptr);
+    // Restarts the last run() performed (SearchConfig::restartOnStall).
+    int restarts() const { return restarts_; }
 
 private:
     const Problem& problem_;
     SearchConfig config_;
+    int restarts_ = 0;
 };
 
 }  // namespace algosearch

@@ -6998,3 +6998,40 @@ each triaged with `scripts/triage_sorting.py`.
 - For "how many algorithms does the search know" questions, many short
   seeds plus behavior-level triage is the cheaper and stronger protocol.
   New families (merge, quick, insertion) need a new lever, not more budget.
+
+## 94. `--restart-on-stall K` and `--wall-seconds S` (opt-in) -- implementation
+
+Motivated by section 93 (many short seeds beat one long run on algorithmic
+diversity): make the restart happen inside one process, triggered by the
+run itself rather than by a fixed per-seed wall slice.
+
+**Mechanism** (`BeamSearch::run`, `SearchConfig::restartOnStall`/`wallSeconds`):
+- Stall = the highest level reached in the current run has not risen for
+  K consecutive size steps (divergence-window steps count, so K must
+  exceed `--post-solve-sizes`).
+- On stall: empty beam, fresh `Dedup`, annealing walker and divergence
+  window reset, back to `startLevel` at size 1, and a new search seed
+  drawn from a master stream seeded by `--seed`. Each record's `seed`
+  field is the seed of the run that found it.
+- Kept across restarts: the archive (`solutions`, its program@level dedup)
+  and cached instance sets. Problem instances stay those of the master seed.
+- `--max-program-size` now bounds total size steps across restarts
+  (identical to before without restarts); `--wall-seconds` stops cleanly
+  at a size-step boundary and saves the archive normally.
+- With `--restart-on-stall` and no `--seed`, the master seed is random and
+  printed (`[seed] master seed X (random; replay with --seed X)`).
+
+**Checks.**
+- `make test` 190/190; 3 new tests
+  (`restart_on_stall_restarts_a_stuck_run_and_keeps_the_archive`,
+  `restart_on_stall_off_never_restarts`, `wall_seconds_stops_the_run_early`).
+- Off by default and byte-identical: sorting, seed 3, max-n 12, beam 200,
+  600 candidates, 1 thread -- same log md5 as the previous HEAD build.
+- Smoke (`data/restart_smoketest_20261010/`, K=300, 600 s, random seed):
+  stops at the wall budget, reaches N=26, no restart yet (still climbing).
+
+**Calibration for the A/B.** In section 92 the run spent 2029 size steps
+at N=37 (~8 s each, ~4.5 h); N=1, 2 and 32 took 151 each (one window).
+K=300 is therefore ~40 min of no progress at N=37, K=200 ~27 min.
+The A/B against section 93 (8 seeds x 20 min, same profile, 2 h 40 compute)
+is still to be designed and registered.

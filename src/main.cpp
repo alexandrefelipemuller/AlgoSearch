@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <random>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -104,6 +105,9 @@ struct CliArgs {
     int maxProgramSize = 30;
     long stepLimit = 5000;
     uint64_t seed = 1234;
+    bool seedGiven = false;
+    int restartOnStall = 0;  // section 94
+    double wallSeconds = 0.0;
     int startLevel = 1;
     int candidatesPerSize = 800;
     int numVars = 4;
@@ -174,7 +178,9 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--beam-width") args.beamWidth = std::stoi(next("--beam-width"));
         else if (arg == "--max-program-size") args.maxProgramSize = std::stoi(next("--max-program-size"));
         else if (arg == "--step-limit") args.stepLimit = std::stol(next("--step-limit"));
-        else if (arg == "--seed") args.seed = static_cast<uint64_t>(std::stoull(next("--seed")));
+        else if (arg == "--seed") { args.seed = static_cast<uint64_t>(std::stoull(next("--seed"))); args.seedGiven = true; }
+        else if (arg == "--restart-on-stall") args.restartOnStall = std::stoi(next("--restart-on-stall"));
+        else if (arg == "--wall-seconds") args.wallSeconds = std::stod(next("--wall-seconds"));
         else if (arg == "--start-level") args.startLevel = std::stoi(next("--start-level"));
         else if (arg == "--candidates") args.candidatesPerSize = std::stoi(next("--candidates"));
         else if (arg == "--num-vars") { args.numVars = std::stoi(next("--num-vars")); args.numVarsExplicit = true; }
@@ -254,7 +260,7 @@ void printUsage() {
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
-                 "[--output solutions.json] [--checkpoint-path path.json] "
+                 "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
 
@@ -1030,6 +1036,13 @@ int main(int argc, char** argv) {
         return 1;
     }
     resolveNumVars(args);
+    // Section 94: with restarts the seed is only the master of a seed
+    // stream, so an unset one is drawn at random -- and printed, so the run
+    // can still be replayed with --seed.
+    if (args.restartOnStall > 0 && !args.seedGiven) {
+        args.seed = (static_cast<uint64_t>(std::random_device{}()) << 32) | std::random_device{}();
+        std::cout << "[seed] master seed " << args.seed << " (random; replay with --seed " << args.seed << ")\n";
+    }
 
     std::unique_ptr<Problem> problem = makeProblem(args.problem, args.numVars, args.seed);
     if (!problem) {
@@ -1106,6 +1119,8 @@ int main(int argc, char** argv) {
     config.genConfig.recursionCallBias = args.recursionCallBias;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
     config.checkpointPath = args.checkpointPath;
+    config.restartOnStall = args.restartOnStall;
+    config.wallSeconds = args.wallSeconds;
 
     BeamSearch search(*problem, config);
     std::vector<SolutionRecord> solutions = search.run();
