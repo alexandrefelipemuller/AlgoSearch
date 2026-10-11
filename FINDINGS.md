@@ -7138,3 +7138,47 @@ cubic, ~1.2 n log n), behavior classes, runs, wall actually used.
 
 **Decision rule.** As section 95: a new family, or strictly more classes
 at equal families with a real gain, before any default change.
+
+## 96 (results). max_subarray_sum: only Kadane, in both arms; restarts multiply variants, not families
+
+**Runs.**
+- Control (`data/msub_seeds_20261011`): every seed solved to N=64 in
+  ~1 min 53 s; 8 seeds took 15 min in total.
+- Restart (`data/msub_restart_20261011/k_200`): 66 restarts in 9600 s, all
+  of them "solved past the maximum level" (none from a stall); 66 runs
+  archived programs.
+
+| arm | runs | wall used | generalizing programs | behavior classes | families |
+|---|---|---|---|---|---|
+| control | 8 | 15 min | 1008 | 12 | linear (Kadane) only |
+| restart K=200 | 66 | 2 h 40 | 7417 | 25 | linear (Kadane) only |
+
+- Every class is Kadane: 5979-6848 steps at n=256, exponent ~1. One
+  class fits 0.29 because a junk inner loop runs a value-dependent number
+  of times; its code is Kadane. No quadratic, cubic or divide-and-conquer
+  program anywhere, and no executed `call`.
+- **Verifier false positives, 3 of ~8400 `SUCCESS` programs:** Kadane
+  plus a junk branch gated on a specific value (`arr[0] == 2`, `v7 == 3`,
+  `v7 < 0` with an `arr[0]`-bounded loop) that overflows, indexes out of
+  bounds or loops forever on held-out inputs (n = 3 and 9). Training,
+  lookahead and adversarial instances never hit those values. Rare, but
+  real: the triage is the stronger check.
+
+**Predictions.**
+1. Control ends early, restart uses everything with dozens of runs: held
+   (15 min vs 2 h 40, 8 vs 66 runs).
+2. Only linear/Kadane programs: held.
+3. More classes in the restart arm, all linear: held (25 vs 12).
+
+**Decision.** No new family, so `--restart-on-stall` stays opt-in. The
+extra classes are Kadane with different junk.
+
+**Reading.** On a problem with several textbook algorithms, the search
+finds only the smallest correct one. Kadane is about 45 nodes and is found
+at N=2 in a minute; the quadratic and cubic scans are larger and never
+win a size-ordered race, and the divergence window only keeps
+alternatives that also solve the current N, which Kadane already does.
+Diversity here is bounded by the search order (smallest program first),
+not by budget or seeds. Finding the slower algorithms would need an
+explicit novelty objective (e.g. reward a correct program whose cost
+profile differs from every archived one), not more restarts.
