@@ -7484,3 +7484,58 @@ needs new generic pieces, starting with a scalar-loop piece (an
 accumulator updated by `+`, `*` or `-` under a counter or
 `while (x >= y)` guard). That one piece would target average,
 factorial, power, gcd and is_prime at once.
+
+## 100. Generic scalar-loop piece (`--scalar-loop`) -- design and predictions registered before implementing
+
+Section 99 found that the current pieces never reach arithmetic loops over
+a scalar counter, so five skeletons (average, repeatedmultiply,
+recurrence, nesteddivisor, nesteddivisornative) are still indispensable.
+Note: the combinator is gated on `numVars >= 8` (`genStmt`), and the scalar
+problems run with 4-6 vars, so no combinator piece could ever reach them.
+The new piece therefore joins the **skeleton draw** (same
+`loopAccumulatorBias` trigger, weight 3, only when `--scalar-loop` is on)
+and asks for only as many variables as the variant needs.
+
+**The piece.** Inputs X = arr[0], Y = arr[1], N = v0 (length). State a
+(result), b, counter i, temp t. Each part is drawn independently:
+- init: a in {0, 1, X}; b in {0, 1, Y} (Pair only).
+- loop: Counted (`i = s; while (i C B) {...; i = i + 1}`, s in {0, 1, 2},
+  C in {<, <=}, B in {X, Y, N}, guard `i * i <= B` with prob. 1/4), or
+  UntilZero (`while (b != 0)`, Pair only).
+- body:
+  - Fold: `a = a OP T`, OP in {+, -, *}, T in {i, X, Y, arr[i]}.
+  - Pair: `t = a OP b; a = b; b = t`, OP in {+, -, %}.
+  - Divisor test: `if (X % i == 0) U`, U in {a = 0, a = 1, a = a + 1,
+    a = a + i}, with an optional pre-guard `if (X < s) a = c`.
+- post (prob. 1/4): `a = a / D`, D in {N, X, Y}.
+- write `arr[0] = a`.
+
+It needs 2 vars (Fold, Test), 3 (Pair UntilZero) or 4 (Pair Counted), so
+Pair-Counted (Fibonacci) needs `numVars >= 5`. fibonacci runs at
+`--num-vars 4`, which is a known limitation. The targets are single draws:
+factorial (Fold *, i), power (Fold *, X, bound Y), average (Fold +,
+arr[i], post / N), gcd (Pair %, UntilZero), is_prime (Test, a = 0, square
+guard, pre-guard). The same space also holds divisor counts and sums,
+triangular numbers and multiplication by addition, so it is not a
+union of the five skeletons. The per-target draw probability is about
+1e-3 to 1e-4, against 1/7 for a skeleton.
+
+**A/B.** Script: `scripts/run_scalar_loop_ab.sh`. Same budget and max-n as
+section 99, fresh seeds 46000-46009. Arms: base; SL (+ `--scalar-loop`); SLX
+(SL with the five scalar skeletons disabled). Problems: average,
+factorial, power, gcd, fibonacci, is_prime, plus the controls sorting,
+three_sum, graph_reachability and count_distinct, whose skeletons the new
+option dilutes.
+
+**Predictions** (of 10):
+1. SLX >= 5 on average, factorial and power; >= 5 on gcd; >= 3 on is_prime.
+2. SLX fibonacci = 0 (num-vars 4: Pair-Counted does not fit).
+3. SL >= base - 1 on all ten problems (one extra option of the ~8 dilutes
+   the others only slightly).
+
+**Decision rule.** `--scalar-loop` becomes default only if prediction 3
+holds and a full modest battery shows no regression (section 99 amended,
+step 6). A scalar skeleton becomes a *candidate* for removal only if SLX
+stays within -1 of base on every problem it serves, and is then removed
+only through section 99's amended steps 3-6 (30 seeds, joint removal,
+full battery).
