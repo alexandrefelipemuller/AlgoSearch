@@ -7955,3 +7955,15 @@ graph-reachability skeleton (a different shape) and one min_gap seed.
 Joint battery launched (step 6): `scripts/run_triple_joint_battery.sh`,
 73 problems, seeds 50100-50109, base vs TRX
 (`data/triple_joint_battery_20261012/`).
+
+## 103 (results, part 2). Joint battery passes; triple piece default, `threesum` deleted
+
+Joint battery (`data/triple_joint_battery_20261012/`, 73 problems x seeds
+50100-50109, base vs TRX, 1460 runs): **667 -> 665** verified successes.
+Differences: count_leaders, elements_twice, least_frequent_value 10 -> 9;
+min_gap 9 -> 10. No problem drops by >= 2, so step 6 passes with no retest.
+
+Decision: `--combinator-triple` is the CLI default (`--no-combinator-triple`
+turns it off; `GenConfig` default stays false). `genThreeSumSkeletonBlock`
+and its draw entry are deleted. Skeletons: 10 -> 9. After deletion:
+`make test` 207/207; three_sum, seed 50100, generalizes.

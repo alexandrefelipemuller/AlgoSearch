@@ -471,61 +471,6 @@ StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
     return rootAst;
 }
 
-// Dedicated skeleton for 3SUM-shaped problems: does any triple of DISTINCT
-// indices i<j<k sum to zero? See FINDINGS.md section 15 -- added after the
-// free search couldn't find a genuinely generalizing solution even with a
-// 10x budget bump, same "give the search the shape it needs" motivation as
-// every other dedicated skeleton here (SelectionSort, NestedDivisor, ...).
-//
-//   i = 0;
-//   found = 0;
-//   while (i < v0) {
-//     j = i + 1;
-//     while (j < v0) {
-//       k = j + 1;
-//       while (k < v0) {
-//         if ((arr[i] + arr[j]) + arr[k] == 0) { found = 1; }
-//         k = k + 1;
-//       }
-//       j = j + 1;
-//     }
-//     i = i + 1;
-//   }
-//   arr[0] = found;
-//
-// A genuine triple-nested loop, not a template that happens to reuse two
-// loops like NestedDivisor/RepeatedMultiply do -- needs a full 3-loop
-// budget (gated on canTripleLoop, i.e. maxLoops - loopsUsed >= 3, same
-// budget arithmetic as canQuadLoop one tier down) and 4 scratch scalars
-// (i, j, k, found), one more than SelectionSort's 3 since the found flag
-// can't double as a loop index the way SelectionSort's `mi` does double
-// duty. Gated on numVars >= 5, same tier as the deleted NestedDivisor/Average.
-StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
-    int i = vars[0], j = vars[1], k = vars[2], found = vars[3];
-
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(i, makeIntConst(0)));      // i = 0
-    root->body.push_back(makeAssign(found, makeIntConst(0)));  // found = 0
-    appendCountingWhile(root->body, i, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& outerBody) {
-        outerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));  // j = i + 1
-        appendCountingWhile(outerBody, j, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& midBody) {
-            midBody.push_back(makeAssign(k, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));  // k = j + 1
-            appendCountingWhile(midBody, k, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& innerBody) {
-                auto sum = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeArrayAccess(makeVar(i)), makeArrayAccess(makeVar(j))),
-                                      makeArrayAccess(makeVar(k)));
-                std::vector<StmtPtr> then;
-                then.push_back(makeAssign(found, makeIntConst(1)));
-                innerBody.push_back(makeIf(makeCompare(ExprKind::Eq, std::move(sum), makeIntConst(0)), std::move(then)));
-            });
-        });
-    });
-
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(found)));  // arr[0] = found
-
-    return root;
-}
-
 // Dedicated skeleton for GraphReachabilityProblem (FINDINGS.md section 16):
 // is vertex (V-1) reachable from vertex 0 in a directed graph, stored as
 // [V, V scratch "reached" cells, V*V row-major adjacency matrix] (see the
@@ -557,7 +502,7 @@ StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
 //
 // Genuinely needs the native Mul primitive for the i*nv+j row-major index --
 // unreachable before FINDINGS.md section 16's arithmetic extension. A true
-// triple-nested loop (round, i, j), so gated on canTripleLoop like ThreeSum;
+// triple-nested loop (round, i, j), so gated on canTripleLoop;
 // needs 5 scratch scalars (nv, base, round, i, j), so numVars >= 6, one
 // tier up from ThreeSum's 5.
 StmtPtr genGraphReachabilitySkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
@@ -701,7 +646,7 @@ StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loo
 //
 // Needs 11 scratch scalars (n, tw, base, baseB, i, j, ai, bj, diff, cost,
 // best), so numVars >= 12, same tier as TSP. Three loops total (boundary +
-// outer + inner), same canTripleLoop budget gate as ThreeSum/
+// outer + inner), same canTripleLoop budget gate as the deleted ThreeSum/
 // GraphReachability/ShortestPath.
 StmtPtr genDtwSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     std::vector<int> vars = pickDistinctVars(rng, cfg, 11);
@@ -2607,7 +2552,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
     bool canNestedLoop = canNest && (cfg.maxLoops - loopsUsed) >= 2;
-    bool canTripleLoop = canNest && (cfg.maxLoops - loopsUsed) >= 3;  // ThreeSum's 3-loop shape
+    bool canTripleLoop = canNest && (cfg.maxLoops - loopsUsed) >= 3;  // triple-nested shapes
     bool canQuadLoop = canNest && (cfg.maxLoops - loopsUsed) >= 4;    // heapsort's 4-loop shape
 
     // One universal trigger probability, not one flag per problem: a tool
@@ -2643,7 +2588,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { SelectionSort, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
+        enum class Skeleton { SelectionSort, HeapSort, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -2722,7 +2667,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         };
         if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
-        if (canTripleLoop && cfg.numVars >= 5 && allowed("threesum")) addOption(Skeleton::ThreeSum, 3);
         if (canTripleLoop && cfg.numVars >= 6 && allowed("graphreachability")) addOption(Skeleton::GraphReachability, 3);
         if (canTripleLoop && cfg.numVars >= 7 && allowed("shortestpath")) addOption(Skeleton::ShortestPath, 3);
         // TSP brute force needs 4 While loops (init + identity-permutation
@@ -2773,8 +2717,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::HeapSort:
                     return genHeapSortSkeletonBlock(rng, cfg, loopsUsed);
-                case Skeleton::ThreeSum:
-                    return genThreeSumSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::GraphReachability:
                     return genGraphReachabilitySkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::ShortestPath:

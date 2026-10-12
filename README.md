@@ -179,7 +179,10 @@ Results worth calling out:
   extension just to make the adjacency-matrix indexing *representable* at
   all, plus a real bug fix in `Benchmark.cpp`'s magnitude-shift check,
   which was corrupting the vertex-count/edge-flag metadata it was
-  shifting). In the 2026-09-17 sweep `graph_reachability` also had a lower
+  shifting). Since section 103 `three_sum` no longer needs its skeleton:
+  a generic triple-aggregate combinator piece (`--combinator-triple`,
+  default; Exists/CountIf/Forall of an arithmetic predicate over all
+  i < j < k) finds it at the same rate. In the 2026-09-17 sweep `graph_reachability` also had a lower
   confirmation rate (1 of 6 SUCCESS candidates survived independent
   re-verification); in the current sweep 3 of 3 survive. See section 17
   for the standalone correctness verification (8/8 hand-built test graphs)
