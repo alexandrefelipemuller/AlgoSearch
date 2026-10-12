@@ -72,7 +72,8 @@ bitwise, the skeleton library from `FINDINGS.md` sections 11-17 (minus the
 `counting` and `divideconquer` skeletons, removed in section 57 after an
 isolation battery showed nothing needs them; and, since section 100,
 minus `recurrence`, `repeatedmultiply`, `nesteddivisor` and
-`nesteddivisornative`, replaced by the generic scalar-loop piece below), and the combinator algebra on
+`nesteddivisornative`, replaced by the generic scalar-loop piece below,
+and since section 101 minus `average`), and the combinator algebra on
 by default, `--combinator-bias 0.5`, since section 48). The table predates
 the stateful combinator pieces (Kadane, LIS, rain water and relatives),
 on by default since section 62. With them, ten more array problems are
@@ -211,7 +212,10 @@ Results worth calling out:
   divide) finds gcd, fibonacci, factorial, power and is_prime at 30/30
   seeds without them. Along the way factorial and power got an exact
   64-bit reference with overflow out of domain (n <= 12 for factorial),
-  because native `Mul` errors on overflow instead of wrapping.
+  because native `Mul` errors on overflow instead of wrapping. Since
+  section 101 the piece's `arr[i]` fold walks `i = 0 .. N-1`
+  (`--scalar-loop-index-range`, default), which also finds `average`, so
+  the `average` skeleton is gone too.
 
 See `FINDINGS.md` for the full experimental history (grammar bias sweeps,
 diversity/crossover/niching A/B tests, the native-comparison-operator

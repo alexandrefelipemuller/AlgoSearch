@@ -294,7 +294,7 @@ ExprPtr makeFlatIndex(ExprPtr base, ExprPtr i, ExprPtr width, ExprPtr j) {
 // + 1; }` to `out` -- the loop half of the single most reused shape in
 // this file (the "counting loop": an index bounds-checked and
 // incremented exactly once per iteration), confirmed identical across
-// Average/SelectionSort/ThreeSum's every loop while cataloguing skeleton
+// SelectionSort/ThreeSum's every loop while cataloguing skeleton
 // primitives (FINDINGS.md section 24). Deliberately does NOT also push
 // `var = init` -- callers do that themselves wherever it belongs in
 // their own statement order (which init goes where relative to OTHER
@@ -308,60 +308,6 @@ void appendCountingWhile(std::vector<StmtPtr>& out, int var, ExprPtr boundExpr, 
     body.push_back(makeAssign(var, makeBinOp(ExprKind::Add, makeVar(var), makeIntConst(1))));
     loopsUsed++;
     out.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(var), std::move(boundExpr)), std::move(body)));
-}
-
-// Appends `while (r >= bound) { r = r - bound; <buildExtra's
-// statements>; }` to `out` -- the "divide via repeated subtraction"
-// primitive from before native Div (Average's divide phase tracks a
-// quotient via `buildExtra`; the deleted GcdMod skeleton used the same
-// shape, FINDINGS.md section 24). `bound` is cloned once for the
-// subtraction and once for the loop condition.
-void appendSubtractiveDivideWhile(std::vector<StmtPtr>& out, int r, ExprPtr bound, int& loopsUsed,
-                                   const std::function<void(std::vector<StmtPtr>&)>& buildExtra) {
-    std::vector<StmtPtr> body;
-    body.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), bound->clone())));
-    buildExtra(body);
-    loopsUsed++;
-    out.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), std::move(bound)), std::move(body)));
-}
-
-// Dedicated skeleton for AverageProblem's shape: sum the array (exactly
-// the Sum AccumKind's loop, see genCountingLoopBlock), then divide that
-// sum by the array length (`arr[0]`... no -- by var 0, the interpreter's
-// auto-seeded array-length scalar, see Interpreter::run) via repeated
-// subtraction. Composing this from two INDEPENDENTLY drawn generic
-// skeletons was considered and rejected: each skeleton call picks its own
-// fresh random scratch variables, so a separately-drawn "divide" template
-// would need to, by pure chance, pick the exact same variable the Sum
-// loop happened to accumulate into as its dividend -- vanishingly
-// unlikely, the same composability wall FINDINGS.md section 7 documents
-// for min/max/sum's own increment idiom (the causal unit is the whole
-// coordinated skeleton, not independently-drawn pieces of one). Offered
-// as one atomic two-loop block instead, same precedent as the
-// SelectionSort library-learning experiment below. Needs 4 scratch
-// scalars (vi, sum, remainder, quotient); gated on numVars >= 5.
-StmtPtr genAverageSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
-    int vi = vars[0], sum = vars[1], remainder = vars[2], quotient = vars[3];
-
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(sum, makeIntConst(0)));  // sum = 0
-    root->body.push_back(makeAssign(vi, makeIntConst(0)));   // vi = 0
-    appendCountingWhile(root->body, vi, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& body) {
-        body.push_back(makeAssign(sum, makeBinOp(ExprKind::Add, makeVar(sum), makeArrayAccess(makeVar(vi)))));  // sum = sum + arr[vi]
-    });
-
-    root->body.push_back(makeAssign(remainder, makeVar(sum)));  // remainder = sum
-    root->body.push_back(makeAssign(quotient, makeIntConst(0)));  // quotient = 0
-    // Native Ge (see ast/Expr.hpp) makes this a plain, direct
-    // division-by-repeated-subtraction loop -- no compound condition
-    // needed, unlike GcdEuclid's `!=` before Le/Ge/Ne existed.
-    appendSubtractiveDivideWhile(root->body, remainder, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& body) {
-        body.push_back(makeAssign(quotient, makeBinOp(ExprKind::Add, makeVar(quotient), makeIntConst(1))));
-    });
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(quotient)));  // arr[0] = quotient
-
-    return root;
 }
 
 // Library-learning experiment: a full Selection Sort as ONE atomic
@@ -553,7 +499,7 @@ StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
 // budget arithmetic as canQuadLoop one tier down) and 4 scratch scalars
 // (i, j, k, found), one more than SelectionSort's 3 since the found flag
 // can't double as a loop index the way SelectionSort's `mi` does double
-// duty. Gated on numVars >= 5, same tier as NestedDivisor/Average.
+// duty. Gated on numVars >= 5, same tier as the deleted NestedDivisor/Average.
 StmtPtr genThreeSumSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
     int i = vars[0], j = vars[1], k = vars[2], found = vars[3];
@@ -2618,7 +2564,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { SelectionSort, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
+        enum class Skeleton { SelectionSort, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -2696,7 +2642,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             totalWeight += w;
         };
         if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
-        if (canNestedLoop && cfg.numVars >= 5 && allowed("average")) addOption(Skeleton::Average, 3);
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
         if (canTripleLoop && cfg.numVars >= 5 && allowed("threesum")) addOption(Skeleton::ThreeSum, 3);
         if (canTripleLoop && cfg.numVars >= 6 && allowed("graphreachability")) addOption(Skeleton::GraphReachability, 3);
@@ -2749,8 +2694,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::HeapSort:
                     return genHeapSortSkeletonBlock(rng, cfg, loopsUsed);
-                case Skeleton::Average:
-                    return genAverageSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::ThreeSum:
                     return genThreeSumSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::GraphReachability:

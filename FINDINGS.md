@@ -7773,3 +7773,18 @@ Prediction 2 **held**. The IRX winner is the expected shape:
 Joint battery launched (step 6): `scripts/run_index_range_joint_battery.sh`,
 73 problems, seeds 48100-48109, base vs IRX
 (`data/index_range_joint_battery_20261012/`).
+
+## 101 (results, part 2). Joint battery passes; index range default, `average` deleted
+
+Joint battery (`data/index_range_joint_battery_20261012/`, 73 problems x
+seeds 48100-48109, base vs IRX, 1460 runs): **669 -> 671** verified
+successes. Only two problems moved, both up: `count` 9 -> 10,
+`sum_of_rises` 0 -> 1. No problem dropped, so step 6 passes with no
+retest needed.
+
+Decision: `--scalar-loop-index-range` is now the CLI default
+(`--no-scalar-loop-index-range` turns it off; `GenConfig` default stays
+false, so library callers are byte-identical). `genAverageSkeletonBlock`,
+its draw entry and `appendSubtractiveDivideWhile` (used only by it) are
+deleted. Skeletons: 11 -> 10. Smoke check after deletion: `average`, seed
+48100, 3/3 benchmark seeds generalize. `make test` 202/202.
