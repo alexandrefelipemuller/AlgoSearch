@@ -5,6 +5,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "problems/FactorialProblem.hpp"
 #include "problems/PowerProblem.hpp"
+#include "problems/TspProblem.hpp"
 #include "search/Benchmark.hpp"
 #include "test_framework.hpp"
 
@@ -57,4 +58,10 @@ TEST(native_mul_factorial_and_power_pass_verification) {
     std::string reason;
     CHECK(verifyGeneralization(FactorialProblem(10, 40, 5), *buildNativeMulLoop(false), 200000, reason));
     CHECK(verifyGeneralization(PowerProblem(6, 40, 6), *buildNativeMulLoop(true), 200000, reason));
+}
+
+TEST(tsp_benchmark_domain_stops_at_ten_vertices) {
+    TspProblem problem;
+    CHECK(!problem.generateBenchmarkInstance(10, 0).input.empty());
+    CHECK(problem.generateBenchmarkInstance(15, 0).input.empty());
 }

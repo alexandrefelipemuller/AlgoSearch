@@ -8317,3 +8317,17 @@ though the search champions are equal.
 Open decision (user): cap tsp's benchmark domain (e.g. empty
 `generateBenchmarkInstance` for n > 10, as factorial does past n = 12),
 then re-run this screen.
+
+## 107c. tsp re-screen with verification capped at V <= 10 -- registered before running
+
+Change: `TspProblem::generateBenchmarkInstance` returns an empty instance
+for n > 10 (Benchmark skips it), the factorial pattern. Verification thus
+probes n in {1,2,3,4,5,7,10}. Re-run `scripts/run_tsp_rescreen.sh` (same
+seeds 53100-53109, step limit 200000) into `data/tsp_rescreen_capped_20261012/`.
+
+Predictions: base >= 8/10 genuinely generalizing. Risk: brute force at
+V = 10 is 9! = 362880 tours and may exceed the 50M verification step
+limit, in which case nobb (bruteforce only) drops and nobf survives.
+Decision (section 99 rules, 10 seeds): an arm with one skeleton removed
+that drops tsp by >= 2 keeps that skeleton; if both single-removal arms
+hold, the 30-seed A/B decides which one goes. noboth predicted 0/10.

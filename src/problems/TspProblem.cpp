@@ -177,4 +177,9 @@ bool TspProblem::isSolution(const std::vector<int>& input, const std::vector<int
     return output[0] == tspCost(v, matrix);
 }
 
+Instance TspProblem::generateBenchmarkInstance(int n, uint64_t seed) const {
+    if (n > maxDomainN) return {{}, {}};  // out of domain: Benchmark skips it
+    return Problem::generateBenchmarkInstance(n, seed);
+}
+
 }  // namespace algosearch
