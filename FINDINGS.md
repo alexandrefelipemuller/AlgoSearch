@@ -7749,3 +7749,27 @@ them if it matters.
 deleted and the flag made default only if 2 holds and the joint battery
 passes step 6: a drop >= 3 reverts, and an exact -2 gets a 30-seed
 retest at >= base - 3.
+
+## 101 (results, part 1). Probe and 30-seed average A/B both pass
+
+**Probe** (200k forced draws, levels 2-6, hits off -> on):
+
+| target | off | on |
+|---|---|---|
+| average | 10 | **300** |
+| gcd | 1797 | 1286 |
+| factorial | 133 | 116 |
+| fibonacci | 138 | 106 |
+| power | 109 | 61 |
+| is_prime | 41 | 26 |
+
+Prediction 1 **held**: average x30, the other five drop by < 2x.
+
+**A/B** (`data/index_range_average_20261012/`, 60 runs, 0 timeouts):
+base 30/30, IRX (index range on, `average` skeleton off) **30/30**.
+Prediction 2 **held**. The IRX winner is the expected shape:
+`a = 0; i = 0; while (i < N) a = a + arr[i]; a = a / N`.
+
+Joint battery launched (step 6): `scripts/run_index_range_joint_battery.sh`,
+73 problems, seeds 48100-48109, base vs IRX
+(`data/index_range_joint_battery_20261012/`).
