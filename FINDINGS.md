@@ -8118,3 +8118,22 @@ So "generic pieces are better for diversity" holds for the *reachable
 space* (one piece covers several problems and variants; the relax piece
 reached shortest_path, which its skeleton never solved), not for the
 *winners*, where it is unmeasured-to-negative.
+
+## 107. Isolation screening of the never-tested skeletons (dtw, tspbruteforce, tspbranchandbound) -- registered before running
+
+Section 105 found a skeleton that never solved its own problem. The three
+skeletons never isolated get the section 99 screening before any piece
+work. Settings from `run_full_battery_heavy.sh` (tsp max-n 6, dtw max-n 5,
+num-vars 12), wall 300 s, the joint batteries' search settings, seeds
+53000-53009.
+Arms: base on dtw and tsp; nodtw (dtw off) on dtw; nobf (tspbruteforce
+off) and nobb (tspbranchandbound off) on tsp.
+
+Rules (section 99, amended): an arm that drops >= 2 of 10 keeps its
+skeleton; within -1 makes it a candidate for the 30-seed step. If base
+itself is <= 2/10 on a problem, the screen cannot decide, and the next
+step is to find out why (as in section 105) before any removal.
+
+Predictions: dtw needs its skeleton (a 2-D DP table no piece builds):
+nodtw drops >= 2. For tsp the two skeletons overlap (either alone solves
+it), so each single arm stays within -1.
