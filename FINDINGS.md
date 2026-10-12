@@ -7447,3 +7447,40 @@ use these skeletons, and joint removal. Replaces the rule above:
    set vs base. Any drop >= 3 reverts the culprit skeleton; a drop of
    exactly 2 gets a 30-seed retest under step 3's threshold, and a skeleton
    is restored if the retest fails. Time is not a criterion.
+
+## 99 (results). No skeleton is removable: six drop to 0 without their skeleton, selectionsort fails by one seed
+
+`data/skeleton_reisolation_20261011/` (not versioned; 21:19-21:50, 240
+runs, 14 timeouts). Verified successes of 10 matched seeds:
+
+| arm (skeleton off) | problem | base | arm |
+|---|---|---|---|
+| noavg (average) | average | 10 | **0** |
+| normul (repeatedmultiply) | factorial / power | 10 / 10 | **0 / 0** |
+| no3sum (threesum) | three_sum | 8 | **0** |
+| norec (recurrence) | gcd / fibonacci | 10 / 10 | **0 / 0** |
+| nondiv (both nested divisor) | is_prime | 10 | **0** |
+| nograph (graphreachability) | graph_reachability | 10 | **0** |
+| nosel (selectionsort) | sorting / count_distinct / max_gap_sorted / min_gap | 10 / 10 / 10 / 10 | 10 / 10 / 9 / **8** |
+
+**Predictions.**
+1. Covered by pieces: **falsified** on average, factorial, power and
+   three_sum (all 0/10, not even a partial cover). It held on sorting,
+   count_distinct and max_gap_sorted, and min_gap missed by one seed.
+2. Still need a skeleton: **held**, all four at 0/10.
+
+**Rule (amended version).** Step 1 keeps all seven arms: six drop by 8-10,
+and min_gap drops by exactly 2 (both misses are timeouts). Step 1 is
+final, so selectionsort is kept even though the -2 may be noise. No
+candidate reaches steps 2-6, and nothing is removed.
+
+**Reading.** The seven pieces promoted since section 56 do not touch
+the "fixed scalar computation" skeletons at all. Average (sum, then
+subtractive division), repeated multiply, recurrences, divisor loops and
+triple nested search are 0/10 without hand-written help: the pieces reach
+array scans, not arithmetic loops over a scalar counter. selectionsort is
+the one skeleton the current pieces nearly cover. Replacing the others
+needs new generic pieces, starting with a scalar-loop piece (an
+accumulator updated by `+`, `*` or `-` under a counter or
+`while (x >= y)` guard). That one piece would target average,
+factorial, power, gcd and is_prime at once.
