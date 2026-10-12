@@ -7937,3 +7937,21 @@ draw out of about 2 x 4 x 6 x 3 x 4 = 576 (sum-vs-literal draws a literal).
 3. Usage map: grep the section 101 joint battery base winners for a
    triple-nested loop. Any other problem using one joins step 2.
 4. If 2 holds, the joint battery (73 x 10) with section 99 step 6.
+
+## 103 (results, part 1). Probe and three_sum A/B pass
+
+Probe (200k forced combinator draws, levels 3-6): three_sum solvers
+**0 -> 50**. Prediction 1 held.
+
+A/B (`data/combinator_triple_ab_20261012/`, seeds 50000-50029, 60 runs):
+base **25/30**, TRX (`--combinator-triple`, `threesum` off) **25/30**;
+5 wall timeouts in each arm. Prediction 2 held. The TRX winner is the
+expected draw: Exists of `e(i) + e(j) + e(k) == 0` over i < j < k.
+
+Usage map (prediction 3): in the section 101 joint battery base winners,
+only three_sum (10/10) uses a triple-nested loop, besides the
+graph-reachability skeleton (a different shape) and one min_gap seed.
+
+Joint battery launched (step 6): `scripts/run_triple_joint_battery.sh`,
+73 problems, seeds 50100-50109, base vs TRX
+(`data/triple_joint_battery_20261012/`).
