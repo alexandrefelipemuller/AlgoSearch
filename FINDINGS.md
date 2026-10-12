@@ -7572,3 +7572,34 @@ separate decision.
 Amended before running, prediction 1 for factorial only: **SLX factorial
 = 0** at the A/B's `--max-n 15`, for the reason above. The other
 predictions are unchanged.
+
+## 100 (benchmark fix). factorial and power: exact 64-bit reference, overflow is out of domain
+
+Decision with the user: the reference is exact, and inputs whose answer
+does not fit in `int` are out of domain. They are not compared mod 2^32.
+The old convention (wrap on purpose, documented in both headers) only
+held for add-based multiplication, because native `Mul` (section 16)
+reports overflow as an error. So any `*` solution was rejected past 12!
+or 2^30.
+- factorial: domain n <= 12. Levels cap the bound at 12, and
+  `generateBenchmarkInstance` returns an empty instance past it, which
+  `verifyGeneralization` already skips.
+- power: out-of-domain (base, exponent) pairs are dropped from training,
+  adversarial and benchmark instances.
+- Both: `supportsMagnitudeShift() = false` (n + 997 is always out of
+  domain). The domain is small enough that verification still covers all
+  of it at the listed sizes.
+- Timing fits for these two now see only n <= 12 or 30.
+
+Tests: `tests/magnitude_domain_tests.cpp`. They check that instances stay
+in domain, that benchmark instances past the domain are empty, and that
+both the native-`Mul` loops and the repeatedmultiply skeleton pass
+verification. `make test` 201/201.
+
+**Effect on section 100's A/B.** It was already running on the old
+binary, which was not rebuilt mid-battery. Its factorial and power cells
+use the old domain, so they are rerun on the new binary with the same
+seeds and all three arms (`data/scalar_loop_ab_domainfix_20261011/`), and
+the old cells are not used. The amended factorial prediction (SLX = 0)
+was about the overflow and is withdrawn: prediction 1's original ">= 5"
+applies to factorial again.

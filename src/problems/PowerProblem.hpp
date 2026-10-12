@@ -17,12 +17,11 @@ namespace algosearch {
 // the exponent and an inner accumulator, structurally the same shape
 // FactorialProblem needs, hence the same numVars >= 5 default.
 //
-// Correctness reference uses plain (possibly overflowing) `int`
-// arithmetic on purpose, same reasoning as FactorialProblem/
-// FibonacciProblem: repeated addition mod 2^32 matches native
-// multiplication mod 2^32 bit-for-bit, so a genuinely correct discovered
-// program still matches this reference past the point where the true
-// value no longer fits in 32 bits.
+// Domain: base, exponent >= 0 with base^exponent in int (FINDINGS.md
+// section 100). The reference is exact (64-bit); out-of-domain pairs are
+// dropped from every instance set instead of compared mod 2^32, which
+// only add-based multiplication matched (native Mul errors on overflow).
+// The shift check is off: base + 997 leaves the domain at exponent 4.
 class PowerProblem : public Problem {
 public:
     explicit PowerProblem(int exhaustiveMaxBound = 6, int randomInstancesPerLevel = 40, int numVars = 5, uint64_t seed = 42);
@@ -34,6 +33,7 @@ public:
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     int numVars() const override { return numVars_; }
     Instance generateBenchmarkInstance(int n, uint64_t seed) const override;
+    bool supportsMagnitudeShift() const override { return false; }
 
 private:
     int exhaustiveMaxBound_;

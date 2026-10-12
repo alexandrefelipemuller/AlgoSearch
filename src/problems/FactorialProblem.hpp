@@ -23,13 +23,12 @@ namespace algosearch {
 // GenConfig::loopAccumulatorBias in ProgramGenerator.hpp for how the
 // dedicated skeleton is wired in without a problem-specific flag.
 //
-// Correctness reference deliberately uses plain (possibly overflowing)
-// `int` arithmetic, same reasoning as FibonacciProblem: modular arithmetic
-// mod 2^32 is preserved whether multiplication is done natively or via
-// repeated addition (both reduce to the same sequence of int additions
-// mod 2^32), so a genuinely correct discovered program matches this
-// reference bit-for-bit even past the point where the true factorial value
-// no longer fits in 32 bits -- no need to cap the benchmarkable domain.
+// Domain: 0 <= n <= 12, the n whose n! fits in int (FINDINGS.md section
+// 100). The reference is exact (64-bit); larger n are out of domain, not
+// compared mod 2^32. The old wrapping reference only matched add-based
+// multiplication, because native Mul reports overflow as an error. Levels
+// cap at n = 12, benchmark instances past it are skipped, and the shift
+// check is off (n + 997 is always out of domain).
 class FactorialProblem : public Problem {
 public:
     explicit FactorialProblem(int exhaustiveMaxBound = 10, int randomInstancesPerLevel = 40, int numVars = 5,
@@ -42,6 +41,7 @@ public:
     std::vector<Instance> generateAdversarialInstances(int level) const override;
     int numVars() const override { return numVars_; }
     Instance generateBenchmarkInstance(int n, uint64_t seed) const override;
+    bool supportsMagnitudeShift() const override { return false; }
 
 private:
     int exhaustiveMaxBound_;

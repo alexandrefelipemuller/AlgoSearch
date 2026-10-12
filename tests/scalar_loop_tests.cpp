@@ -37,15 +37,15 @@ bool solvesLevels(const Problem& problem, const Stmt& program, int fromLevel, in
     return true;
 }
 
-// How many of `draws` single-piece programs solve `problem` on levels 2..toLevel.
-int pieceHits(const Problem& problem, int numVars, uint64_t seed, int draws = 20000, int toLevel = 6) {
+// How many of `draws` single-piece programs solve `problem` on levels 2-6.
+int pieceHits(const Problem& problem, int numVars, uint64_t seed, int draws = 20000) {
     setenv("ALGOSEARCH_FORCE_SKELETON", "scalarloop", 1);
     Random rng(seed);
     GenConfig cfg = scalarLoopOnly(numVars);
     int hits = 0;
     for (int i = 0; i < draws; ++i) {
         Program p = generateRandomProgram(rng, 2, cfg);
-        if (solvesLevels(problem, *p, 2, toLevel)) hits++;
+        if (solvesLevels(problem, *p, 2, 6)) hits++;
     }
     unsetenv("ALGOSEARCH_FORCE_SKELETON");
     return hits;
@@ -66,9 +66,7 @@ TEST(scalar_loop_piece_is_byte_identical_when_off) {
 
 TEST(scalar_loop_piece_reaches_the_scalar_skeleton_problems) {
     CHECK(pieceHits(AverageProblem(6, 40, 5), 5, 1, 100000) > 0);
-    // Levels 2-4 only (n <= 11): from n = 13 on, factorialRef's int product
-    // wraps and native Mul reports the overflow as an error (section 100).
-    CHECK(pieceHits(FactorialProblem(10, 40, 5), 5, 2, 20000, 4) > 0);
+    CHECK(pieceHits(FactorialProblem(10, 40, 5), 5, 2) > 0);
     CHECK(pieceHits(PowerProblem(6, 40, 6), 6, 3) > 0);
     CHECK(pieceHits(GcdProblem(12, 40, 4), 4, 4) > 0);
     CHECK(pieceHits(IsPrimeProblem(30, 40, 5), 5, 5) > 0);

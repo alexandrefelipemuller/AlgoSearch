@@ -1,5 +1,7 @@
 #include "problems/FactorialProblem.hpp"
 
+#include <algorithm>
+
 #include "core/Random.hpp"
 
 namespace algosearch {
@@ -8,15 +10,20 @@ FactorialProblem::FactorialProblem(int exhaustiveMaxBound, int randomInstancesPe
     : exhaustiveMaxBound_(exhaustiveMaxBound), randomInstancesPerLevel_(randomInstancesPerLevel), numVars_(numVars), seed_(seed) {}
 
 namespace {
-int factorialRef(int n) {
-    int result = 1;
+// Exact n! in 64 bits; only called on the domain, where it fits in int.
+long long factorialRef(int n) {
+    long long result = 1;
     for (int i = 2; i <= n; ++i) result *= i;
     return result;
 }
 
-int upperBound(int level) { return 3 + 2 * level; }
+// The largest in-domain n (12! fits in int, 13! does not).
+const int maxDomainN = 12;
 
-Instance toInstance(int n) { return {{n}, {factorialRef(n)}}; }
+int upperBound(int level) { return std::min(3 + 2 * level, maxDomainN); }
+
+Instance toInstance(int n) { return {{n}, {static_cast<int>(factorialRef(n))}}; }
+
 }  // namespace
 
 std::vector<Instance> FactorialProblem::generateInstances(int level) const {
@@ -46,9 +53,13 @@ std::vector<Instance> FactorialProblem::generateAdversarialInstances(int level) 
 
 bool FactorialProblem::isSolution(const std::vector<int>& input, const std::vector<int>& output) const {
     if (output.size() != input.size() || input.empty()) return false;
+    if (input[0] < 0 || input[0] > maxDomainN) return false;  // out of domain
     return output[0] == factorialRef(input[0]);
 }
 
-Instance FactorialProblem::generateBenchmarkInstance(int n, uint64_t /*seed*/) const { return toInstance(n); }
+Instance FactorialProblem::generateBenchmarkInstance(int n, uint64_t /*seed*/) const {
+    if (n < 0 || n > maxDomainN) return {{}, {}};  // out of domain: Benchmark skips it
+    return toInstance(n);
+}
 
 }  // namespace algosearch
