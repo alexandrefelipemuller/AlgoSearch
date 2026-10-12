@@ -8331,3 +8331,21 @@ limit, in which case nobb (bruteforce only) drops and nobf survives.
 Decision (section 99 rules, 10 seeds): an arm with one skeleton removed
 that drops tsp by >= 2 keeps that skeleton; if both single-removal arms
 hold, the 30-seed A/B decides which one goes. noboth predicted 0/10.
+
+## 107c (results). Branch-and-bound alone matches base; brute force times out at V = 10
+
+`data/tsp_rescreen_capped_20261012/`, seeds 53100-53109:
+
+| arm | skeletons left | genuinely generalizing |
+|---|---|---|
+| base | both | 10/10 |
+| nobf | branchandbound | 10/10 |
+| nobb | bruteforce | 0/10 (all `failed at n=10 trial=0 (timeout)`) |
+| noboth | none | 0/10 (search never reaches full score) |
+
+Prediction base >= 8/10 held; the registered risk materialized: brute
+force (9! tours) exceeds the 50M verification step limit at V = 10, so
+every base winner is a branch-and-bound program. Under the section 99 rule
+tspbranchandbound is indispensable and tspbruteforce is a removal
+candidate. Caveat: this verdict depends on the cap -- at V <= 9 brute force
+would likely pass verification, and base would then draw from both.
