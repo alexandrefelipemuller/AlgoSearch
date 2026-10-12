@@ -7416,3 +7416,34 @@ retest before removal. Removals are a separate commit, followed by a
 modest battery to check the default's changed RNG stream (as section 57).
 Untested skeletons (binarysearch, dtw, shortestpath, tsp*, heapsort,
 mergesort) are out of scope.
+
+## 99 (amended decision rule). Registered 2026-10-11 while the battery ran, before reading any result
+
+Reviewing the rule above found it unsafe in the costly direction. With
+10 seeds the per-arm count has SD ~1.3 at p = 0.8, so a skeleton that
+truly costs 20% of successes often shows as -1 and would be removed.
+Removing is the expensive mistake, keeping is the cheap one, so the rule
+is now asymmetric. It also ignored family loss, newer problems that may
+use these skeletons, and joint removal. Replaces the rule above:
+
+1. **Keep** if any served problem drops by >= 2 of 10 (unchanged). Final.
+2. **Candidate** if every served problem stays within -1 of 10. Not a
+   removal by itself.
+3. **Confirmation, 30 seeds** (45000-45029, 20 new seeds per candidate
+   arm and base). Removable only if, on every served problem, the arm is
+   >= base - 3 of 30 and, where base is 30/30, the arm is >= 27/30.
+4. **Family (selectionsort only).** Each verified sorting winner of the
+   30 seeds is classified by reading the program, criteria fixed now:
+   *selection* = an inner loop that tracks a min/max index or value,
+   then one swap per outer iteration. Removable only if nosel shows
+   selection in >= 1/3 as many seeds as base does (and at least once if
+   base shows it at all).
+5. **Usage map.** Before removing, grep the winners of the latest modest
+   battery (`data/modest_battery_skeleton_pruned_20261004/`) and of base
+   here for each candidate's shape. Any other problem whose winner uses
+   it joins step 3 as a served problem.
+6. **Joint removal.** The skeletons passing 1-5 are removed together in
+   one commit, then a full 49-problem modest battery, 10 seeds, removed
+   set vs base. Any drop >= 3 reverts the culprit skeleton; a drop of
+   exactly 2 gets a 30-seed retest under step 3's threshold, and a skeleton
+   is restored if the retest fails. Time is not a criterion.
