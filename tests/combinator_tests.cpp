@@ -20,6 +20,8 @@
 #include "problems/SubstringProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
 #include "problems/ThreeSumProblem.hpp"
+#include "problems/GraphReachabilityProblem.hpp"
+#include "problems/ShortestPathProblem.hpp"
 #include "search/ProgramGenerator.hpp"
 #include "test_framework.hpp"
 
@@ -465,4 +467,39 @@ TEST(triple_piece_reaches_three_sum) {
     // Section 103 prediction 1.
     CHECK_EQ(tripleHits(false, 104, 20000), 0);
     CHECK(tripleHits(true, 104, 20000) > 0);
+}
+
+namespace {
+
+int relaxHits(const Problem& problem, bool relax, uint64_t seed, int draws) {
+    Random rng(seed);
+    GenConfig cfg = combinatorOnly();
+    cfg.maxLoops = 4;
+    cfg.combinatorRelax = relax;
+    int hits = 0;
+    for (int i = 0; i < draws; ++i) {
+        Program p = generateRandomProgram(rng, 2, cfg);
+        if (solvesLevels(problem, *p, 2, 5)) hits++;
+    }
+    return hits;
+}
+
+}  // namespace
+
+TEST(relax_piece_is_byte_identical_when_off) {
+    // Section 104: the relaxation block is drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.maxLoops = b.maxLoops = 4;
+    b.combinatorRelax = false;
+    Random ra(104), rb(104);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(relax_piece_reaches_graph_reachability) {
+    // Section 104 prediction 1.
+    GraphReachabilityProblem problem(6, 40, 8);
+    CHECK_EQ(relaxHits(problem, false, 105, 4000), 0);
+    CHECK(relaxHits(problem, true, 105, 4000) > 0);
 }

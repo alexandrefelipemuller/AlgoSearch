@@ -1986,8 +1986,77 @@ StmtPtr genTripleBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Section 104: fixed-point relaxation over a square matrix. Layout
+// [V, S[0..V-1], M[0..V*V-1]]; V rounds of
+//   for i, j: if (guard(S[i]) && edge(w = M[i][j])) update(S[j], S[i], w);
+// then arr[0] = S[V-1]. Each part is drawn independently.
+StmtPtr genRelaxBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> v = pickDistinctVars(rng, cfg, 6);
+    int nv = v[0], base = v[1], round = v[2], vi = v[3], vj = v[4], w = v[5];
+    const int inf = 100000;
+    auto lit = [](int x) { return makeIntConst(x); };
+    auto state = [&](int x) { return makeArrayAccess(makeBinOp(ExprKind::Add, lit(1), makeVar(x))); };
+    auto stateAt = [&](int x) { return makeBinOp(ExprKind::Add, lit(1), makeVar(x)); };
+    bool infInit = (cfg.maxLoops - loopsUsed) >= 4 && rng.chance(0.5);
+    int guard = rng.uniformInt(0, 2);   // none, S[i] == 1, S[i] != 0
+    int edge = rng.uniformInt(0, 2);    // w == 1, w > 0, w != 0
+    int update = rng.uniformInt(0, 3);  // = 1, = S[i], min S[i] + w, min S[i] + 1
+    bool minusOne = infInit && rng.chance(0.5);
+
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(nv, makeArrayAccess(lit(0))));
+    root.push_back(makeAssign(base, makeBinOp(ExprKind::Add, makeVar(nv), lit(1))));
+    if (infInit) {
+        root.push_back(makeAssign(vi, lit(0)));
+        appendCountingWhile(root, vi, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& body) {
+            body.push_back(makeAssignArray(stateAt(vi), lit(inf)));
+        });
+    }
+    root.push_back(makeAssignArray(lit(1), lit(infInit ? 0 : 1)));
+    root.push_back(makeAssign(round, lit(0)));
+    appendCountingWhile(root, round, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& roundBody) {
+        roundBody.push_back(makeAssign(vi, lit(0)));
+        appendCountingWhile(roundBody, vi, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
+            iBody.push_back(makeAssign(vj, lit(0)));
+            appendCountingWhile(iBody, vj, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& jBody) {
+                jBody.push_back(makeAssign(w, makeArrayAccess(makeFlatIndex(makeVar(base), makeVar(vi), makeVar(nv), makeVar(vj)))));
+                std::vector<StmtPtr> act;
+                if (update <= 1) {
+                    act.push_back(makeAssignArray(stateAt(vj), update == 0 ? lit(1) : state(vi)));
+                } else {
+                    auto cand = [&] { return makeBinOp(ExprKind::Add, state(vi), update == 2 ? makeVar(w) : lit(1)); };
+                    std::vector<StmtPtr> take;
+                    take.push_back(makeAssignArray(stateAt(vj), cand()));
+                    act.push_back(makeIf(makeCompare(ExprKind::Lt, cand(), state(vj)), std::move(take)));
+                }
+                ExprKind ek = edge == 0 ? ExprKind::Eq : edge == 1 ? ExprKind::Gt : ExprKind::Ne;
+                std::vector<StmtPtr> onEdge;
+                onEdge.push_back(makeIf(makeCompare(ek, makeVar(w), lit(edge == 0 ? 1 : 0)), std::move(act)));
+                if (guard == 0) {
+                    for (auto& st : onEdge) jBody.push_back(std::move(st));
+                } else {
+                    jBody.push_back(makeIf(makeCompare(guard == 1 ? ExprKind::Eq : ExprKind::Ne, state(vi), lit(guard == 1 ? 1 : 0)),
+                                           std::move(onEdge)));
+                }
+            });
+        });
+    });
+    root.push_back(makeAssignArray(lit(0), makeArrayAccess(makeVar(nv))));  // S[V-1] = arr[nv]
+    if (minusOne) {
+        std::vector<StmtPtr> none;
+        none.push_back(makeAssignArray(lit(0), makeBinOp(ExprKind::Sub, lit(0), lit(1))));
+        root.push_back(makeIf(makeCompare(ExprKind::Eq, makeArrayAccess(lit(0)), lit(inf)), std::move(none)));
+    }
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
+    if (cfg.combinatorRelax && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
+        return genRelaxBlock(rng, cfg, loopsUsed);
+    }
     if (cfg.combinatorTriple && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
         return genTripleBlock(rng, cfg, loopsUsed);
     }

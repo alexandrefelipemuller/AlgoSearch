@@ -244,6 +244,10 @@ struct GenConfig {
     // aggregate an arithmetic predicate over all triples i < j < k.
     // Opt-in (`--combinator-triple`); false is byte-identical.
     bool combinatorTriple = false;
+    // Section 104: an eighth of combinator blocks (three loop slots free)
+    // run V rounds of matrix relaxation on [V, state[V], matrix[V*V]].
+    // Opt-in (`--combinator-relax`); false is byte-identical.
+    bool combinatorRelax = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

@@ -7967,3 +7967,39 @@ Decision: `--combinator-triple` is the CLI default (`--no-combinator-triple`
 turns it off; `GenConfig` default stays false). `genThreeSumSkeletonBlock`
 and its draw entry are deleted. Skeletons: 10 -> 9. After deletion:
 `make test` 207/207; three_sum, seed 50100, generalizes.
+
+## 104. Matrix relaxation piece (`--combinator-relax`): can the combinator replace `graphreachability`? -- design and predictions registered before implementing
+
+Section 99: graph_reachability is 10/10 with its skeleton and **0/10**
+without it. Both graph skeletons (reachability, shortest path) are one
+shape: a header V = arr[0], a state vector S[k] = arr[1 + k], a V x V
+matrix M[i][j] = arr[1 + V + i*V + j], and a fixed point: V rounds of
+"for every (i, j): if guard(S[i]) and edge(M[i][j]) then update S[j]",
+then arr[0] = S[V-1]. Mini-C has no queue, so relaxation rounds stand in
+for BFS (section 16).
+
+**The piece.** A combinator block drawn first in `genCombinatorBlock` with
+probability 1/8, only when `GenConfig::combinatorRelax` is on and three
+loop slots are free (byte-identical off). Parts drawn independently:
+- Init: S[0] = 1 (rest stays 0); or, with four loop slots, every S = 100000
+  then S[0] = 0.
+- Guard on S[i]: none, `S[i] == 1`, `S[i] != 0`.
+- Edge test on w = M[i][j]: `w == 1`, `w > 0`, `w != 0`.
+- Update: `S[j] = 1`; `S[j] = S[i]`; `if (S[i] + w < S[j]) S[j] = S[i] + w`;
+  `if (S[i] + 1 < S[j]) S[j] = S[i] + 1`.
+- Output: arr[0] = S[V-1]; with the INF init, half the time
+  `-1` instead when S[V-1] is still 100000.
+Graph reachability is several draws (init 1, guard `==1` or `!=0`, any edge
+test, update `= 1`), about 1/12 of blocks. Shortest path (INF init, guard
+none, edge `> 0` or `!= 0`, update `+ w`, -1 output) is also in the family,
+but its skeleton is not a target here (not in the joint battery list).
+
+**Predictions.**
+1. Probe (forced combinator draws, numVars 8, maxLoops 4): draws solving
+   graph_reachability levels 2-5 go from 0 (off) to > 0 (on).
+2. A/B, 30 seeds (51000-51029), graph_reachability only: base vs GRX
+   (`--combinator-relax`, `graphreachability` disabled). GRX >= base - 3,
+   and >= 27 if base is 30/30.
+3. Usage map: the relaxation shape appears only in graph_reachability
+   winners of the section 103 joint battery base arm.
+4. If 2 holds, joint battery (73 x 10), section 99 step 6.
