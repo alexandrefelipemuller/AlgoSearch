@@ -231,6 +231,11 @@ struct GenConfig {
     // last, or the smaller element wins). CLI default since section 85
     // (`--no-combinator-argbest` turns it off); false here is byte-identical.
     bool combinatorArgBest = false;
+    // Section 102: a third of Nested relations become "place the best of the
+    // rest at i" -- t = i; inner arg-best of elem(j) into t; per outer
+    // iteration swap(elem(i), elem(t)). Opt-in (`--nested-place`); false is
+    // byte-identical.
+    bool nestedPlace = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

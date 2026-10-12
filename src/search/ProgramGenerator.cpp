@@ -2201,6 +2201,19 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             break;
         }
         case Relation::Nested: {
+            if (cfg.nestedPlace && rng.uniformInt(0, 2) == 0) {
+                // Section 102: t = i; if (elem(j) CMP elem(t)) t = j; then
+                // swap(elem(i), elem(t)) once per outer iteration.
+                static const ExprKind placeCmp[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Le, ExprKind::Ge};
+                ExprKind pc = placeCmp[rng.uniformInt(0, 3)];
+                perOuterReset.push_back(makeAssign(found, makeVar(vi)));
+                std::vector<StmtPtr> then;
+                then.push_back(makeAssign(found, makeVar(vj)));
+                inner.push_back(makeIf(makeCompare(pc, b->clone(), elemAt(base, makeVar(found))), std::move(then)));
+                perOuterConsume.push_back(makeSwap(posA->clone(), makeBinOp(ExprKind::Add, base->clone(), makeVar(found))));
+                writeBack = false;
+                break;
+            }
             // t (held in `found`) aggregates elem(j) against elem(i) over the
             // inner loop, reset per outer element; acc aggregates the t_i.
             int innerKind = rng.uniformInt(0, 2);  // CountCmp, ForallCmp, BestDiff

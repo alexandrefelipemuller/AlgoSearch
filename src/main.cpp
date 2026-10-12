@@ -147,6 +147,7 @@ struct CliArgs {
     bool combinatorDistinct = true;  // default since FINDINGS.md section 88; --no-combinator-distinct restores the old default
     bool followExtended = true;  // default since FINDINGS.md section 90; --no-follow-extended restores the old default
     bool scalarLoop = true;  // default since FINDINGS.md section 100; --no-scalar-loop restores the old default
+    bool nestedPlace = false;  // FINDINGS.md section 102, opt-in
     bool scalarLoopIndexRange = true;  // FINDINGS.md section 101, default
     int regressionGuard = 12;  // default since FINDINGS.md section 89; --regression-guard 0 restores the old default
     bool combinatorStep = true;  // default since FINDINGS.md section 53; --no-combinator-step restores the old default
@@ -237,6 +238,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-scalar-loop") args.scalarLoop = false;
         else if (arg == "--scalar-loop-index-range") args.scalarLoopIndexRange = true;
         else if (arg == "--no-scalar-loop-index-range") args.scalarLoopIndexRange = false;
+        else if (arg == "--nested-place") args.nestedPlace = true;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -267,7 +269,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] "
@@ -476,6 +478,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.followExtended = args.followExtended;
         config.genConfig.scalarLoop = args.scalarLoop;
         config.genConfig.scalarLoopIndexRange = args.scalarLoopIndexRange;
+        config.genConfig.nestedPlace = args.nestedPlace;
         config.genConfig.combinatorOrthogonal = args.combinatorOrthogonal;
         config.genConfig.combinatorArgBest = args.combinatorArgBest;
         config.genConfig.combinatorDistinct = args.combinatorDistinct;
@@ -1125,6 +1128,7 @@ int main(int argc, char** argv) {
     config.genConfig.followExtended = args.followExtended;
     config.genConfig.scalarLoop = args.scalarLoop;
     config.genConfig.scalarLoopIndexRange = args.scalarLoopIndexRange;
+    config.genConfig.nestedPlace = args.nestedPlace;
     config.genConfig.combinatorOrthogonal = args.combinatorOrthogonal;
     config.genConfig.combinatorArgBest = args.combinatorArgBest;
     config.genConfig.combinatorDistinct = args.combinatorDistinct;

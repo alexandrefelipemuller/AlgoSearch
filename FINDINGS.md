@@ -7788,3 +7788,40 @@ false, so library callers are byte-identical). `genAverageSkeletonBlock`,
 its draw entry and `appendSubtractiveDivideWhile` (used only by it) are
 deleted. Skeletons: 11 -> 10. Smoke check after deletion: `average`, seed
 48100, 3/3 benchmark seeds generalize. `make test` 202/202.
+
+## 102. Nested placement piece (`--nested-place`): can the combinator replace `selectionsort`? -- design and predictions registered before implementing
+
+Section 99 kept `selectionsort` by an exact -2 on min_gap (10 -> 8, both
+misses wall timeouts). Without the skeleton, sorting is still found, but
+only as an exchange sort (`SwapIf` on a nested loop). The selection family
+(an inner arg-best, then one swap per outer iteration) disappears. The
+combinator already has both halves: the arg-best update (section 82) and
+the nested loop with a per-outer reset/consume (section 71). What is
+missing is a consume that *acts on the array* with the arg.
+
+**The piece.** A new variant inside `Relation::Nested`, drawn first in that
+case with probability 1/3 only when `GenConfig::nestedPlace` is on (so the
+stream is byte-identical off). On a nested loop over one sequence:
+    t = i                               (per-outer reset; t is `found`)
+    inner: if (elem(j) CMP elem(t)) t = j   CMP in {<, >, <=, >=}
+    per-outer: swap(elem(i), elem(t))
+No write-back. Loop shape stays the combinator's own draw, so the
+triangular variant (j = i + 1) is selection sort ascending or descending
+and the full variant is a different, mostly wrong program. Name:
+"place the best of the rest at i". It is the arg-best of section 82 with
+a placement consume instead of an aggregate, not a new skeleton.
+
+CLI: opt-in `--nested-place`; becomes the default only through the rules below.
+
+**Predictions.**
+1. Probe (forced combinator draws, numVars 8): the fraction of draws that
+   sort levels 2-6 with the selection shape goes from 0 (off) to > 0 (on).
+2. 30-seed A/B, seeds 49000-49029, base (current default) vs PLX
+   (`--nested-place`, `selectionsort` skeleton disabled) on sorting,
+   count_distinct, min_gap, max_gap_sorted: PLX passes section 99 step 3
+   (>= base - 3, and >= 27 where base is 30/30) on all four.
+3. Family (step 4): PLX sorting winners show the selection shape in
+   >= 1/3 as many seeds as base.
+4. Usage map (step 5) on the section 101 joint battery base winners, then
+   the joint battery (step 6) on 73 problems x 10 seeds.
+If 2 or 3 fails, the skeleton stays and the result is recorded as is.
