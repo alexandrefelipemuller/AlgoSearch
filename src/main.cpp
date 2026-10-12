@@ -296,7 +296,7 @@ void printUsage() {
 // generic default of 4.
 int recommendedNumVars(const std::string& problem) {
     if (problem == "tsp" || problem == "dtw") return 12;           // TspBruteForce/TspBranchAndBound/Dtw skeletons
-    if (problem == "shortest_path") return 7;                       // ShortestPath skeleton
+    if (problem == "shortest_path") return 7;                       // relax piece, INF init
     if (problem == "graph_reachability") return 6;                  // relax combinator piece
     if (problem == "three_sum") return 5;                           // triple combinator piece
     if (problem == "average") return 5;                             // scalar-loop index-range fold

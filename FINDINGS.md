@@ -8060,3 +8060,29 @@ the joint battery's search settings. base (current default) vs NOSP
 2. Usage map: no other problem's winners in the section 104 joint battery
    base arm use the weighted relaxation (`S[i] + w`).
 If 1 holds, the skeleton is deleted (no piece flag to promote).
+
+## 105 (results). The `shortestpath` skeleton never solved its problem; deleted
+
+A/B (`data/shortest_path_ab_20261012/`, seeds 52000-52029, 60 runs):
+
+| arm | verified | wall timeouts |
+|---|---|---|
+| base (skeleton on) | **0/30** | 30 |
+| NOSP (skeleton off) | **4/30** | 26 |
+
+Prediction 1 held (4 >= 0 - 3), trivially. Prediction 2 held (no other
+base winner in the section 104 battery uses `S[i] + w`).
+
+Why base is 0: the skeleton ends with `arr[0] = dist[V-1]`, which is
+100000 when V-1 is unreachable, but ShortestPathProblem wants -1. The
+skeleton alone is never a solution; the search would have to append the
+-1 fix by itself. The relax piece has that output as one of its axes, and
+every NOSP winner is exactly that draw (INF init, edge `w > 0`, update
+`S[i] + w`, -1 output). The skeleton probably went stale when the -1
+convention was added, and no battery list includes shortest_path, so it
+was never noticed. Both arms time out at 240 s in most seeds: the problem
+is slow to score (1 + V + V^2 cells, four loops), so 4/30 is a floor,
+not the piece's ceiling.
+
+Decision: `genShortestPathSkeletonBlock` deleted. Skeletons: 8 -> 7.
+`make test` 209/209.

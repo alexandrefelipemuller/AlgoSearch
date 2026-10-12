@@ -471,79 +471,6 @@ StmtPtr genHeapSortSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUs
     return rootAst;
 }
 
-// Dedicated skeleton for ShortestPathProblem: Bellman-Ford-style relaxation
-// on the same flat layout as GraphReachabilityProblem, but with weighted
-// edges (0 = no edge) and a `dist` scratch array the program must
-// initialize itself (dist[0]=0, dist[i]=INF otherwise) before relaxing.
-//
-//   nv = arr[0];
-//   base = nv + 1;
-//   i = 0;
-//   while (i < nv) { arr[1+i] = 100000; i = i + 1; }   // dist[i] = INF
-//   arr[1] = 0;                                        // dist[0] = 0
-//   round = 0;
-//   while (round < nv) {
-//     i = 0;
-//     while (i < nv) {
-//       j = 0;
-//       while (j < nv) {
-//         w = arr[base + (i*nv+j)];
-//         if (w > 0) {
-//           if (arr[1+i] + w < arr[1+j]) { arr[1+j] = arr[1+i] + w; }
-//         }
-//         j = j + 1;
-//       }
-//       i = i + 1;
-//     }
-//     round = round + 1;
-//   }
-//   arr[0] = arr[nv];   // dist[V-1] lives at arr[1+(nv-1)] = arr[nv]
-//
-// Needs 6 scratch scalars (nv, base, round, i, j, w), so numVars >= 7, one
-// tier up from GraphReachability's 6. Same triple-nested-loop budget gate.
-StmtPtr genShortestPathSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 6);
-    int nv = vars[0], base = vars[1], round = vars[2], i = vars[3], j = vars[4], w = vars[5];
-
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(nv, makeArrayAccess(makeIntConst(0))));                          // nv = arr[0]
-    root->body.push_back(makeAssign(base, makeBinOp(ExprKind::Add, makeVar(nv), makeIntConst(1))));  // base = nv + 1
-
-    // dist[i] = INF for all i
-    root->body.push_back(makeAssign(i, makeIntConst(0)));
-    appendCountingWhile(root->body, i, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& initBody) {
-        initBody.push_back(makeAssignArray(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i)), makeIntConst(100000)));
-    });
-    root->body.push_back(makeAssignArray(makeIntConst(1), makeIntConst(0)));  // dist[0] = 0
-
-    root->body.push_back(makeAssign(round, makeIntConst(0)));
-    appendCountingWhile(root->body, round, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& roundBody) {
-        roundBody.push_back(makeAssign(i, makeIntConst(0)));
-        appendCountingWhile(roundBody, i, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
-            iBody.push_back(makeAssign(j, makeIntConst(0)));
-            appendCountingWhile(iBody, j, makeVar(nv), loopsUsed, [&](std::vector<StmtPtr>& jBody) {
-                auto edgeIdx = makeFlatIndex(makeVar(base), makeVar(i), makeVar(nv), makeVar(j));
-                jBody.push_back(makeAssign(w, makeArrayAccess(std::move(edgeIdx))));
-                std::vector<StmtPtr> relax;
-                auto candDist = makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeVar(w));
-                std::vector<StmtPtr> update;
-                update.push_back(makeAssignArray(
-                    makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)),
-                    makeBinOp(ExprKind::Add, makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(i))), makeVar(w))));
-                relax.push_back(makeIf(
-                    makeCompare(ExprKind::Lt, std::move(candDist),
-                                makeArrayAccess(makeBinOp(ExprKind::Add, makeIntConst(1), makeVar(j)))),
-                    std::move(update)));
-                jBody.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(w), makeIntConst(0)), std::move(relax)));
-            });
-        });
-    });
-
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeArrayAccess(makeVar(nv))));  // arr[0] = arr[nv] (dist[V-1])
-
-    return root;
-}
-
 // Dedicated skeleton for DtwProblem: the textbook O(n^2) global-alignment
 // DP (see DtwProblem.hpp) on the same flattened-table convention as
 // GraphReachability/ShortestPath, but unlike those two this needs no
@@ -2590,7 +2517,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { SelectionSort, HeapSort, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
+        enum class Skeleton { SelectionSort, HeapSort, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -2669,7 +2596,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         };
         if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
-        if (canTripleLoop && cfg.numVars >= 7 && allowed("shortestpath")) addOption(Skeleton::ShortestPath, 3);
         // TSP brute force needs 4 While loops (init + identity-permutation
         // cost eval + Heap's-algorithm outer loop + its nested cost-eval
         // loop) and 11 scratch scalars -- weighted like HeapSort (1/3 of a
@@ -2718,8 +2644,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::HeapSort:
                     return genHeapSortSkeletonBlock(rng, cfg, loopsUsed);
-                case Skeleton::ShortestPath:
-                    return genShortestPathSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::TspBruteForce:
                     return genTspBruteForceSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::TspBranchAndBound:
