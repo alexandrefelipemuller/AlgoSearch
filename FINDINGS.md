@@ -8207,3 +8207,9 @@ runs: their only effect is reachability under `ALGOSEARCH_FORCE_SKELETON`.
 Both are now removal candidates under section 99 step 2. Removing them is a
 change to the explicit section 57 decision (keep the only O(n log n) /
 O(log n) shapes), so it is left to the user, not applied here.
+
+Decision (user, 2026-10-12): keep binarysearch and heapsort. No generic piece
+builds a sift-down or a halving search, and the free search never found
+either (sections 14, 25, 30, 63-69), so removing them would remove those
+algorithm families from reach, not just speed. mergesort stays for the same
+reason.
