@@ -7825,3 +7825,31 @@ CLI: opt-in `--nested-place`; becomes the default only through the rules below.
 4. Usage map (step 5) on the section 101 joint battery base winners, then
    the joint battery (step 6) on 73 problems x 10 seeds.
 If 2 or 3 fails, the skeleton stays and the result is recorded as is.
+
+## 102 (results). Nested placement fails: min_gap 29 -> 21, selection family 30 -> 1; `selectionsort` kept
+
+Probe (200k forced combinator draws, seed 7): selection-shaped sorts
+**0 -> 383**. Prediction 1 held.
+
+A/B (`data/nested_place_ab_20261012/`, seeds 49000-49029, 240 runs):
+
+| problem | base | PLX |
+|---|---|---|
+| sorting | 30 | 30 |
+| count_distinct | 30 | 30 |
+| max_gap_sorted | 30 | **26** |
+| min_gap | 29 | **21** |
+
+Wall timeouts: base 1, PLX 12. Selection-shaped sorting winners (sorts,
+no swap guarded by an if): base **30**, PLX **1**.
+
+Prediction 2 **falsified** (min_gap -8, max_gap_sorted 26 < 27) and
+prediction 3 **falsified** (1 < 10). The piece makes selection reachable
+but not competitive: the beam still finds the exchange sort first, which
+is reached far more often, and on the sort-then-scan problems the search
+without the hand-written block is slower and times out. Reachability is
+not the bottleneck here; the skeleton's value is that it hands over the
+whole sort as one atomic draw, which section 99 already suggested.
+
+Decision: `selectionsort` stays. `--nested-place` stays opt-in (not
+default; it improved nothing measured). No joint battery.
