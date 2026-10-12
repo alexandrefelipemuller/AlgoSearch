@@ -8086,3 +8086,35 @@ not the piece's ceiling.
 
 Decision: `genShortestPathSkeletonBlock` deleted. Skeletons: 8 -> 7.
 `make test` 209/209.
+
+## 106. Winner diversity across the section 101/103/104 joint batteries (post-hoc analysis, no new runs)
+
+Question: do generic pieces give more diverse *winners* than skeletons?
+`scripts/winner_diversity.py` reads each verified run's fastest program
+and counts distinct shapes per problem and arm, at two levels: exact
+(variables renamed by first use) and structural (only the nesting of
+while / if / swap / array write / scalar assign).
+
+| battery | exact: base -> arm | structural: base -> arm |
+|---|---|---|
+| 101 (index range, no average) | 159 -> 163 | 103 -> 102 |
+| 103 (triple, no threesum) | 151 -> 148 | 91 -> 97 |
+| 104 (relax, no graphreachability) | 163 -> 167 | 103 -> 104 |
+
+On the replaced problems themselves: average 1 -> 1 structural shape,
+three_sum 1 -> 1, graph_reachability 1 -> 1 (exact 1 -> 5: the piece's
+guard and edge-test axes give equivalent variants).
+
+Reading:
+- No measurable change in total diversity. Per-problem counts swing by 2-4
+  on problems no change touched (is_prime 1 -> 5, 4 -> 2, 5 -> 3 across the
+  three batteries), so at 10 seeds this metric is dominated by noise.
+- On the replaced problems the piece rediscovers the skeleton's algorithm,
+  with more surface variety but no new algorithm.
+- The one real diversity effect measured so far goes the other way:
+  sections 102/102b, where removing `selectionsort` collapses the
+  selection family among sorting winners (30 -> 1 and 30 -> 5).
+So "generic pieces are better for diversity" holds for the *reachable
+space* (one piece covers several problems and variants; the relax piece
+reached shortest_path, which its skeleton never solved), not for the
+*winners*, where it is unmeasured-to-negative.
