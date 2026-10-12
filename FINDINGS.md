@@ -8003,3 +8003,23 @@ but its skeleton is not a target here (not in the joint battery list).
 3. Usage map: the relaxation shape appears only in graph_reachability
    winners of the section 103 joint battery base arm.
 4. If 2 holds, joint battery (73 x 10), section 99 step 6.
+
+## 104 (results, part 1). Probe and graph_reachability A/B pass
+
+Probe (40k forced combinator draws, levels 2-5): graph_reachability
+**0 -> 826**, shortest_path 0 -> 69 (side observation). Prediction 1 held.
+
+A/B (`data/combinator_relax_ab_20261012/`, seeds 51000-51029, 60 runs,
+0 timeouts): base **30/30**, GRX (`--combinator-relax`,
+`graphreachability` off) **28/30** (threshold 27). Prediction 2 held. The
+GRX winner is the expected draw (init S[0] = 1, guard `S[i] == 1`, edge
+`w == 1`, update `S[j] = 1`). Both GRX misses (51009, 51029) reached a
+correct-looking 75/75 champion, but first at level 6 = max-n, so it was
+never confirmed at a later level and Benchmark had no SUCCESS-labeled
+program to verify: a max-level labeling artifact, not a reachability gap.
+
+Usage map (prediction 3): in the section 103 joint battery base arm, the
+relaxation shape appears only in graph_reachability winners.
+
+Joint battery launched (step 6): `scripts/run_relax_joint_battery.sh`,
+73 problems, seeds 51100-51109 (`data/relax_joint_battery_20261012/`).
