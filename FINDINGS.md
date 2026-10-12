@@ -7603,3 +7603,45 @@ seeds and all three arms (`data/scalar_loop_ab_domainfix_20261011/`), and
 the old cells are not used. The amended factorial prediction (SLX = 0)
 was about the overflow and is withdrawn: prediction 1's original ">= 5"
 applies to factorial again.
+
+## 100 (results). The scalar-loop piece replaces four of the five scalar skeletons at 10 seeds
+
+`data/scalar_loop_ab_20261011/` (22:00-22:39, 300 runs), with factorial
+and power taken from `data/scalar_loop_ab_domainfix_20261011/` (same
+seeds, new binary, 60 runs). Verified successes of 10:
+
+| problem | base | SL | SLX (5 scalar skeletons off) |
+|---|---|---|---|
+| factorial, power, gcd, fibonacci, is_prime | 10 each | 10 each | **10 each** |
+| average | 10 | 10 | **8** |
+| sorting, count_distinct, graph_reachability | 10 each | 10 each | 10 each |
+| three_sum | 8 | 8 | 8 |
+
+The SLX winners are the piece's own shapes:
+- gcd: `t = a % b; a = b; b = t` until `b == 0`;
+- fibonacci: the same pair with `+` under a counter;
+- factorial: `a = a * i`;
+- is_prime: the divisor test with the `X < 2` pre-guard (bound `i < X`,
+  not the square guard).
+
+**Two design premises were wrong.** `resolveNumVars` raises every
+problem to 8 vars, because the combinator is on by default
+(`src/main.cpp`). So the scripts' `--num-vars 4-6` never applied:
+- the combinator could reach the scalar problems all along;
+- Pair-Counted fits fibonacci.
+
+**Predictions.**
+1. SLX >= 5 on average, factorial, power, gcd and >= 3 on is_prime: **held**.
+2. SLX fibonacci = 0: **falsified**. The premise (4 vars) was wrong.
+3. SL >= base - 1 on all ten problems: **held** (identical counts).
+
+**Rule (section 99 amended).**
+- average: SLX drops by exactly 2 (10 -> 8), so it is kept (step 1 is
+  final).
+- repeatedmultiply (factorial, power), recurrence (gcd, fibonacci) and
+  nesteddivisor + nesteddivisornative (is_prime) are **candidates**.
+  They go to step 3, a 30-seed confirmation, as SLR: SL with only these
+  four disabled and average kept.
+- `--scalar-loop` itself is a default candidate. Its full-battery check
+  is folded into step 6's joint battery (SL + removals vs base, all
+  problems).
