@@ -7710,3 +7710,42 @@ Untested: dtw, shortestpath, tspbruteforce, tspbranchandbound.
 Caveat: `resolveNumVars` makes every problem run with >= 8 vars. The
 4-var limit section 100 designed around never applies in the CLI. It only
 applies in direct `GenConfig` uses (tests, probes).
+
+## 101. Scalar-loop index range: can the piece replace `average`? -- design and predictions registered before implementing
+
+Section 100 kept `average` by an exact -2 (SLX 8/10). The probe put the
+piece's per-draw hit rate for average at 10 in 200k, the lowest of the
+targets. The draw wastes most array folds on loops that cannot index the
+array: `arr[i]` is drawn independently of the loop range, so `arr[i]` with
+bound X or Y, or start 1 or 2, is an out-of-range read or a partial sum.
+
+**Change** (opt-in `--scalar-loop-index-range`, a GenConfig flag):
+1. *Index range.* When the Fold term is `arr[i]`, the loop is the
+   array's own index range: `i = 0; while (i < N)`. That is a validity
+   constraint on array reads, not a target hint. It applies to every
+   problem the piece runs on.
+2. *Post divide* probability 1/4 -> 1/2. Divisor still uniform over
+   {N, X, Y}.
+The two are bundled in one flag, so a success cannot be attributed
+between them. That is accepted for a removal test; a follow-up can split
+them if it matters.
+
+**Measurement.**
+- Probe: forced-draw hit rates (200k) for the six scalar targets, before
+  vs after.
+- A/B on average, 30 seeds (48000-48029). Arms: base (current default),
+  IRX (index range on, `average` skeleton disabled).
+- If IRX passes, a joint battery on all 73 problems: base vs IRX, 10
+  seeds (48100-48109).
+
+**Predictions.**
+1. Probe: average hit rate rises >= 10x. The other five change by less
+   than 2x, except factorial and power, which may drop up to 2x (more
+   post-divide draws spoil them).
+2. IRX average >= 27/30.
+3. Joint battery: no problem drops by >= 2.
+
+**Decision rule** (section 99 amended, as for section 100). `average` is
+deleted and the flag made default only if 2 holds and the joint battery
+passes step 6: a drop >= 3 reverts, and an exact -2 gets a 30-seed
+retest at >= base - 3.
