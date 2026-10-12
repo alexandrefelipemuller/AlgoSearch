@@ -151,7 +151,7 @@ struct CliArgs {
     bool nestedPlaceOption = false;  // FINDINGS.md section 102b, opt-in
     bool combinatorTriple = true;  // FINDINGS.md section 103, default
     bool combinatorRelax = true;  // FINDINGS.md section 104, default
-    bool combinatorGrid = false;  // FINDINGS.md section 109, opt-in
+    bool combinatorGrid = true;  // FINDINGS.md section 109, default
     bool scalarLoopIndexRange = true;  // FINDINGS.md section 101, default
     int regressionGuard = 12;  // default since FINDINGS.md section 89; --regression-guard 0 restores the old default
     bool combinatorStep = true;  // default since FINDINGS.md section 53; --no-combinator-step restores the old default
@@ -249,6 +249,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--combinator-relax") args.combinatorRelax = true;
         else if (arg == "--no-combinator-relax") args.combinatorRelax = false;
         else if (arg == "--combinator-grid") args.combinatorGrid = true;
+        else if (arg == "--no-combinator-grid") args.combinatorGrid = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -279,7 +280,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--combinator-grid] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] "
@@ -297,7 +298,7 @@ void printUsage() {
 // value that actually lets the relevant skeleton fire, instead of the
 // generic default of 4.
 int recommendedNumVars(const std::string& problem) {
-    if (problem == "tsp" || problem == "dtw") return 12;           // TspBruteForce/TspBranchAndBound/Dtw skeletons
+    if (problem == "tsp" || problem == "dtw") return 12;           // Tsp skeletons; dtw: grid combinator piece
     if (problem == "shortest_path") return 7;                       // relax piece, INF init
     if (problem == "graph_reachability") return 6;                  // relax combinator piece
     if (problem == "three_sum") return 5;                           // triple combinator piece

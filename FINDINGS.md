@@ -8244,3 +8244,24 @@ far; honest framing: a parametrized family of three textbook DPs.
    if base is 30/30.
 3. Usage map: only dtw winners use a grid DP.
 4. If 2 holds, joint battery (73 x 10), step 6.
+
+## 109 (results). Grid piece: dtw 30/30 without its skeleton; default, `dtw` deleted
+
+Probe (40k forced combinator draws, numVars 12, levels 1-4): dtw solvers
+**0 -> 186**. Prediction 1 held.
+
+A/B (`data/combinator_grid_ab_20261012/`, seeds 55000-55029, 60 runs, 0
+timeouts): base **30/30**, DPX (`--combinator-grid`, `dtw` off) **30/30**.
+Prediction 2 held.
+
+Usage map and joint battery (predictions 3-4): the piece is gated on
+numVars >= 11 before any RNG draw, and every joint battery problem runs
+with numVars 8 (`resolveNumVars`), so the battery would reproduce base
+exactly. Checked empirically instead of running 1460 runs: max_profit,
+seed 55100, identical output with and without the flag. The only other
+problem with numVars >= 11 is tsp, undecidable at budget (section 107).
+
+Decision: `--combinator-grid` is the CLI default (`--no-combinator-grid`
+turns it off; `GenConfig` default false). `genDtwSkeletonBlock` and its
+draw entry deleted (and the now-unused `canTripleLoop`). Skeletons: 7 -> 6.
+After deletion: `make test` 211/211; dtw seed 55000 generalizes.
