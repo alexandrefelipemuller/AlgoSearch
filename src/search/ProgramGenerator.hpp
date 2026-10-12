@@ -254,6 +254,10 @@ struct GenConfig {
     // CLI default since section 100 (`--no-scalar-loop` turns it off);
     // false here is byte-identical.
     bool scalarLoop = false;
+    // Section 101: an arr[i] fold loops over the array's own index range
+    // (i = 0; i < N), and the post divide is drawn at 1/2 instead of 1/4.
+    // Opt-in (`--scalar-loop-index-range`); false is byte-identical.
+    bool scalarLoopIndexRange = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68

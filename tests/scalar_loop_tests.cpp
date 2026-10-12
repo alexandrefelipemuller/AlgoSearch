@@ -38,10 +38,11 @@ bool solvesLevels(const Problem& problem, const Stmt& program, int fromLevel, in
 }
 
 // How many of `draws` single-piece programs solve `problem` on levels 2-6.
-int pieceHits(const Problem& problem, int numVars, uint64_t seed, int draws = 20000) {
+int pieceHits(const Problem& problem, int numVars, uint64_t seed, int draws = 20000, bool indexRange = false) {
     setenv("ALGOSEARCH_FORCE_SKELETON", "scalarloop", 1);
     Random rng(seed);
     GenConfig cfg = scalarLoopOnly(numVars);
+    cfg.scalarLoopIndexRange = indexRange;
     int hits = 0;
     for (int i = 0; i < draws; ++i) {
         Program p = generateRandomProgram(rng, 2, cfg);
@@ -76,4 +77,21 @@ TEST(scalar_loop_piece_reaches_the_scalar_skeleton_problems) {
 TEST(scalar_loop_piece_cannot_build_fibonacci_with_three_scratch_vars) {
     // Pair-Counted needs a, b, t and i; numVars 4 leaves three.
     CHECK_EQ(pieceHits(FibonacciProblem(20, 40, 4), 4, 7, 5000), 0);
+}
+
+TEST(scalar_loop_index_range_is_byte_identical_when_off) {
+    GenConfig a = scalarLoopOnly(5);
+    GenConfig b = a;
+    b.scalarLoopIndexRange = false;
+    Random ra(9), rb(9);
+    for (int i = 0; i < 200; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(scalar_loop_index_range_makes_average_draws_more_frequent) {
+    // Section 101 probe: about 10 -> 300 hits per 200k draws.
+    int off = pieceHits(AverageProblem(6, 40, 5), 5, 12, 40000, false);
+    int on = pieceHits(AverageProblem(6, 40, 5), 5, 12, 40000, true);
+    CHECK(on > 5 * (off + 1));
 }

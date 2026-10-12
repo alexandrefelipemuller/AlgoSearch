@@ -1423,6 +1423,8 @@ StmtPtr genMergeSortSkeletonBlock(Random&, const GenConfig&, int& loopsUsed) {
 //         Pair  t = a {+, -, %} b; a = b; b = t;
 //         Test  if (X % i == 0) {a = 0 | a = 1 | a = a + 1 | a = a + i}
 //   [a = a / {N, X, Y}]  arr[0] = a;
+// Section 101 (GenConfig::scalarLoopIndexRange): an arr[i] fold always
+// loops i = 0 .. N-1, and the divide is drawn at 1/2 instead of 1/4.
 // Asks for 2 vars (Fold, Test), 3 (Pair UntilZero) or 4 (Pair Counted).
 StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     enum { Fold, Pair, Test };
@@ -1455,11 +1457,13 @@ StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     }
 
     std::vector<StmtPtr> body;
+    bool indexRange = false;  // section 101: an arr[i] fold loops over the array's own range
     switch (kind) {
         case Fold: {
             static const ExprKind ops[] = {ExprKind::Add, ExprKind::Sub, ExprKind::Mul};
             ExprKind op = ops[rng.uniformInt(0, 2)];
             int term = rng.uniformInt(0, 3);
+            indexRange = cfg.scalarLoopIndexRange && term == 3;
             ExprPtr t = term == 0 ? var(i) : term < 3 ? input(term - 1) : makeArrayAccess(var(i));
             body.push_back(makeAssign(a, makeBinOp(op, var(a), std::move(t))));
             break;
@@ -1482,7 +1486,11 @@ StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     }
 
     loopsUsed++;
-    if (counted) {
+    if (indexRange) {  // i = 0; while (i < N)
+        root.push_back(makeAssign(i, lit(0)));
+        body.push_back(makeAssign(i, makeBinOp(ExprKind::Add, var(i), lit(1))));
+        root.push_back(makeWhile(makeCompare(ExprKind::Lt, var(i), input(2)), std::move(body)));
+    } else if (counted) {
         root.push_back(makeAssign(i, lit(rng.uniformInt(0, 2))));
         ExprKind cmp = rng.chance(0.5) ? ExprKind::Lt : ExprKind::Le;
         ExprPtr bound = input(rng.uniformInt(0, 2));
@@ -1492,7 +1500,7 @@ StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     } else {
         root.push_back(makeWhile(makeCompare(ExprKind::Ne, var(v[1]), lit(0)), std::move(body)));
     }
-    if (rng.chance(0.25)) {
+    if (rng.chance(cfg.scalarLoopIndexRange ? 0.5 : 0.25)) {
         static const int divisors[] = {2, 0, 1};  // N, X, Y
         root.push_back(makeAssign(a, makeBinOp(ExprKind::Div, var(a), input(divisors[rng.uniformInt(0, 2)]))));
     }
