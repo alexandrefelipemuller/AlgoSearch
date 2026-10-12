@@ -186,7 +186,12 @@ Results worth calling out:
   Since section 104 `graph_reachability` no longer needs its skeleton
   either: a generic matrix-relaxation piece (`--combinator-relax`,
   default; V rounds of `if guard(S[i]) && edge(M[i][j]) update S[j]`,
-  each part drawn independently) finds it at 28-29/30 against 30/30. In the 2026-09-17 sweep `graph_reachability` also had a lower
+  each part drawn independently) finds it at 28-29/30 against 30/30.
+  Since section 105 the `shortestpath` skeleton is gone too (it never
+  emitted -1 for unreachable targets; the relax piece does), and since
+  section 109 `dtw` is found by a grid-DP piece (`--combinator-grid`,
+  default; boundary, cell cost and recurrence drawn independently) at
+  30/30 without its skeleton. In the 2026-09-17 sweep `graph_reachability` also had a lower
   confirmation rate (1 of 6 SUCCESS candidates survived independent
   re-verification); in the current sweep 3 of 3 survive. See section 17
   for the standalone correctness verification (8/8 hand-built test graphs)
