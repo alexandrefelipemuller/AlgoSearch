@@ -8160,3 +8160,28 @@ it), so each single arm stays within -1.
   under any budget run since then, the tsp skeletons contribute nothing
   measurable, and also cannot be shown removable. Left as is; deciding
   them needs a long forced run (hours per seed), not a screen.
+
+## 108. Isolation screening of binarysearch and heapsort; mergesort is inert in the default -- registered before running
+
+- **mergesort** is drawn only with `--recursion-call-bias > 0` (default 0),
+  so disabling it leaves every default draw unchanged: nothing to screen.
+- **heapsort** passed section 56's removal rule and was kept by explicit
+  decision as one of the only O(n log n) sorts. This screen adds the family
+  question that the success count cannot answer.
+- **binarysearch** was never isolated.
+
+Protocol: seeds 54000-54009, wall 240, joint battery settings.
+- contains_ordered (max-n 10, num-vars 4): base vs nobs.
+- sorting (max-n 5, num-vars 4): base vs noheap.
+Also, for every verified sorting winner of both arms, the benchmark's
+fitted complexity class (O(n log n) vs O(n^2)) and whether it contains
+a sift-down (`2 * i + 1`).
+
+Predictions:
+1. nobs within -1 on contains_ordered (the linear scan suffices for success;
+   binarysearch was kept for speed).
+2. noheap within -1 on sorting.
+3. Family: base shows heapsort / O(n log n) winners in 0 of 10 seeds
+   (README: heapsort needs `ALGOSEARCH_FORCE_SKELETON`). If so, heapsort
+   contributes neither success nor family in the default, only reachability
+   under forcing.
