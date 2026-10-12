@@ -1985,8 +1985,67 @@ StmtPtr genFollowBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Section 103: Exists / CountIf / Forall of a predicate over every triple
+// i < j < k of one sequence. Predicate: e(i) + e(j) + e(k) CMP literal, or
+// the sum of two elements CMP the third.
+StmtPtr genTripleBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    using namespace combinator;
+    std::vector<int> v = pickDistinctVars(rng, cfg, 4);
+    int vi = v[0], vj = v[1], vk = v[2], acc = v[3];
+    std::vector<StmtPtr> root;
+    bool prefixed = rng.chance(0.5);
+    ExprPtr base = makeIntConst(prefixed ? 1 : 0);
+    ExprPtr bound = prefixed ? makeArrayAccess(makeIntConst(0)) : makeVar(0);
+    int shape = rng.uniformInt(0, 3);
+    ExprKind cmp = drawComparator(rng);
+    int relation = rng.uniformInt(0, 2);  // Exists, CountIf, Forall
+    auto e = [&](int x) { return elemAt(base, makeVar(x)); };
+    ExprPtr lhs, rhs;
+    if (shape == 0) {
+        lhs = makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, e(vi), e(vj)), e(vk));
+        rhs = makeIntConst(rng.uniformInt(0, cfg.maxConst));
+    } else {
+        int x = shape == 1 ? vi : shape == 2 ? vi : vj;
+        int y = shape == 1 ? vj : vk;
+        int z = shape == 1 ? vk : shape == 2 ? vj : vi;
+        lhs = makeBinOp(ExprKind::Add, e(x), e(y));
+        rhs = e(z);
+    }
+    std::vector<StmtPtr> then;
+    then.push_back(makeAssign(acc, relation == 1 ? makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))
+                                                 : makeIntConst(relation == 0 ? 1 : 0)));
+    root.push_back(makeAssign(acc, makeIntConst(relation == 2 ? 1 : 0)));
+    root.push_back(makeAssign(vi, base->clone()));
+    appendCountingWhile(root, vi, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
+        outer.push_back(makeAssign(vj, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
+        appendCountingWhile(outer, vj, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& mid) {
+            mid.push_back(makeAssign(vk, makeBinOp(ExprKind::Add, makeVar(vj), makeIntConst(1))));
+            appendCountingWhile(mid, vk, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
+                // Forall: acc = 0 on the first triple where the comparison fails.
+                ExprKind c = cmp;
+                if (relation == 2) {
+                    c = cmp == ExprKind::Lt ? ExprKind::Ge : cmp == ExprKind::Ge ? ExprKind::Lt
+                      : cmp == ExprKind::Gt ? ExprKind::Le : cmp == ExprKind::Le ? ExprKind::Gt
+                      : cmp == ExprKind::Eq ? ExprKind::Ne : ExprKind::Eq;
+                }
+                ExprPtr test = makeCompare(c, lhs->clone(), rhs->clone());
+                std::vector<StmtPtr> body;
+                for (auto& st : then) body.push_back(st->clone());
+                inner.push_back(makeIf(std::move(test), std::move(body)));
+            });
+        });
+    });
+    root.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
+    if (cfg.combinatorTriple && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
+        return genTripleBlock(rng, cfg, loopsUsed);
+    }
     if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
     if (cfg.combinatorFollow && (!cfg.followPointerInputsOnly || cfg.pointerInput) && rng.uniformInt(0, 7) == 0) {
         return genFollowBlock(rng, cfg, loopsUsed);

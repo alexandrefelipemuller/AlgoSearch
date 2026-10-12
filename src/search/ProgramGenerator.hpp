@@ -240,6 +240,10 @@ struct GenConfig {
     // of nested pair draws, always triangular). Opt-in
     // (`--nested-place-option`); false is byte-identical.
     bool nestedPlaceOption = false;
+    // Section 103: an eighth of combinator blocks (three loop slots free)
+    // aggregate an arithmetic predicate over all triples i < j < k.
+    // Opt-in (`--combinator-triple`); false is byte-identical.
+    bool combinatorTriple = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

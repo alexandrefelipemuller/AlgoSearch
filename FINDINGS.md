@@ -7908,3 +7908,32 @@ seeds. min_gap is where the atomic whole-sort draw matters: it must sort
 *and* then scan pairwise differences, and the skeleton supplies the first
 half in one draw. As registered, this closes `selectionsort`: kept,
 indispensable. Both flags stay opt-in.
+
+## 103. Triple aggregate piece (`--combinator-triple`): can the combinator replace `threesum`? -- design and predictions registered before implementing
+
+Section 99: three_sum is 8/10 with its skeleton and **0/10** without it.
+No combinator loop goes deeper than a pair, so the obstacle is
+reachability, the case where generic pieces have worked (section 100).
+
+**The piece.** A combinator block drawn first in `genCombinatorBlock` with
+probability 1/8, only when `GenConfig::combinatorTriple` is on and three
+loop slots are free (byte-identical off). Every part drawn independently:
+- Layout: whole array (base 0, bound v0) or length-prefixed (base 1,
+  bound arr[0]).
+- Loop: all triples i < j < k (i from start, j = i + 1, k = j + 1).
+- Predicate, one of four shapes, comparator from the six:
+  `e(i) + e(j) + e(k) CMP c` with c a literal in [0, maxConst];
+  `e(i) + e(j) CMP e(k)`, `e(i) + e(k) CMP e(j)`, `e(j) + e(k) CMP e(i)`.
+- Relation: Exists (acc = 1), CountIf (acc++), Forall (acc starts at 1,
+  set to 0). Result written to arr[0].
+Generic as tuple enumeration with an arithmetic predicate. 3SUM is one
+draw out of about 2 x 4 x 6 x 3 x 4 = 576 (sum-vs-literal draws a literal).
+
+**Predictions.**
+1. Probe (forced combinator draws, numVars 8, maxLoops 4): draws solving
+   three_sum levels 3-6 go from 0 (off) to > 0 (on).
+2. A/B, 30 seeds (50000-50029), three_sum only: base (current default) vs
+   TRX (`--combinator-triple`, `threesum` disabled). TRX >= base - 3 of 30.
+3. Usage map: grep the section 101 joint battery base winners for a
+   triple-nested loop. Any other problem using one joins step 2.
+4. If 2 holds, the joint battery (73 x 10) with section 99 step 6.

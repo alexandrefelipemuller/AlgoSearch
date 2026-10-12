@@ -19,6 +19,7 @@
 #include "problems/SortingProblem.hpp"
 #include "problems/SubstringProblem.hpp"
 #include "problems/SumArrayProblem.hpp"
+#include "problems/ThreeSumProblem.hpp"
 #include "search/ProgramGenerator.hpp"
 #include "test_framework.hpp"
 
@@ -429,4 +430,39 @@ TEST(nested_place_option_reaches_selection_sort_more_often) {
     // Section 102b: placement as its own relation is drawn more often than
     // inside Nested.
     CHECK(selectionSorts(false, 104, 20000, true) > selectionSorts(true, 104, 20000));
+}
+
+namespace {
+
+int tripleHits(bool triple, uint64_t seed, int draws) {
+    Random rng(seed);
+    GenConfig cfg = combinatorOnly();
+    cfg.maxLoops = 4;
+    cfg.combinatorTriple = triple;
+    ThreeSumProblem problem(6, 40, cfg.numVars);
+    int hits = 0;
+    for (int i = 0; i < draws; ++i) {
+        Program p = generateRandomProgram(rng, 2, cfg);
+        if (solvesLevels(problem, *p, 3, 6)) hits++;
+    }
+    return hits;
+}
+
+}  // namespace
+
+TEST(triple_piece_is_byte_identical_when_off) {
+    // Section 103: the triple block is drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.maxLoops = b.maxLoops = 4;
+    b.combinatorTriple = false;
+    Random ra(103), rb(103);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(triple_piece_reaches_three_sum) {
+    // Section 103 prediction 1.
+    CHECK_EQ(tripleHits(false, 104, 20000), 0);
+    CHECK(tripleHits(true, 104, 20000) > 0);
 }
