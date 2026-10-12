@@ -1912,8 +1912,83 @@ StmtPtr genRelaxBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Section 109: DP over two sequences. Layout [n, T[(n+1)^2], A[n], B[n]],
+// T[i][j] = arr[1 + i*(n+1) + j]. Boundary, cell cost and recurrence are
+// drawn independently; arr[0] = T[n][n].
+StmtPtr genGridBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> v = pickDistinctVars(rng, cfg, 11);
+    int n = v[0], tw = v[1], baseA = v[2], baseB = v[3], vi = v[4], vj = v[5], a = v[6], b = v[7], cost = v[8],
+        best = v[9], cand = v[10];
+    const int inf = 100000;
+    int boundary = rng.uniformInt(0, 2);    // INF edges, index edges, zero edges
+    int costKind = rng.uniformInt(0, 2);    // |a - b|, a != b, a == b
+    int recurrence = rng.uniformInt(0, 2);  // cost + min3, min(up+1, left+1, diag+cost), max(up, left, diag+cost)
+    auto lit = [](int x) { return makeIntConst(x); };
+    auto var = [](int x) { return makeVar(x); };
+    auto add = [](ExprPtr l, ExprPtr r) { return makeBinOp(ExprKind::Add, std::move(l), std::move(r)); };
+    auto sub = [](ExprPtr l, ExprPtr r) { return makeBinOp(ExprKind::Sub, std::move(l), std::move(r)); };
+    auto cell = [&](ExprPtr i, ExprPtr j) { return makeFlatIndex(lit(1), std::move(i), var(tw), std::move(j)); };
+    auto one = [](StmtPtr st) { std::vector<StmtPtr> out; out.push_back(std::move(st)); return out; };
+
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(n, makeArrayAccess(lit(0))));
+    root.push_back(makeAssign(tw, add(var(n), lit(1))));
+    root.push_back(makeAssign(baseA, add(lit(1), makeBinOp(ExprKind::Mul, var(tw), var(tw)))));
+    root.push_back(makeAssign(baseB, add(var(baseA), var(n))));
+    // Boundary: T[i][0] and T[0][i] for every i (the corner T[0][0] is 0).
+    root.push_back(makeAssign(vi, lit(0)));
+    appendCountingWhile(root, vi, var(tw), loopsUsed, [&](std::vector<StmtPtr>& body) {
+        auto edge = [&] { return boundary == 0 ? lit(inf) : boundary == 1 ? var(vi) : lit(0); };
+        std::vector<StmtPtr> edges;
+        edges.push_back(makeAssignArray(cell(var(vi), lit(0)), edge()));
+        edges.push_back(makeAssignArray(cell(lit(0), var(vi)), edge()));
+        body.push_back(makeIf(makeCompare(ExprKind::Eq, var(vi), lit(0)), one(makeAssignArray(lit(1), lit(0))), std::move(edges)));
+    });
+    root.push_back(makeAssign(vi, lit(1)));
+    appendCountingWhile(root, vi, var(tw), loopsUsed, [&](std::vector<StmtPtr>& iBody) {
+        iBody.push_back(makeAssign(vj, lit(1)));
+        appendCountingWhile(iBody, vj, var(tw), loopsUsed, [&](std::vector<StmtPtr>& body) {
+            body.push_back(makeAssign(a, makeArrayAccess(sub(add(var(baseA), var(vi)), lit(1)))));
+            body.push_back(makeAssign(b, makeArrayAccess(sub(add(var(baseB), var(vj)), lit(1)))));
+            if (costKind == 0) {
+                body.push_back(makeAssign(cost, sub(var(a), var(b))));
+                body.push_back(makeIf(makeCompare(ExprKind::Lt, var(cost), lit(0)), one(makeAssign(cost, sub(lit(0), var(cost))))));
+            } else {
+                body.push_back(makeAssign(cost, lit(0)));
+                body.push_back(makeIf(makeCompare(costKind == 1 ? ExprKind::Ne : ExprKind::Eq, var(a), var(b)), one(makeAssign(cost, lit(1)))));
+            }
+            auto up = [&] { return makeArrayAccess(cell(sub(var(vi), lit(1)), var(vj))); };
+            auto left = [&] { return makeArrayAccess(cell(var(vi), sub(var(vj), lit(1)))); };
+            auto diag = [&] { return makeArrayAccess(cell(sub(var(vi), lit(1)), sub(var(vj), lit(1)))); };
+            ExprKind keep = recurrence == 2 ? ExprKind::Gt : ExprKind::Lt;
+            // best = first; then for each other term: cand = term; if (cand keep best) best = cand.
+            std::vector<ExprPtr> terms;
+            if (recurrence == 0) {
+                terms.push_back(up()); terms.push_back(left()); terms.push_back(diag());
+            } else if (recurrence == 1) {
+                terms.push_back(add(up(), lit(1))); terms.push_back(add(left(), lit(1))); terms.push_back(add(diag(), var(cost)));
+            } else {
+                terms.push_back(up()); terms.push_back(left()); terms.push_back(add(diag(), var(cost)));
+            }
+            body.push_back(makeAssign(best, std::move(terms[0])));
+            for (int t = 1; t < 3; ++t) {
+                body.push_back(makeAssign(cand, std::move(terms[t])));
+                body.push_back(makeIf(makeCompare(keep, var(cand), var(best)), one(makeAssign(best, var(cand)))));
+            }
+            body.push_back(makeAssignArray(cell(var(vi), var(vj)), recurrence == 0 ? add(var(cost), var(best)) : var(best)));
+        });
+    });
+    root.push_back(makeAssignArray(lit(0), makeArrayAccess(cell(var(n), var(n)))));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     using namespace combinator;
+    if (cfg.combinatorGrid && cfg.numVars >= 11 && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
+        return genGridBlock(rng, cfg, loopsUsed);
+    }
     if (cfg.combinatorRelax && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
         return genRelaxBlock(rng, cfg, loopsUsed);
     }

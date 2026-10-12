@@ -248,6 +248,10 @@ struct GenConfig {
     // run V rounds of matrix relaxation on [V, state[V], matrix[V*V]].
     // Opt-in (`--combinator-relax`); false is byte-identical.
     bool combinatorRelax = false;
+    // Section 109: an eighth of combinator blocks (three loop slots, numVars
+    // >= 11) fill a DP table over two sequences from up/left/diag cells.
+    // Opt-in (`--combinator-grid`); false is byte-identical.
+    bool combinatorGrid = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

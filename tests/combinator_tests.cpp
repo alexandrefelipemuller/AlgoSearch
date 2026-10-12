@@ -22,6 +22,7 @@
 #include "problems/ThreeSumProblem.hpp"
 #include "problems/GraphReachabilityProblem.hpp"
 #include "problems/ShortestPathProblem.hpp"
+#include "problems/DtwProblem.hpp"
 #include "search/ProgramGenerator.hpp"
 #include "test_framework.hpp"
 
@@ -502,4 +503,41 @@ TEST(relax_piece_reaches_graph_reachability) {
     GraphReachabilityProblem problem(6, 40, 8);
     CHECK_EQ(relaxHits(problem, false, 105, 4000), 0);
     CHECK(relaxHits(problem, true, 105, 4000) > 0);
+}
+
+namespace {
+
+int gridHits(bool grid, uint64_t seed, int draws) {
+    Random rng(seed);
+    GenConfig cfg = combinatorOnly();
+    cfg.numVars = 12;
+    cfg.maxLoops = 4;
+    cfg.combinatorGrid = grid;
+    DtwProblem problem(5, 40, cfg.numVars);
+    int hits = 0;
+    for (int i = 0; i < draws; ++i) {
+        Program p = generateRandomProgram(rng, 2, cfg);
+        if (solvesLevels(problem, *p, 1, 4)) hits++;
+    }
+    return hits;
+}
+
+}  // namespace
+
+TEST(grid_piece_is_byte_identical_when_off) {
+    // Section 109: the grid block is drawn only with the flag on.
+    GenConfig a = combinatorOnly(), b = combinatorOnly();
+    a.numVars = b.numVars = 12;
+    a.maxLoops = b.maxLoops = 4;
+    b.combinatorGrid = false;
+    Random ra(109), rb(109);
+    for (int i = 0; i < 300; ++i) {
+        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
+    }
+}
+
+TEST(grid_piece_reaches_dtw) {
+    // Section 109 prediction 1.
+    CHECK_EQ(gridHits(false, 110, 4000), 0);
+    CHECK(gridHits(true, 110, 4000) > 0);
 }

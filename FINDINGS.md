@@ -8213,3 +8213,34 @@ builds a sift-down or a halving search, and the free search never found
 either (sections 14, 25, 30, 63-69), so removing them would remove those
 algorithm families from reach, not just speed. mergesort stays for the same
 reason.
+
+## 109. Grid DP piece (`--combinator-grid`): can the combinator replace `dtw`? -- design and predictions registered before implementing
+
+Section 107: dtw is 10/10 with its skeleton, 0/10 without. The skeleton is
+one instance of a family: a DP table over two sequences, filled in row
+order from the up, left and diagonal cells.
+
+**The piece.** Layout fixed as DtwProblem's: n = arr[0], table T[i][j] =
+arr[1 + i*(n+1) + j], A after the table, B after A. A combinator block drawn
+first in `genCombinatorBlock` with probability 1/8 when
+`GenConfig::combinatorGrid` is on, three loop slots are free and numVars
+>= 11 (byte-identical off). Axes drawn independently:
+- Boundary: edges INF (corner 0); edges = index (edit distance); edges 0.
+- Cell cost of (a, b) = (A[i-1], B[j-1]): |a - b|; a != b ? 1 : 0;
+  a == b ? 1 : 0.
+- Recurrence: cost + min(up, left, diag); min(up + 1, left + 1, diag +
+  cost); max(up, left, diag + cost).
+- Output: arr[0] = T[n][n].
+27 draws; DTW is one (INF, |a-b|, cost + min). Edit distance and LCS are
+also single draws, but no benchmark problem uses them, so generality beyond
+dtw is shown only in the probe. This is the most problem-shaped piece so
+far; honest framing: a parametrized family of three textbook DPs.
+
+**Predictions.**
+1. Probe (forced combinator draws, numVars 12, maxLoops 4): draws solving
+   dtw levels 1-4 go from 0 (off) to > 0 (on).
+2. A/B, 30 seeds (55000-55029), dtw (max-n 5, num-vars 12, wall 300):
+   base vs DPX (`--combinator-grid`, `dtw` off). DPX >= base - 3, and >= 27
+   if base is 30/30.
+3. Usage map: only dtw winners use a grid DP.
+4. If 2 holds, joint battery (73 x 10), step 6.
