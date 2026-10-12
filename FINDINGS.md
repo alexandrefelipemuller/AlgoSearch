@@ -7880,3 +7880,31 @@ attempt on `selectionsort` with this piece family.
 3. PL2 timeouts below section 102's 12.
 If 1 and 2 hold: usage map and joint battery (steps 5-6). Otherwise
 `selectionsort` is closed as indispensable.
+
+## 102b (results). Placement as its own relation still fails on min_gap (30 -> 21); `selectionsort` closed as indispensable
+
+Probe (200k draws, seed 7): selection-shaped sorts 383 (102) -> **1216**.
+
+A/B (`data/nested_place_option_ab_20261012/`, seeds 49100-49129, 240 runs):
+
+| problem | base | PL2 |
+|---|---|---|
+| sorting | 30 | 30 |
+| count_distinct | 30 | 30 |
+| max_gap_sorted | 30 | 30 |
+| min_gap | 30 | **21** |
+
+Wall timeouts: base 0, PL2 7 (section 102: 12). Selection-shaped sorting
+winners: base 30, PL2 **5**.
+
+1. Step 3: **falsified** on min_gap (21 < 27); the other three pass,
+   max_gap_sorted now 30/30.
+2. Family: **falsified** (5 < 10), though up from 1.
+3. Timeouts below 12: held (7).
+
+Tripling the placement's draw rate moved family 1 -> 5 and max_gap_sorted
+26 -> 30, but min_gap stays at 21, the same as section 102 on different
+seeds. min_gap is where the atomic whole-sort draw matters: it must sort
+*and* then scan pairwise differences, and the skeleton supplies the first
+half in one draw. As registered, this closes `selectionsort`: kept,
+indispensable. Both flags stay opt-in.
