@@ -8137,3 +8137,26 @@ step is to find out why (as in section 105) before any removal.
 Predictions: dtw needs its skeleton (a 2-D DP table no piece builds):
 nodtw drops >= 2. For tsp the two skeletons overlap (either alone solves
 it), so each single arm stays within -1.
+
+## 107 (results). dtw needs its skeleton; tsp is undecidable at this budget
+
+`data/untested_isolation_20261012/`, seeds 53000-53009, 50 runs:
+
+| arm | problem | verified | wall timeouts |
+|---|---|---|---|
+| base | dtw | **10** | 0 |
+| nodtw | dtw | **0** | 0 |
+| base | tsp | **0** | 10 |
+| nobf | tsp | 0 | 10 |
+| nobb | tsp | 0 | 10 |
+
+- dtw: prediction held. Without its skeleton dtw drops 10 -> 0. Kept;
+  replacing it needs a 2-D DP table piece.
+- tsp: base is 0/10 (every run stuck around 74/76 at the wall), so the
+  screen cannot decide. Why: even forced as the only skeleton
+  (`ALGOSEARCH_FORCE_SKELETON`, seed 53000, max-program-size 400, 300 s),
+  neither solves it (bruteforce 70/76, branchandbound 74/76). The
+  September heavy battery (beam 2500, 1800 s) also timed out on tsp. So
+  under any budget run since then, the tsp skeletons contribute nothing
+  measurable, and also cannot be shown removable. Left as is; deciding
+  them needs a long forced run (hours per seed), not a screen.
