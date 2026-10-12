@@ -8286,3 +8286,34 @@ Arms: base, nobf, nobb, noboth (both tsp skeletons off).
 Rules as section 107 (step 1: a drop >= 2 keeps). Predictions: base >= 5/10;
 noboth 0/10 (no piece builds a permutation search); nobf and nobb each
 within -1 of base (either skeleton alone suffices).
+
+## 107b (results). The search solves tsp in seconds; verification rejects every exact solver at n = 15
+
+`data/tsp_rescreen_20261012/`, seeds 53100-53109, 40 runs:
+
+| arm | search champion | verified | wall timeouts |
+|---|---|---|---|
+| base | 26/26 at level 6, ~4 s | 0 | 0 |
+| nobf | 26/26 | 0 | 0 |
+| nobb | 26/26 | 0 | 0 |
+| noboth | 24/26 at best | 0 | 8 |
+
+Every base, nobf and nobb run finds a full-score tsp program within
+seconds, and Benchmark rejects it: `failed at n=15 trial=1 (timeout)`.
+`kVerificationSizes` runs every problem up to n = 80 under a 50M step
+limit; an exact TSP solver is exponential (15! tours for brute force,
+still exponential for branch-and-bound), so no correct program can pass
+n = 15 at any reasonable budget. Like factorial before its domain fix
+(section 100 follow-up), the verification asks for something outside the
+problem's feasible domain. tsp's 0/10 in every battery is this artifact,
+not a search failure.
+
+Predictions as registered: base >= 5/10 **falsified** (0, by the
+artifact); noboth 0/10 held, and it is the only arm whose *search* fails
+(best 24/26, 8 wall timeouts), so without both skeletons tsp is out of
+reach. nobf/nobb within -1: undecidable until verification is fixed,
+though the search champions are equal.
+
+Open decision (user): cap tsp's benchmark domain (e.g. empty
+`generateBenchmarkInstance` for n > 10, as factorial does past n = 12),
+then re-run this screen.
