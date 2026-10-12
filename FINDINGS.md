@@ -8185,3 +8185,25 @@ Predictions:
    (README: heapsort needs `ALGOSEARCH_FORCE_SKELETON`). If so, heapsort
    contributes neither success nor family in the default, only reachability
    under forcing.
+
+## 108 (results). binarysearch and heapsort contribute nothing visible in the default
+
+`data/speed_skeleton_isolation_20261012/`, seeds 54000-54009, 40 runs, 0 timeouts:
+
+| arm | problem | verified | fitted class of the fastest winner |
+|---|---|---|---|
+| base | contains_ordered | 10 | O(n) x10 |
+| nobs | contains_ordered | 10 | O(n) x10 |
+| base | sorting | 10 | O(n^2) x10 |
+| noheap | sorting | 10 | O(n^2) x10 |
+
+No winner in either arm contains a sift-down. All three predictions held:
+both arms within -1 (no change at all), and the base never produced a
+heapsort or a logarithmic search. With the skeletons present, the default
+still picks the linear scan and the quadratic sort every time, so the
+speed argument that kept them (sections 56-57) is not realized in default
+runs: their only effect is reachability under `ALGOSEARCH_FORCE_SKELETON`.
+
+Both are now removal candidates under section 99 step 2. Removing them is a
+change to the explicit section 57 decision (keep the only O(n log n) /
+O(log n) shapes), so it is left to the user, not applied here.
