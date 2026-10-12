@@ -7853,3 +7853,30 @@ whole sort as one atomic draw, which section 99 already suggested.
 
 Decision: `selectionsort` stays. `--nested-place` stays opt-in (not
 default; it improved nothing measured). No joint battery.
+
+## 102b. Placement as its own pair relation (`--nested-place-option`) -- design and predictions registered before implementing
+
+Section 102 failed on competitiveness, not reachability: 12 of 13 PLX
+misses were wall timeouts and selection won 1 of 30 sorting seeds. The
+placement was buried (1/3 of Nested, itself 2/7 of nested pair draws),
+while `SwapIf` is 1/5 of them. 102b gives placement the same standing:
+
+- New `Relation::Place`. With `GenConfig::nestedPlaceOption` on, on a
+  nested loop over one sequence (Whole or LengthPrefixed layout), after the
+  other relation draws, `rng.uniformInt(0, 5) == 0` replaces the relation
+  with Place (about 1/6, like each of the five pair relations).
+- Place always uses the triangular loop (j = i + 1), the only one where it
+  is meaningful. Body identical to section 102's placement.
+- Byte-identical off. Independent of `--nested-place`.
+
+Protocol: fresh seeds 49100-49129, base (current default) vs PL2
+(`--nested-place-option`, `selectionsort` disabled), same four problems
+and wall limits as section 102. Whatever happens, this is the last
+attempt on `selectionsort` with this piece family.
+
+**Predictions** (section 99 rules, unchanged):
+1. PL2 within step 3 on all four (>= base - 3; >= 27 where base is 30).
+2. Family: PL2 selection-shaped sorting winners >= 1/3 of base's.
+3. PL2 timeouts below section 102's 12.
+If 1 and 2 hold: usage map and joint battery (steps 5-6). Otherwise
+`selectionsort` is closed as indispensable.

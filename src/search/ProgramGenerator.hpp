@@ -236,6 +236,10 @@ struct GenConfig {
     // iteration swap(elem(i), elem(t)). Opt-in (`--nested-place`); false is
     // byte-identical.
     bool nestedPlace = false;
+    // Section 102b: the same placement as its own pair relation (about 1/6
+    // of nested pair draws, always triangular). Opt-in
+    // (`--nested-place-option`); false is byte-identical.
+    bool nestedPlaceOption = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

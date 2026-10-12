@@ -1656,7 +1656,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, Place };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2068,6 +2068,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 6) >= 5) {
         rel = Relation::Nested;
     }
+    // Section 102b: placement as one more pair relation, always triangular.
+    if (cfg.nestedPlaceOption && (loop == Loop::NestedFull || loop == Loop::NestedTriangular) &&
+        (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 5) == 0) {
+        rel = Relation::Place;
+        loop = Loop::NestedTriangular;
+    }
     ExprKind cmp = drawComparator(rng);
 
     // Operands for this loop shape.
@@ -2200,8 +2206,9 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             accInit = 1;
             break;
         }
+        case Relation::Place:
         case Relation::Nested: {
-            if (cfg.nestedPlace && rng.uniformInt(0, 2) == 0) {
+            if (rel == Relation::Place || (cfg.nestedPlace && rng.uniformInt(0, 2) == 0)) {
                 // Section 102: t = i; if (elem(j) CMP elem(t)) t = j; then
                 // swap(elem(i), elem(t)) once per outer iteration.
                 static const ExprKind placeCmp[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Le, ExprKind::Ge};

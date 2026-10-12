@@ -379,7 +379,7 @@ TEST(follow_extended_emits_trailing_and_loop_length_walks) {
 
 namespace {
 
-GenConfig nestedPlaceProbe(bool place) {
+GenConfig nestedPlaceProbe(bool place, bool option = false) {
     GenConfig cfg = combinatorOnly();
     cfg.combinatorState = true;
     cfg.combinatorNested = true;
@@ -387,14 +387,15 @@ GenConfig nestedPlaceProbe(bool place) {
     cfg.combinatorArgBest = true;
     cfg.maxLoops = 4;
     cfg.nestedPlace = place;
+    cfg.nestedPlaceOption = option;
     return cfg;
 }
 
 // Selection shape: the program sorts and its swap is not the body of an if
 // (an exchange sort guards every swap).
-int selectionSorts(bool place, uint64_t seed, int draws) {
+int selectionSorts(bool place, uint64_t seed, int draws, bool option = false) {
     Random rng(seed);
-    GenConfig cfg = nestedPlaceProbe(place);
+    GenConfig cfg = nestedPlaceProbe(place, option);
     SortingProblem sorting(5, 40, cfg.numVars);
     const std::regex guardedSwap(R"(if \([^\n]*\) \{\n\s*swap)");
     int hits = 0;
@@ -422,4 +423,10 @@ TEST(nested_place_piece_reaches_selection_sort) {
     // Section 102 prediction 1: 0 selection sorts off, some on.
     CHECK_EQ(selectionSorts(false, 103, 20000), 0);
     CHECK(selectionSorts(true, 103, 20000) > 0);
+}
+
+TEST(nested_place_option_reaches_selection_sort_more_often) {
+    // Section 102b: placement as its own relation is drawn more often than
+    // inside Nested.
+    CHECK(selectionSorts(false, 104, 20000, true) > selectionSorts(true, 104, 20000));
 }
