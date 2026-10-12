@@ -8043,3 +8043,20 @@ defaults, not the deletion, are short for this problem.
 
 Next: the same piece already reaches shortest_path in the probe (0 -> 69
 per 40k draws); `shortestpath` is the natural next removal test.
+
+## 105. Does the relax piece also replace `shortestpath`? -- predictions registered before running
+
+The section 104 piece is now default, and its probe reached shortest_path
+(0 -> 69 per 40k draws: INF init, no guard, edge `> 0` or `!= 0`, update
+`S[i] + w`, -1 output). No code change: this is a removal test.
+
+Protocol: shortest_path only (not in the joint battery list, so step 6
+does not apply), max-n 6, num-vars 7, 30 seeds (52000-52029), wall 240,
+the joint battery's search settings. base (current default) vs NOSP
+(`ALGOSEARCH_DISABLE_SKELETON=shortestpath`).
+
+**Predictions.**
+1. NOSP >= base - 3, and >= 27 if base is 30/30 (section 99 step 3).
+2. Usage map: no other problem's winners in the section 104 joint battery
+   base arm use the weighted relaxation (`S[i] + w`).
+If 1 holds, the skeleton is deleted (no piece flag to promote).
