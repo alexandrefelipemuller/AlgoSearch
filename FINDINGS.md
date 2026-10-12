@@ -7379,3 +7379,40 @@ programs, against 1092-5406 records and 148-302 programs in the control.
 - Stays opt-in. The compression makes it a good candidate default for
   diversity-triage runs (merge policy: only measurable discovery gains
   are promoted, and heap 5/8 → 8/8 would need a replication to count).
+
+## 99. Skeleton re-isolation under the current default -- predictions registered before running
+
+Section 56 classified eight skeletons as indispensable, but it ran before
+seven pieces became default (nested, frequency, follow, orthogonal,
+argbest, distinct, regression guard). Section 98 showed that new families
+come from reachability, not selection pressure, and the long-term plan is
+to replace skeletons with generic pieces. So first check which skeletons
+the current pieces already cover.
+
+Design. Script: `scripts/run_skeleton_reisolation_ab.sh`. Fresh matched
+seeds 45000-45009, modest budget (beam 500, candidates 1500, size 150,
+step limit 20000), section 56's max-n and walls. Arm **base** is the
+current default on all twelve problems below. Each other arm disables
+*one* skeleton (or the nested-divisor pair) via
+`ALGOSEARCH_DISABLE_SKELETON` and runs only the problems it serves:
+- noavg (average): average;
+- normul (repeatedmultiply): factorial, power;
+- nosel (selectionsort): sorting, count_distinct, min_gap, max_gap_sorted;
+- no3sum (threesum): three_sum;
+- norec (recurrence): gcd, fibonacci;
+- nondiv (nesteddivisor + nesteddivisornative): is_prime;
+- nograph (graphreachability): graph_reachability.
+
+Predictions (arm vs base, of 10):
+1. Stay within -1 (now covered by pieces): average, factorial, power,
+   sorting, count_distinct, min_gap, max_gap_sorted, three_sum.
+2. Drop by >= 3 (still need a skeleton): gcd, fibonacci, is_prime,
+   graph_reachability.
+
+Decision rule, fixed now (section 56's): a skeleton is **removable** if
+every problem it serves stays within -1 of base; **kept** if any drops by
+>= 2. A -2 that base itself does not reach 8/10 on goes to a 30-seed
+retest before removal. Removals are a separate commit, followed by a
+modest battery to check the default's changed RNG stream (as section 57).
+Untested skeletons (binarysearch, dtw, shortestpath, tsp*, heapsort,
+mergesort) are out of scope.
