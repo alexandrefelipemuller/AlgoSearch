@@ -240,9 +240,10 @@ TEST(post_solve_sizes_zero_reproduces_single_cascade_records) {
 TEST(post_solve_sizes_keeps_level_open_and_records_alternative_champions) {
     // With a divergence window, the level stays open after the first full
     // solve, so further full-solve programs found at later sizes are also
-    // recorded. Every record must still be a SUCCESS (the no-op and its
-    // alternatives all generalize on AlwaysZeroProblem) and at least one
-    // record per level must exist.
+    // recorded. The no-op champion is a SUCCESS; a window alternative may
+    // also be recorded as UNCONFIRMED (solves N=1 but fails structural
+    // invariance), which is the search labelling it, not an error. At least
+    // one record per level must exist.
     AlwaysZeroProblem problem;
     SearchConfig cfg;
     cfg.beamWidth = 10;
@@ -259,7 +260,8 @@ TEST(post_solve_sizes_keeps_level_open_and_records_alternative_champions) {
     auto solutions = search.run();
 
     CHECK(!solutions.empty());
-    for (const auto& rec : solutions) CHECK_EQ(rec.finalStatus, std::string("SUCCESS"));
+    CHECK_EQ(solutions.front().finalStatus, std::string("SUCCESS"));
+    for (const auto& rec : solutions) CHECK(rec.finalStatus == "SUCCESS" || rec.finalStatus == "UNCONFIRMED");
     // The no-op champion's cascade covers levels 1..3 even with the window on.
     bool saw1 = false, saw2 = false, saw3 = false;
     for (const auto& rec : solutions) {

@@ -250,8 +250,9 @@ struct GenConfig {
 
     // Section 100: generic scalar-loop piece, one more option in the
     // skeleton draw -- init, Counted/UntilZero loop, Fold/Pair/divisor-test
-    // body and an optional divide, each drawn independently. Opt-in
-    // (`--scalar-loop`); false is byte-identical.
+    // body and an optional divide, each drawn independently.
+    // CLI default since section 100 (`--no-scalar-loop` turns it off);
+    // false here is byte-identical.
     bool scalarLoop = false;
 
     // Section 66: skeletons are offered as shape only -- every site in the

@@ -312,13 +312,10 @@ void appendCountingWhile(std::vector<StmtPtr>& out, int var, ExprPtr boundExpr, 
 
 // Appends `while (r >= bound) { r = r - bound; <buildExtra's
 // statements>; }` to `out` -- the "divide via repeated subtraction"
-// primitive Mini-C needs wherever it has no native Div (GcdMod's inner
-// mod loop only needs the shrinking remainder; Average's divide phase
-// also tracks a quotient via `buildExtra`), confirmed identical in
-// shape between the two while cataloguing skeleton primitives
-// (FINDINGS.md section 24). `bound` is cloned once for the subtraction
-// and once for the loop condition, same two-separate-Var-nodes shape
-// both call sites already built by hand.
+// primitive from before native Div (Average's divide phase tracks a
+// quotient via `buildExtra`; the deleted GcdMod skeleton used the same
+// shape, FINDINGS.md section 24). `bound` is cloned once for the
+// subtraction and once for the loop condition.
 void appendSubtractiveDivideWhile(std::vector<StmtPtr>& out, int r, ExprPtr bound, int& loopsUsed,
                                    const std::function<void(std::vector<StmtPtr>&)>& buildExtra) {
     std::vector<StmtPtr> body;
@@ -326,352 +323,6 @@ void appendSubtractiveDivideWhile(std::vector<StmtPtr>& out, int r, ExprPtr boun
     buildExtra(body);
     loopsUsed++;
     out.push_back(makeWhile(makeCompare(ExprKind::Ge, makeVar(r), std::move(bound)), std::move(body)));
-}
-
-// Dedicated nested skeleton for trial-division-by-subtraction primality
-// testing -- see the loopAccumulatorBias comment in ProgramGenerator.hpp
-// for the full rationale. Reserves var 0 (array length, unused here) and
-// picks four distinct scalars: x (the value under test), d (candidate
-// divisor), r (repeated-subtraction remainder), and sq (see below).
-//
-// Bounds the outer loop by `d*d <= x` (trial division only needs
-// divisors up to sqrt(x): if x has no divisor <= sqrt(x), it has none
-// above it either) instead of the naive `d < x` -- O(sqrt(n)) candidate
-// divisors instead of O(n). Mini-C has no multiply primitive, so `d*d`
-// can't be computed directly each round, but it doesn't need to be:
-// `sq` tracks d^2 incrementally, using the identity (d+1)^2 = d^2 + 2d+1
-// -- pure Add, updated once per outer iteration right before `d` itself
-// increments, so `sq` is always exactly the square of the CURRENT `d`
-// when the loop condition checks it. Needs one more scratch scalar than
-// the naive O(n) version, hence numVars >= 5 (one tier up from the
-// original's numVars >= 3).
-StmtPtr genNestedDivisorLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 4);
-    int x = vars[0], d = vars[1], r = vars[2], sq = vars[3];
-
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(x, makeArrayAccess(makeIntConst(0))));    // x = arr[0]
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));  // arr[0] = 1 (assume prime)
-    {
-        std::vector<StmtPtr> guardBody;
-        guardBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
-        root->body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(x), makeIntConst(2)), std::move(guardBody)));
-    }
-    root->body.push_back(makeAssign(d, makeIntConst(2)));   // d = 2
-    root->body.push_back(makeAssign(sq, makeIntConst(4)));  // sq = 2*2  (d^2, kept in sync with d below)
-
-    std::vector<StmtPtr> outerBody;
-    outerBody.push_back(makeAssign(r, makeVar(x)));  // r = x
-    {
-        std::vector<StmtPtr> innerBody;
-        innerBody.push_back(makeAssign(r, makeBinOp(ExprKind::Sub, makeVar(r), makeVar(d))));
-        loopsUsed++;
-        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(d), makeVar(r)), std::move(innerBody)));
-    }
-    {
-        std::vector<StmtPtr> foundBody;
-        foundBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
-        outerBody.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(r), makeVar(d)), std::move(foundBody)));
-    }
-    // sq = sq + 2*d + 1 (using CURRENT d, i.e. (d+1)^2 = d^2 + 2d + 1),
-    // THEN d = d + 1 -- order matters: sq must advance to match the new
-    // d exactly, using the old d's value one last time.
-    outerBody.push_back(
-        makeAssign(sq, makeBinOp(ExprKind::Add, makeVar(sq), makeBinOp(ExprKind::Add, makeBinOp(ExprKind::Add, makeVar(d), makeVar(d)),
-                                                                          makeIntConst(1)))));
-    outerBody.push_back(makeAssign(d, makeBinOp(ExprKind::Add, makeVar(d), makeIntConst(1))));  // d = d + 1
-    loopsUsed++;
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Le, makeVar(sq), makeVar(x)), std::move(outerBody)));
-
-    return root;
-}
-
-// Native-arithmetic sibling of genNestedDivisorLoopBlock, added for
-// FINDINGS.md section 16 ("breaking the language ceiling"). Section 13
-// found the sqrt-bound version above still costs O(x log x) overall
-// because each candidate's divisibility check is repeated-subtraction
-// (O(x/d) per candidate) -- the CANDIDATE COUNT shrank to O(sqrt(x)) but
-// the PER-CANDIDATE COST didn't. With native Mul (for the `d*d <= x`
-// bound, no more incremental-square tracking needed) and native Mod (for
-// an O(1) `x mod d == 0` divisibility check), both halves are now O(1)
-// per candidate, so the whole loop is genuinely O(sqrt(x)) total, not
-// merely O(sqrt(x)) candidates each still doing linear work. Only needs 2
-// scratch scalars (x, d) -- no remainder or incremental-square variable --
-// and a single loop, so it's gated on nothing more than numVars >= 3,
-// one tier BELOW the original (a direct consequence of the primitives
-// doing the work the grammar used to have to spend variables/loops
-// simulating). Kept as a separate skeleton alongside the original rather
-// than replacing it, same "measurable A/B" reasoning as GcdModNative.
-StmtPtr genNestedDivisorNativeLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    std::vector<int> vars = pickDistinctVars(rng, cfg, 2);
-    int x = vars[0], d = vars[1];
-
-    auto root = makeBlock();
-    root->body.push_back(makeAssign(x, makeArrayAccess(makeIntConst(0))));    // x = arr[0]
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeIntConst(1)));  // arr[0] = 1 (assume prime)
-    {
-        std::vector<StmtPtr> guardBody;
-        guardBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
-        root->body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(x), makeIntConst(2)), std::move(guardBody)));
-    }
-    root->body.push_back(makeAssign(d, makeIntConst(2)));  // d = 2
-
-    std::vector<StmtPtr> outerBody;
-    {
-        std::vector<StmtPtr> foundBody;
-        foundBody.push_back(makeAssignArray(makeIntConst(0), makeIntConst(0)));
-        outerBody.push_back(
-            makeIf(makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, makeVar(x), makeVar(d)), makeIntConst(0)), std::move(foundBody)));
-    }
-    outerBody.push_back(makeAssign(d, makeBinOp(ExprKind::Add, makeVar(d), makeIntConst(1))));  // d = d + 1
-    loopsUsed++;
-    root->body.push_back(
-        makeWhile(makeCompare(ExprKind::Le, makeBinOp(ExprKind::Mul, makeVar(d), makeVar(d)), makeVar(x)), std::move(outerBody)));
-
-    return root;
-}
-
-// Which single-loop scalar recurrence genRecurrenceSkeletonBlock builds.
-// GcdEuclid and Fibonacci used to be two separate top-level Skeleton
-// options; merged into one draw (see the "fewer skeletons" note on the
-// Skeleton enum in genStmt) since both are "seed two scalars, update them
-// with Add/Sub each iteration of a single loop, write the result back" --
-// the same shape genCountingLoopBlock already uses for its five AccumKinds.
-// They keep genuinely different bodies/conditions internally (subtractive
-// alternation gated on inequality vs an additive recurrence gated on a
-// counter) -- unifying the DRAW, not pretending the two algorithms are
-// actually the same computation.
-enum class RecurrenceKind { GcdSubtract, FibonacciAdd, GcdMod, GcdModNative };
-
-// GcdSubtract: subtractive Euclidean GCD (a,b seeded from arr[0]/arr[1],
-// loop while a != b subtracting the smaller from the larger, write back
-// a) -- O(max(a,b)) steps in the worst case (e.g. gcd(n, 1) takes n
-// subtractions). FibonacciAdd: iterative Fibonacci (a,b seeded 0,1, a
-// third counter i looping while i < arr[0]; `b = a + b; a = b - a;`
-// recovers the new `a` from the just-updated `b` and the OLD `a`, still
-// available since it hasn't been overwritten yet, avoiding a third temp
-// variable). GcdMod: the REAL fast Euclidean algorithm, `(a,b) = (b, a
-// mod b)` repeated until b hits 0 -- O(log(min(a,b))) OUTER iterations
-// (a Fibonacci-ratio bound, the classic result), each computing `a mod
-// b` via its own repeated-subtraction inner loop since Mini-C has no
-// divide primitive. Honest caveat, not swept under the rug: that inner
-// mod step costs O(a/b) subtractions, so unlike a language with a native
-// divide/modulo instruction, this does NOT guarantee O(log n) total
-// primitive-operation count in the worst case (e.g. gcd(n, 2) still costs
-// O(n) subtractions in that one mod step) -- what it guarantees is
-// O(log n) *outer* iterations, and empirically much less total work than
-// GcdSubtract whenever the two operands stay reasonably balanced across
-// iterations, which --benchmark's curve fit can measure directly. Picked
-// among whichever variants fit the current numVars/loop budget:
-// FibonacciAdd needs one extra scratch scalar (the counter); GcdMod needs
-// two extra (the mod loop's own remainder, plus reusing GcdSubtract's a/b
-// slots) and a free nested-loop budget slot, being itself a 2-loop shape.
-StmtPtr genRecurrenceSkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed, bool canNestedLoop) {
-    int a = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    int b = 1 + rng.uniformInt(0, cfg.numVars - 2);
-    if (b == a) b = 1 + (a % (cfg.numVars - 1));
-
-    RecurrenceKind options[4];
-    int n = 0;
-    options[n++] = RecurrenceKind::GcdSubtract;
-    if (cfg.numVars >= 4) options[n++] = RecurrenceKind::FibonacciAdd;
-    if (canNestedLoop && cfg.numVars >= 4) options[n++] = RecurrenceKind::GcdMod;
-    // GcdModNative added for FINDINGS.md section 16 ("breaking the language
-    // ceiling"): identical (a,b) = (b, a mod b) recurrence as GcdMod, but
-    // using the new native Mod primitive for `a mod b` in O(1) instead of
-    // GcdMod's repeated-subtraction inner loop -- a single loop, not two,
-    // so it only needs cfg.numVars >= 4 (no canNestedLoop requirement).
-    // Kept as a SEPARATE option rather than replacing GcdMod so the A/B
-    // complexity comparison against the honest repeated-subtraction version
-    // stays measurable.
-    if (cfg.numVars >= 4) options[n++] = RecurrenceKind::GcdModNative;
-    RecurrenceKind kind = options[rng.uniformInt(0, n - 1)];
-
-    auto root = makeBlock();
-
-    if (kind == RecurrenceKind::GcdSubtract) {
-        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
-        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
-
-        std::vector<StmtPtr> body;
-        std::vector<StmtPtr> thenBody;
-        thenBody.push_back(makeAssign(a, makeBinOp(ExprKind::Sub, makeVar(a), makeVar(b))));
-        std::vector<StmtPtr> elseBody;
-        elseBody.push_back(makeAssign(b, makeBinOp(ExprKind::Sub, makeVar(b), makeVar(a))));
-        body.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(a), makeVar(b)), std::move(thenBody), std::move(elseBody)));
-
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(a), makeVar(b)), std::move(body)));
-        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
-        return root;
-    }
-
-    if (kind == RecurrenceKind::GcdMod) {
-        int r = -1;
-        for (int cand = 1; cand < cfg.numVars; ++cand) {
-            if (cand != a && cand != b) {
-                r = cand;
-                break;
-            }
-        }
-        if (r < 0) r = a;  // numVars too small to give r its own slot; degenerate but safe
-
-        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
-        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
-
-        std::vector<StmtPtr> outerBody;
-        outerBody.push_back(makeAssign(r, makeVar(a)));  // r = a
-        // r ends up as a mod b: repeated subtraction until r < b.
-        appendSubtractiveDivideWhile(outerBody, r, makeVar(b), loopsUsed, [](std::vector<StmtPtr>&) {});
-        outerBody.push_back(makeAssign(a, makeVar(b)));  // a = b
-        outerBody.push_back(makeAssign(b, makeVar(r)));  // b = a mod b
-
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(b), makeIntConst(0)), std::move(outerBody)));
-        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
-        return root;
-    }
-
-    if (kind == RecurrenceKind::GcdModNative) {
-        int r = -1;
-        for (int cand = 1; cand < cfg.numVars; ++cand) {
-            if (cand != a && cand != b) {
-                r = cand;
-                break;
-            }
-        }
-        if (r < 0) r = a;  // numVars too small to give r its own slot; degenerate but safe
-
-        root->body.push_back(makeAssign(a, makeArrayAccess(makeIntConst(0))));  // a = arr[0]
-        root->body.push_back(makeAssign(b, makeArrayAccess(makeIntConst(1))));  // b = arr[1]
-
-        std::vector<StmtPtr> body;
-        body.push_back(makeAssign(r, makeBinOp(ExprKind::Mod, makeVar(a), makeVar(b))));  // r = a % b (O(1))
-        body.push_back(makeAssign(a, makeVar(b)));                                        // a = b
-        body.push_back(makeAssign(b, makeVar(r)));                                        // b = r
-
-        loopsUsed++;
-        root->body.push_back(makeWhile(makeCompare(ExprKind::Ne, makeVar(b), makeIntConst(0)), std::move(body)));
-        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
-        return root;
-    }
-
-    // FibonacciAdd
-    int i = -1;
-    for (int cand = 1; cand < cfg.numVars; ++cand) {
-        if (cand != a && cand != b) {
-            i = cand;
-            break;
-        }
-    }
-    if (i < 0) i = a;  // numVars too small to give i its own slot; degenerate but safe
-
-    root->body.push_back(makeAssign(a, makeIntConst(0)));  // a = 0  (fib(0))
-    root->body.push_back(makeAssign(b, makeIntConst(1)));  // b = 1  (fib(1))
-    root->body.push_back(makeAssign(i, makeIntConst(0)));  // i = 0
-
-    std::vector<StmtPtr> body;
-    body.push_back(makeAssign(b, makeBinOp(ExprKind::Add, makeVar(a), makeVar(b))));  // b = a + b
-    body.push_back(makeAssign(a, makeBinOp(ExprKind::Sub, makeVar(b), makeVar(a))));  // a = b - a
-    body.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-
-    loopsUsed++;
-    // arr[0] holds n throughout (never touched until the write-back below),
-    // so the loop condition can read it directly without a separate
-    // captured copy.
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeArrayAccess(makeIntConst(0))), std::move(body)));
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(a)));  // arr[0] = a
-
-    return root;
-}
-
-// Which nested multiply-via-repeated-addition genRepeatedMultiplySkeletonBlock
-// builds. Factorial and Power used to be two separate top-level Skeleton
-// options; merged for the same reason as RecurrenceKind above -- they are
-// the SAME operation (Mini-C has no multiply primitive, so `p = p * k` is
-// built as a nested loop: outer over however many multiplications are
-// needed, inner adding `p` to a fresh accumulator `q` exactly `k` times),
-// differing only in what `k` is: an INCREASING factor (Factorial: i, 2..n)
-// or a CONSTANT captured once (Power: base, captured from arr[0]).
-enum class RepeatedMultiplyKind { IncreasingFactor, ConstantFactor };
-
-// IncreasingFactor (factorial): multiplies by i, 2..arr[0], i.e. p
-// becomes arr[0]!. Needs 4 scratch scalars (p, i, q, j).
-// ConstantFactor (power): multiplies by a captured `base = arr[0]`,
-// exactly `arr[1]` times, i.e. p becomes base^exponent. Needs one more
-// scratch scalar than IncreasingFactor (the captured base can't reuse the
-// outer counter's slot, since the outer counter here just counts
-// iterations rather than being the multiplicand itself) -- so
-// ConstantFactor is only chosen when numVars leaves room for it; with
-// exactly 5 scratch scalars available, this skeleton always builds
-// IncreasingFactor (Factorial's original numVars>=5 gate is preserved
-// exactly, not narrowed by folding Power in alongside it).
-StmtPtr genRepeatedMultiplySkeletonBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
-    bool canConstantFactor = cfg.numVars >= 6;  // needs the extra captured-base scratch scalar
-    RepeatedMultiplyKind kind =
-        (canConstantFactor && rng.chance(0.5)) ? RepeatedMultiplyKind::ConstantFactor : RepeatedMultiplyKind::IncreasingFactor;
-
-    int slotsNeeded = (kind == RepeatedMultiplyKind::ConstantFactor) ? 5 : 4;
-    std::vector<int> vars = pickDistinctVars(rng, cfg, slotsNeeded);
-
-    auto root = makeBlock();
-
-    if (kind == RepeatedMultiplyKind::ConstantFactor) {
-        int base = vars[0], p = vars[1], i = vars[2], q = vars[3], j = vars[4];
-        root->body.push_back(makeAssign(base, makeArrayAccess(makeIntConst(0))));  // base = arr[0]
-        root->body.push_back(makeAssign(p, makeIntConst(1)));                      // p = 1  (base^0)
-        root->body.push_back(makeAssign(i, makeIntConst(0)));                      // i = 0
-
-        std::vector<StmtPtr> outerBody;
-        outerBody.push_back(makeAssign(q, makeIntConst(0)));
-        outerBody.push_back(makeAssign(j, makeIntConst(0)));
-        {
-            std::vector<StmtPtr> innerBody;
-            innerBody.push_back(makeAssign(q, makeBinOp(ExprKind::Add, makeVar(q), makeVar(p))));
-            innerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
-            loopsUsed++;
-            // Inner loop runs exactly `base` times, adding the running
-            // result `p` to `q` each time -- turns "+base" into "*base".
-            outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(base)), std::move(innerBody)));
-        }
-        outerBody.push_back(makeAssign(p, makeVar(q)));  // p = q  (p is now p*base)
-        outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-
-        loopsUsed++;
-        // arr[1] holds the exponent throughout; the outer loop runs
-        // exactly that many times.
-        root->body.push_back(
-            makeWhile(makeCompare(ExprKind::Lt, makeVar(i), makeArrayAccess(makeIntConst(1))), std::move(outerBody)));
-        root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(p)));  // arr[0] = p
-        return root;
-    }
-
-    int p = vars[0], i = vars[1], q = vars[2], j = vars[3];
-    root->body.push_back(makeAssign(p, makeIntConst(1)));  // p = 1
-    root->body.push_back(makeAssign(i, makeIntConst(2)));  // i = 2
-
-    std::vector<StmtPtr> outerBody;
-    outerBody.push_back(makeAssign(q, makeIntConst(0)));  // q = 0
-    outerBody.push_back(makeAssign(j, makeIntConst(0)));  // j = 0
-    {
-        std::vector<StmtPtr> innerBody;
-        innerBody.push_back(makeAssign(q, makeBinOp(ExprKind::Add, makeVar(q), makeVar(p))));  // q = q + p
-        innerBody.push_back(makeAssign(j, makeBinOp(ExprKind::Add, makeVar(j), makeIntConst(1))));
-        loopsUsed++;
-        outerBody.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(j), makeVar(i)), std::move(innerBody)));
-    }
-    outerBody.push_back(makeAssign(p, makeVar(q)));  // p = q  (p is now p*i)
-    outerBody.push_back(makeAssign(i, makeBinOp(ExprKind::Add, makeVar(i), makeIntConst(1))));
-
-    loopsUsed++;
-    // arr[0] holds n throughout; condition is i < n+1 (i.e. i <= n), i.e.
-    // native Le would also work here but this predates it and there's no
-    // reason to touch a working comparison just to use the newer operator.
-    auto nPlusOne = makeBinOp(ExprKind::Add, makeArrayAccess(makeIntConst(0)), makeIntConst(1));
-    root->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(i), std::move(nPlusOne)), std::move(outerBody)));
-    root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(p)));  // arr[0] = p
-
-    return root;
 }
 
 // Dedicated skeleton for AverageProblem's shape: sum the array (exactly
@@ -2939,20 +2590,9 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // whatever problem is actually running -- nothing here is told in
     // advance that "gcd needs the Euclid shape".
     //
-    // Six top-level shapes, not eight: Recurrence folds GcdEuclid+
-    // Fibonacci into one draw (both "seed two scalars, update via Add/Sub
-    // each loop iteration"), and RepeatedMultiply folds Factorial+Power
-    // into one draw (both "multiply via a nested repeated-addition loop"
-    // -- differing only in whether the multiplicand increases or is
-    // constant). Each keeps choosing its own internal variant (see
-    // RecurrenceKind/RepeatedMultiplyKind) -- this is about the SAMPLING
-    // surface (loopAccumulatorBias's one trigger spreads its probability
-    // across fewer, more general slots), not about pretending unrelated
-    // algorithms are the same computation. NestedDivisor, SelectionSort,
-    // and Average stay separate: none of them share a loop shape with
-    // anything else here closely enough that merging wouldn't just be an
-    // artificial wrapper around unrelated bodies (arithmetic recurrence
-    // vs. array-element comparison-and-swap vs. two sequential loops).
+    // The scalar recurrences, divisor loops and repeated multiplies are no
+    // longer hand-written skeletons: section 100's generic scalar-loop
+    // piece (genScalarLoopBlock) reaches all of them as ordinary draws.
     // !insideIf/!insideWhile: every skeleton here is a complete, self-
     // contained algorithm that writes its own final answer unconditionally,
     // exactly once -- it was never designed to run only when some unrelated
@@ -2970,7 +2610,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
+        enum class Skeleton { SelectionSort, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -3047,11 +2687,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             options[n++] = {s, w};
             totalWeight += w;
         };
-        if (allowed("recurrence")) addOption(Skeleton::Recurrence, 3);
-        if (canNestedLoop && cfg.numVars >= 5 && allowed("nesteddivisor")) addOption(Skeleton::NestedDivisor, 3);
-        if (cfg.numVars >= 3 && allowed("nesteddivisornative")) addOption(Skeleton::NestedDivisorNative, 3);
         if (canNestedLoop && cfg.numVars >= 4 && allowed("selectionsort")) addOption(Skeleton::SelectionSort, 3);
-        if (canNestedLoop && cfg.numVars >= 5 && allowed("repeatedmultiply")) addOption(Skeleton::RepeatedMultiply, 3);
         if (canNestedLoop && cfg.numVars >= 5 && allowed("average")) addOption(Skeleton::Average, 3);
         if (canQuadLoop && cfg.numVars >= 5 && allowed("heapsort")) addOption(Skeleton::HeapSort, 1);
         if (canTripleLoop && cfg.numVars >= 5 && allowed("threesum")) addOption(Skeleton::ThreeSum, 3);
@@ -3084,7 +2720,9 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // comment): same recursionCallBias gate as DivideConquer, plus the
         // 4 extra fixed locals (mid/i/j/k) its merge step needs.
         if (cfg.numVars >= 7 && cfg.recursionCallBias > 0.0 && allowed("mergesort")) addOption(Skeleton::MergeSort, 3);
-        // Section 100: the generic scalar-loop piece (2-4 vars, one loop).
+        // Section 100: the generic scalar-loop piece (2-4 vars, one loop). It
+        // replaced the recurrence, nesteddivisor, nesteddivisornative and
+        // repeatedmultiply skeletons (deleted after section 100's joint battery).
         if (cfg.scalarLoop && cfg.numVars >= 3 && allowed("scalarloop")) addOption(Skeleton::ScalarLoop, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
@@ -3099,18 +2737,10 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             if (chosen == Skeleton::BinarySearch) gSkeletonBinarySearchPicks++;
             StmtPtr skeletonBlock = [&]() -> StmtPtr {
             switch (chosen) {
-                case Skeleton::Recurrence:
-                    return genRecurrenceSkeletonBlock(rng, cfg, loopsUsed, canNestedLoop);
-                case Skeleton::NestedDivisor:
-                    return genNestedDivisorLoopBlock(rng, cfg, loopsUsed);
-                case Skeleton::NestedDivisorNative:
-                    return genNestedDivisorNativeLoopBlock(rng, cfg, loopsUsed);
                 case Skeleton::SelectionSort:
                     return genSelectionSortSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::HeapSort:
                     return genHeapSortSkeletonBlock(rng, cfg, loopsUsed);
-                case Skeleton::RepeatedMultiply:
-                    return genRepeatedMultiplySkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::Average:
                     return genAverageSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::ThreeSum:

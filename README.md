@@ -70,7 +70,9 @@ search budget** for each (`--beam-width 500 --candidates 1500
 `loopAccumulatorBias=0.4`, native `Le`/`Ge`/`Ne`, native `Mul`/`Div`/`Mod`/
 bitwise, the skeleton library from `FINDINGS.md` sections 11-17 (minus the
 `counting` and `divideconquer` skeletons, removed in section 57 after an
-isolation battery showed nothing needs them), and the combinator algebra on
+isolation battery showed nothing needs them; and, since section 100,
+minus `recurrence`, `repeatedmultiply`, `nesteddivisor` and
+`nesteddivisornative`, replaced by the generic scalar-loop piece below), and the combinator algebra on
 by default, `--combinator-bias 0.5`, since section 48). The table predates
 the stateful combinator pieces (Kadane, LIS, rain water and relatives),
 on by default since section 62. With them, ten more array problems are
@@ -203,7 +205,13 @@ Results worth calling out:
   increasing-multiplicand one) all plateaued at first, diagnosed the
   same way as `gcd`'s original `Sub(Var,Var)`/`!=` gaps and fixed the
   same way (one dedicated skeleton per shape) — see `FINDINGS.md`
-  section 10.
+  section 10. Since section 100 those scalar skeletons are gone: one
+  generic scalar-loop piece (`--scalar-loop`, default; independent init,
+  counted or until-zero loop, fold / pair / divisor-test body, optional
+  divide) finds gcd, fibonacci, factorial, power and is_prime at 30/30
+  seeds without them. Along the way factorial and power got an exact
+  64-bit reference with overflow out of domain (n <= 12 for factorial),
+  because native `Mul` errors on overflow instead of wrapping.
 
 See `FINDINGS.md` for the full experimental history (grammar bias sweeps,
 diversity/crossover/niching A/B tests, the native-comparison-operator

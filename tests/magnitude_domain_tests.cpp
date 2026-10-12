@@ -1,14 +1,11 @@
-#include <cstdlib>
 #include <string>
 
 #include "ast/Expr.hpp"
 #include "ast/Stmt.hpp"
-#include "core/Random.hpp"
 #include "interpreter/Interpreter.hpp"
 #include "problems/FactorialProblem.hpp"
 #include "problems/PowerProblem.hpp"
 #include "search/Benchmark.hpp"
-#include "search/ProgramGenerator.hpp"
 #include "test_framework.hpp"
 
 using namespace algosearch;
@@ -29,30 +26,6 @@ Program buildNativeMulLoop(bool power) {
     root->body.push_back(makeWhile(makeCompare(ExprKind::Le, makeVar(2), std::move(bound)), std::move(body)));
     root->body.push_back(makeAssignArray(makeIntConst(0), makeVar(1)));
     return root;
-}
-
-// The repeatedmultiply skeleton's add-based multiply, drawn from the generator.
-Program drawRepeatedMultiply(const Problem& problem, int numVars) {
-    setenv("ALGOSEARCH_FORCE_SKELETON", "repeatedmultiply", 1);
-    GenConfig cfg;
-    cfg.numVars = numVars;
-    cfg.maxLoops = 2;
-    cfg.loopAccumulatorBias = 1.0;
-    Random rng(3);
-    Interpreter interp(100000);
-    for (int i = 0; i < 2000; ++i) {
-        Program p = generateRandomProgram(rng, 2, cfg);
-        bool ok = true;
-        for (const auto& inst : problem.generateInstances(4)) {
-            if (problem.evaluate(*p, inst, interp).status != ExecStatus::SUCCESS) ok = false;
-        }
-        if (ok) {
-            unsetenv("ALGOSEARCH_FORCE_SKELETON");
-            return p;
-        }
-    }
-    unsetenv("ALGOSEARCH_FORCE_SKELETON");
-    return nullptr;
 }
 
 }  // namespace
@@ -84,12 +57,4 @@ TEST(native_mul_factorial_and_power_pass_verification) {
     std::string reason;
     CHECK(verifyGeneralization(FactorialProblem(10, 40, 5), *buildNativeMulLoop(false), 200000, reason));
     CHECK(verifyGeneralization(PowerProblem(6, 40, 6), *buildNativeMulLoop(true), 200000, reason));
-}
-
-TEST(add_based_repeated_multiply_still_passes_verification) {
-    std::string reason;
-    FactorialProblem factorial(10, 40, 5);
-    Program p = drawRepeatedMultiply(factorial, 5);
-    CHECK(p != nullptr);
-    if (p) CHECK(verifyGeneralization(factorial, *p, 200000, reason));
 }

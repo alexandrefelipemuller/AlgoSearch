@@ -7677,3 +7677,36 @@ Rule as registered:
 
 If NEW passes, `--scalar-loop` becomes default and the four skeletons are
 deleted in one commit.
+
+## 100 (decision). Joint battery passes: `--scalar-loop` is default, four skeletons deleted
+
+`data/scalar_loop_joint_battery_20261011/` (22:47-00:18, 1460 runs, all
+73 problems, seeds 47000-47009). base vs NEW (`--scalar-loop` with the four
+candidates disabled): **identical on 72 problems**. min_gap drops 10 -> 9,
+within step 6's rule. Totals: 668 vs 667 verified successes.
+
+Applied:
+- `--scalar-loop` is the CLI default (`--no-scalar-loop` restores the old
+  behaviour; `GenConfig::scalarLoop` stays false, byte-identical).
+- Deleted from `ProgramGenerator.cpp`: `genRecurrenceSkeletonBlock`
+  (GcdSubtract, FibonacciAdd, GcdMod, GcdModNative),
+  `genNestedDivisorLoopBlock`, `genNestedDivisorNativeLoopBlock` and
+  `genRepeatedMultiplySkeletonBlock`, with their draw entries.
+  `appendSubtractiveDivideWhile` stays (average uses it).
+- Tests:
+  - removed `add_based_repeated_multiply_still_passes_verification`,
+    which tested a deleted skeleton;
+  - `post_solve_sizes_keeps_level_open_and_records_alternative_champions`
+    now accepts UNCONFIRMED window alternatives. The new RNG stream at 3
+    vars records one, a legitimate label the search assigns. It only
+    passed before because of that particular stream.
+  - `make test` 200/200.
+
+Skeleton count: 15 -> 11. Still indispensable by the section 99/100
+rules: average, selectionsort (both by an exact -2), threesum and
+graphreachability. Kept for speed: binarysearch, heapsort, mergesort.
+Untested: dtw, shortestpath, tspbruteforce, tspbranchandbound.
+
+Caveat: `resolveNumVars` makes every problem run with >= 8 vars. The
+4-var limit section 100 designed around never applies in the CLI. It only
+applies in direct `GenConfig` uses (tests, probes).
