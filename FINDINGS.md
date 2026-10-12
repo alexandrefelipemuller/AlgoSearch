@@ -8023,3 +8023,23 @@ relaxation shape appears only in graph_reachability winners.
 
 Joint battery launched (step 6): `scripts/run_relax_joint_battery.sh`,
 73 problems, seeds 51100-51109 (`data/relax_joint_battery_20261012/`).
+
+## 104 (results, part 2). Joint battery passes; relax piece default, `graphreachability` deleted
+
+Joint battery (`data/relax_joint_battery_20261012/`, 73 problems x seeds
+51100-51109, base vs GRX, 1460 runs): **669 -> 667** verified successes.
+Differences, all of one seed: three_sum 9 -> 10, elements_twice 9 -> 10,
+graph_reachability 10 -> 9, min_gap 10 -> 9, count_leaders 10 -> 9,
+sum_of_rises 1 -> 0. No problem drops by >= 2: step 6 passes.
+
+Decision: `--combinator-relax` is the CLI default (`--no-combinator-relax`
+turns it off; `GenConfig` default false). `genGraphReachabilitySkeletonBlock`
+and its draw entry are deleted. Skeletons: 9 -> 8. After deletion:
+`make test` 209/209; graph_reachability with the battery's settings
+(`--num-vars 6 --beam-width 500 --candidates 1500 --threads 1`), seeds
+51100-51102: 3/3. Caveat: with the bare CLI defaults seed 51100 fails, but
+it fails identically with the skeleton restored (checked by stash), so the
+defaults, not the deletion, are short for this problem.
+
+Next: the same piece already reaches shortest_path in the probe (0 -> 69
+per 40k draws); `shortestpath` is the natural next removal test.

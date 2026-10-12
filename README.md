@@ -182,7 +182,11 @@ Results worth calling out:
   shifting). Since section 103 `three_sum` no longer needs its skeleton:
   a generic triple-aggregate combinator piece (`--combinator-triple`,
   default; Exists/CountIf/Forall of an arithmetic predicate over all
-  i < j < k) finds it at the same rate. In the 2026-09-17 sweep `graph_reachability` also had a lower
+  i < j < k) finds it at the same rate.
+  Since section 104 `graph_reachability` no longer needs its skeleton
+  either: a generic matrix-relaxation piece (`--combinator-relax`,
+  default; V rounds of `if guard(S[i]) && edge(M[i][j]) update S[j]`,
+  each part drawn independently) finds it at 28-29/30 against 30/30. In the 2026-09-17 sweep `graph_reachability` also had a lower
   confirmation rate (1 of 6 SUCCESS candidates survived independent
   re-verification); in the current sweep 3 of 3 survive. See section 17
   for the standalone correctness verification (8/8 hand-built test graphs)
