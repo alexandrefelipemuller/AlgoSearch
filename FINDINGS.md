@@ -8265,3 +8265,24 @@ Decision: `--combinator-grid` is the CLI default (`--no-combinator-grid`
 turns it off; `GenConfig` default false). `genDtwSkeletonBlock` and its
 draw entry deleted (and the now-unused `canTripleLoop`). Skeletons: 7 -> 6.
 After deletion: `make test` 211/211; dtw seed 55000 generalizes.
+
+## 107b. tsp re-screen with a sufficient step limit -- registered before running
+
+Why section 107's tsp screen (and the September heavy battery) found
+nothing: both used `--step-limit 20000`. Running forced skeleton draws
+directly on TspProblem(6) levels 1-6 (40 draws each, scratch probe):
+
+| step limit | tspbruteforce | tspbranchandbound |
+|---|---|---|
+| 20 000 | 0/40 | 0/40 |
+| 50 000 | 40/40 | 0/40 |
+| 100 000 | 40/40 | 40/40 |
+
+Both skeletons are correct; at 20 000 steps no tsp program can pass level
+6, so every run hit the wall. Re-screen at `--step-limit 200000`, `--max-program-size 400` (the skeletons are about 200-250 nodes), wall 900 s,
+seeds 53100-53109, tsp max-n 6 num-vars 12, other settings as section 107.
+Arms: base, nobf, nobb, noboth (both tsp skeletons off).
+
+Rules as section 107 (step 1: a drop >= 2 keeps). Predictions: base >= 5/10;
+noboth 0/10 (no piece builds a permutation search); nobf and nobb each
+within -1 of base (either skeleton alone suffices).
