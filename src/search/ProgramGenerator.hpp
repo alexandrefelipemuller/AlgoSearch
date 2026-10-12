@@ -248,6 +248,12 @@ struct GenConfig {
     // here is byte-identical.
     bool followExtended = false;
 
+    // Section 100: generic scalar-loop piece, one more option in the
+    // skeleton draw -- init, Counted/UntilZero loop, Fold/Pair/divisor-test
+    // body and an optional divide, each drawn independently. Opt-in
+    // (`--scalar-loop`); false is byte-identical.
+    bool scalarLoop = false;
+
     // Section 66: skeletons are offered as shape only -- every site in the
     // hole grammar is drawn at random. Research hook for the section 66-68
     // probes (scripts/probe_shape_climb.cpp, scripts/sketch_bridge.cpp); no

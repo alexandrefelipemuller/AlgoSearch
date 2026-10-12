@@ -1761,6 +1761,96 @@ StmtPtr genMergeSortSkeletonBlock(Random&, const GenConfig&, int& loopsUsed) {
                   std::move(thenBody));
 }
 
+// Section 100: generic scalar-loop piece. Inputs X = arr[0], Y = arr[1],
+// N = v0; result a, second state b, counter i, temp t. Every part is drawn
+// independently, so one draw is factorial, power, average, gcd or a
+// primality test only by chance, like any other point of the space:
+//   a = {0, 1, X};  [Pair: b = {0, 1, Y}]  [Test: if (X < s) a = c]
+//   Counted:   i = {0, 1, 2}; while (i {<, <=} B or i * i {<, <=} B) { body; i = i + 1; }
+//   UntilZero: while (b != 0) { body }                       (Pair only)
+//   body: Fold  a = a {+, -, *} {i, X, Y, arr[i]}
+//         Pair  t = a {+, -, %} b; a = b; b = t;
+//         Test  if (X % i == 0) {a = 0 | a = 1 | a = a + 1 | a = a + i}
+//   [a = a / {N, X, Y}]  arr[0] = a;
+// Asks for 2 vars (Fold, Test), 3 (Pair UntilZero) or 4 (Pair Counted).
+StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    enum { Fold, Pair, Test };
+    const int scratch = cfg.numVars - 1;
+    int kind = rng.uniformInt(0, 2);
+    if (kind == Pair && scratch < 3) kind = Fold;
+    bool counted = kind != Pair || (scratch >= 4 && rng.chance(0.5));
+    std::vector<int> v = pickDistinctVars(rng, cfg, kind == Pair ? (counted ? 4 : 3) : 2);
+    int a = v[0];
+    int i = kind == Pair ? (counted ? v[3] : -1) : v[1];
+    auto var = [](int x) { return makeVar(x); };
+    auto lit = [](int c) { return makeIntConst(c); };
+    auto input = [&](int k) { return k == 0 ? makeArrayAccess(lit(0)) : k == 1 ? makeArrayAccess(lit(1)) : var(0); };
+    auto one = [](StmtPtr st) {
+        std::vector<StmtPtr> out;
+        out.push_back(std::move(st));
+        return out;
+    };
+
+    std::vector<StmtPtr> root;
+    int initA = rng.uniformInt(0, 2);
+    root.push_back(makeAssign(a, initA < 2 ? lit(initA) : input(0)));
+    if (kind == Pair) {
+        int initB = rng.uniformInt(0, 2);
+        root.push_back(makeAssign(v[1], initB < 2 ? lit(initB) : input(1)));
+    }
+    if (kind == Test && rng.chance(0.5)) {
+        root.push_back(makeIf(makeCompare(ExprKind::Lt, input(0), lit(rng.uniformInt(1, 2))),
+                              one(makeAssign(a, lit(rng.uniformInt(0, 1))))));
+    }
+
+    std::vector<StmtPtr> body;
+    switch (kind) {
+        case Fold: {
+            static const ExprKind ops[] = {ExprKind::Add, ExprKind::Sub, ExprKind::Mul};
+            ExprKind op = ops[rng.uniformInt(0, 2)];
+            int term = rng.uniformInt(0, 3);
+            ExprPtr t = term == 0 ? var(i) : term < 3 ? input(term - 1) : makeArrayAccess(var(i));
+            body.push_back(makeAssign(a, makeBinOp(op, var(a), std::move(t))));
+            break;
+        }
+        case Pair: {
+            static const ExprKind ops[] = {ExprKind::Add, ExprKind::Sub, ExprKind::Mod};
+            int b = v[1], t = v[2];
+            body.push_back(makeAssign(t, makeBinOp(ops[rng.uniformInt(0, 2)], var(a), var(b))));
+            body.push_back(makeAssign(a, var(b)));
+            body.push_back(makeAssign(b, var(t)));
+            break;
+        }
+        default: {  // Test
+            int update = rng.uniformInt(0, 3);
+            ExprPtr value = update < 2 ? lit(update) : makeBinOp(ExprKind::Add, var(a), update == 2 ? lit(1) : var(i));
+            body.push_back(makeIf(makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, input(0), var(i)), lit(0)),
+                                  one(makeAssign(a, std::move(value)))));
+            break;
+        }
+    }
+
+    loopsUsed++;
+    if (counted) {
+        root.push_back(makeAssign(i, lit(rng.uniformInt(0, 2))));
+        ExprKind cmp = rng.chance(0.5) ? ExprKind::Lt : ExprKind::Le;
+        ExprPtr bound = input(rng.uniformInt(0, 2));
+        ExprPtr lhs = rng.chance(0.25) ? makeBinOp(ExprKind::Mul, var(i), var(i)) : var(i);
+        body.push_back(makeAssign(i, makeBinOp(ExprKind::Add, var(i), lit(1))));
+        root.push_back(makeWhile(makeCompare(cmp, std::move(lhs), std::move(bound)), std::move(body)));
+    } else {
+        root.push_back(makeWhile(makeCompare(ExprKind::Ne, var(v[1]), lit(0)), std::move(body)));
+    }
+    if (rng.chance(0.25)) {
+        static const int divisors[] = {2, 0, 1};  // N, X, Y
+        root.push_back(makeAssign(a, makeBinOp(ExprKind::Div, var(a), input(divisors[rng.uniformInt(0, 2)]))));
+    }
+    root.push_back(makeAssignArray(lit(0), var(a)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
     int v = rng.uniformInt(0, cfg.numVars - 1);
     return makeAssign(v, makeBinOp(ExprKind::Add, makeVar(v), makeIntConst(1)));
@@ -2880,7 +2970,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     if (!insideIf && !insideWhile && canLoop && cfg.numVars >= 3 && cfg.loopAccumulatorBias > 0.0 &&
         rng.chance(cfg.loopAccumulatorBias)) {
         gSkeletonDrawAttempts++;
-        enum class Skeleton { Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort };
+        enum class Skeleton { Recurrence, NestedDivisor, NestedDivisorNative, SelectionSort, RepeatedMultiply, Average, HeapSort, ThreeSum, GraphReachability, ShortestPath, TspBruteForce, TspBranchAndBound, Dtw, BinarySearch, MergeSort, ScalarLoop };
         // Research-only override, never a production knob (matches the
         // ALGOSEARCH_DEBUG_LANDSCAPE/ALGOSEARCH_DEBUG_ISLANDS diagnostic
         // env-var pattern elsewhere in this codebase): restricts every
@@ -2950,7 +3040,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             Skeleton skeleton;
             int weight;
         };
-        WeightedOption options[17];
+        WeightedOption options[18];
         int n = 0;
         int totalWeight = 0;
         auto addOption = [&](Skeleton s, int w) {
@@ -2994,6 +3084,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         // comment): same recursionCallBias gate as DivideConquer, plus the
         // 4 extra fixed locals (mid/i/j/k) its merge step needs.
         if (cfg.numVars >= 7 && cfg.recursionCallBias > 0.0 && allowed("mergesort")) addOption(Skeleton::MergeSort, 3);
+        // Section 100: the generic scalar-loop piece (2-4 vars, one loop).
+        if (cfg.scalarLoop && cfg.numVars >= 3 && allowed("scalarloop")) addOption(Skeleton::ScalarLoop, 3);
         if (n > 0) {
             int roll = rng.uniformInt(0, totalWeight - 1);
             Skeleton chosen = options[0].skeleton;
@@ -3037,6 +3129,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
                     return genBinarySearchSkeletonBlock(rng, cfg, loopsUsed);
                 case Skeleton::MergeSort:
                     return genMergeSortSkeletonBlock(rng, cfg, loopsUsed);
+                case Skeleton::ScalarLoop:
+                    return genScalarLoopBlock(rng, cfg, loopsUsed);
             }
             return nullptr;
             }();

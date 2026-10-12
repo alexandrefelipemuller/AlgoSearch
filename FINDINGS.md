@@ -7539,3 +7539,36 @@ step 6). A scalar skeleton becomes a *candidate* for removal only if SLX
 stays within -1 of base on every problem it serves, and is then removed
 only through section 99's amended steps 3-6 (30 seeds, joint removal,
 full battery).
+
+## 100 (implementation). `--scalar-loop`, and factorial's reference overflows past n = 12
+
+`genScalarLoopBlock` in `ProgramGenerator.cpp`, as designed. It is
+disabled through the usual `ALGOSEARCH_DISABLE_SKELETON=scalarloop`. Tests:
+`tests/scalar_loop_tests.cpp` (byte-identical when off; the piece alone
+reaches each target; fibonacci is unreachable at 4 vars). `make test`
+197/197.
+
+Probe, measured before the A/B: 200k forced draws per problem, solving
+levels 2-6, at the A/B's num-vars:
+
+| problem | hits / 200k |
+|---|---|
+| gcd (4 vars) | 1797 |
+| fibonacci (5 vars) | 138 |
+| power (6 vars) | 109 |
+| is_prime (5 vars) | 41 |
+| average (5 vars) | 10 |
+| factorial (5 vars) | **0** |
+
+**Factorial is a benchmark defect, not a gap in the piece.** Level L
+uses n <= 3 + 2L, and `factorialRef` multiplies in `int`, so from n = 13
+on the expected value is a wrapped product. Native `Mul` reports overflow
+as an error, while `Add` wraps. So only the repeatedmultiply skeleton's
+add-based multiply matches the wrapped reference. On levels 2-4
+(n <= 11) the piece does reach factorial (test above). This is not fixed
+here: changing the problem changes every past factorial result, and is a
+separate decision.
+
+Amended before running, prediction 1 for factorial only: **SLX factorial
+= 0** at the A/B's `--max-n 15`, for the reason above. The other
+predictions are unchanged.
