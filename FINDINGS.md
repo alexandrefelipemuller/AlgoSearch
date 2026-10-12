@@ -7645,3 +7645,35 @@ problem to 8 vars, because the combinator is on by default
 - `--scalar-loop` itself is a default candidate. Its full-battery check
   is folded into step 6's joint battery (SL + removals vs base, all
   problems).
+
+## 100 (confirmation). Four skeletons pass steps 3 and 5; joint battery launched
+
+**Step 3**, 30 seeds (`data/scalar_loop_confirm_20261011/`, 250 runs, 0
+timeouts). Base takes seeds 46000-46009 from the A/B (factorial and power
+from the domain-fix rerun) plus 46010-46029. SLR runs all 30 seeds:
+
+| problem | base | SLR |
+|---|---|---|
+| factorial / power / gcd / fibonacci | 30/30 each | 30/30 each |
+| is_prime | 30/30 | 29/30 |
+
+Every served problem is >= 27/30 with base at 30/30, so all four
+candidates pass.
+
+**Step 5**, usage map. Winners were searched for each candidate's shape:
+mod, the square guard, the gcd subtract loop, the fib add/sub trick and
+add-based nested multiply. Sources: the base winners of section 88's
+73-problem battery and the 2026-10-04 modest battery. The shapes appear
+only in their own problems (factorial, power, gcd, fibonacci, is_prime,
+11/11 winners each), so no other problem joins step 3.
+
+**Step 6**, joint battery, run *before* deleting code: the env-var
+disable gives the same draw as deletion, so a regression needs no revert.
+`scripts/run_scalar_loop_joint_battery.sh`, all 73 problems, 10 seeds
+(47000-47009). Arms: base vs NEW (`--scalar-loop` with the four disabled).
+Rule as registered:
+- any drop >= 3 restores the culprit;
+- a drop of exactly 2 gets a 30-seed retest at step 3's threshold.
+
+If NEW passes, `--scalar-loop` becomes default and the four skeletons are
+deleted in one commit.
