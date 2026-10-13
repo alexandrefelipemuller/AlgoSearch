@@ -8431,3 +8431,22 @@ battery of 73 x 10 (+ the four new problems), no problem dropping >= 2.
 2. sum_excess_over_first and sum_of_drops: TR >= 7/10 each.
 3. sum_squared_steps and sum_abs_from_last: TR <= 1/10.
 4. Joint battery: no problem drops by >= 2.
+
+## 111 (screen results). Every target 10/10, both rulers held
+
+`data/transform_screen_20261012/`, seeds 56000-56009, base vs TR:
+
+| problem | base | TR |
+|---|---|---|
+| sum_of_rises (old ruler) | 0 | **10** |
+| sum_abs_from_first (old ruler) | 0 | **10** |
+| sum_excess_over_first | 2 | **10** |
+| sum_of_drops | 0 | **10** |
+| sum_squared_steps (new ruler) | 0 | 0 |
+| sum_abs_from_last (new ruler) | 1 | 1 |
+
+Predictions 1-3 held. The 30-seed A/B is moot on targets at 0 vs 10;
+the regression question is the joint battery. Since the flag off is
+byte-identical, section 110's run (seeds 55000-55009) is the base arm;
+only TR runs on the 73 problems, plus both arms on the four new problems
+(`scripts/run_transform_joint_battery.sh`, `data/transform_joint_battery_20261012/`).
