@@ -8505,3 +8505,12 @@ the flag *off* (FrequencyTable already sums each element's frequency,
 which is sum f^2). It is replaced by `triple_frequency_values` (distinct
 values whose frequency is a multiple of 3; parity only covers mod 2),
 0 hits off and on in the same probe. max_repeated_value: 0 off, 0 on.
+
+**Amendment before running (ruler swap).** The piece-level probe found
+`sum_squared_frequencies` reachable *without* the flag (42 of 40000 draws
+off, 45 on): section 75's FrequencyTable sums each element's frequency,
+and that sum is exactly the sum of squared frequencies. It is not a ruler
+and was dropped unscreened. Replacement ruler, probed 0 off and 0 on:
+`frequency_exceeds_value` (distinct values v occurring more than v times;
+the filter compares t with the value, not with a constant).
+Prediction 3 now reads: max_repeated_value and frequency_exceeds_value: DA <= 1/10.
