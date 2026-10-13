@@ -8570,3 +8570,28 @@ Predictions.
 2. Rulers max_repeated_value and triple_frequency_values: DA <= base + 1.
 3. Joint battery: no problem drops by >= 2, including elements_twice and
    max_repeated_value.
+
+## 112b (results). Dilution fixed on the 73; max_repeated_value still 3 -> 0
+
+Screen (`data/distinct_aggregate_screen_112b_20261013/`, seeds 57000-57009):
+sum_distinct, odd_frequency_values, sum_unique_values 0 -> 10;
+even_frequency_values 1 -> 10; both rulers 0 -> 0. Predictions 1-2 held.
+
+Joint battery (`data/distinct_aggregate_joint_battery_112b_20261013/`,
+seeds 55000-55009, base = section 111's TR arm): 73 problems 687 -> 705.
+elements_twice 10 -> 9 and count_leaders 10 -> 9 (section 112: 10 -> 8
+and 10 -> 9), so the redesign removed the elements_twice violation. New
+problems: even_frequency_values 3 -> 10, sum_unique_values 0 -> 10,
+sum_abs_from_last 1 -> 2, **max_repeated_value 3 -> 0**, rest equal.
+
+Prediction 3 **failed** on max_repeated_value alone. Over sections 112
+and 112b the base solves it 7/20 and DA 0/20. The base's winners are not
+DistinctCount programs: the combinator's nested pair relation (per i, t =
+the last later equal element; keep the arg with the largest t), whose
+draw probability the flag does not touch. So the loss is not dilution of
+that shape. A likely mechanism is beam competition: distinct-sum blocks
+score partially on max_repeated_value and crowd the beam. Not verified.
+
+Under section 99 the piece is not promoted on this evidence. The drop is
+on a section 112 ruler, not on one of the 73; whether that counts is the
+user's call.
