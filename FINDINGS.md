@@ -8465,3 +8465,43 @@ the rule). Prediction 4 held.
 restores the old one); GenConfig's default stays false. Open rulers now:
 majority_value, longest_run_value, sum_distinct, odd_frequency_values,
 sum_squared_steps, sum_abs_from_last (plus cycle_entry, second_last_node).
+
+## 112. Distinct aggregate and parity filter (`--distinct-aggregate`) -- registered before implementing
+
+Target rulers (0/10 in sections 110-111): `sum_distinct` and
+`odd_frequency_values`. Section 87's DistinctCount reaches each first
+occurrence with t = its frequency and only counts it (or flags existence)
+when `t CMP thr`, thr in {0, 1, 2, n/2}. sum_distinct needs to add the
+*value*; odd_frequency_values needs a parity test on t.
+
+**Piece.** Two axes on DistinctCount, drawn only with the flag on
+(byte-identical off):
+- aggregate: {count, exists, sum of the value}, uniform;
+- filter: one time in three a parity test `t % 2 == p`, p in {0, 1};
+  otherwise the existing threshold test.
+
+**New problems** (written now, before running):
+- predicted reachable: `sum_unique_values` (sum of the values occurring
+  exactly once) and `even_frequency_values` (distinct values whose
+  frequency is even);
+- new rulers, predicted unreachable: `max_repeated_value` (the largest
+  value occurring at least twice, 0 if none; needs a best aggregate) and
+  `sum_squared_frequencies` (sum over distinct values of frequency^2;
+  aggregates t itself, not the value).
+
+**Protocol** as section 111: piece-level probe, 10-seed screen base vs DA
+on the six problems, then joint battery (TR arm of section 111 as base,
+same seeds 55000-55009, since the flag off is byte-identical).
+
+**Predictions.**
+1. sum_distinct and odd_frequency_values: DA >= 7/10 each (base 0).
+2. sum_unique_values and even_frequency_values: DA >= 7/10 each.
+3. max_repeated_value and sum_squared_frequencies: DA <= 1/10.
+4. Joint battery: no problem drops by >= 2.
+
+**Amendment (before any search run).** The piece-level probe showed
+`sum_squared_frequencies` is not a ruler: 42 of 40000 draws solve it with
+the flag *off* (FrequencyTable already sums each element's frequency,
+which is sum f^2). It is replaced by `triple_frequency_values` (distinct
+values whose frequency is a multiple of 3; parity only covers mod 2),
+0 hits off and on in the same probe. max_repeated_value: 0 off, 0 on.

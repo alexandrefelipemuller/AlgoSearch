@@ -264,6 +264,10 @@ struct GenConfig {
     // false here is byte-identical. (Replaces section 86's refuted
     // first-occurrence filter.)
     bool combinatorDistinct = false;
+    // Section 112: DistinctCount also sums the value, and one time in three
+    // tests t % 2 == p instead of the threshold. Opt-in
+    // (`--distinct-aggregate`); false is byte-identical.
+    bool distinctAggregate = false;
     bool pointerInput = false;
 
     // Section 90: two more follow relations -- Trailing (the last in-range
