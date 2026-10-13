@@ -8450,3 +8450,18 @@ the regression question is the joint battery. Since the flag off is
 byte-identical, section 110's run (seeds 55000-55009) is the base arm;
 only TR runs on the 73 problems, plus both arms on the four new problems
 (`scripts/run_transform_joint_battery.sh`, `data/transform_joint_battery_20261012/`).
+
+## 111 (joint battery). Promoted: 687 vs 667, no other problem moved
+
+`data/transform_joint_battery_20261012/` (TR) against section 110 (base),
+seeds 55000-55009. On the 73 problems TR scores 687, base 667: the only
+changes are sum_of_rises 0 -> 10 and sum_abs_from_first 0 -> 10. The
+other 71 problems are identical, seed for seed in total. New problems
+(both arms here): sum_excess_over_first 0 -> 10, sum_of_drops 0 -> 10,
+sum_squared_steps 0 -> 0, sum_abs_from_last 2 -> 1 (ruler; -1 is within
+the rule). Prediction 4 held.
+
+`--combinator-transform` is now the CLI default (`--no-combinator-transform`
+restores the old one); GenConfig's default stays false. Open rulers now:
+majority_value, longest_run_value, sum_distinct, odd_frequency_values,
+sum_squared_steps, sum_abs_from_last (plus cycle_entry, second_last_node).
