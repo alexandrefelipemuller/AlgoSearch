@@ -8527,3 +8527,25 @@ Joint battery next: DA on the 73 problems against section 111's TR arm
 (same seeds 55000-55009; the flag off is byte-identical and TR is now the
 default), plus both arms on the eight section 111-112 problems
 (`scripts/run_distinct_aggregate_joint_battery.sh`).
+
+## 112 (joint battery). 703 vs 687, but two drops of >= 2: not promoted as is
+
+`data/distinct_aggregate_joint_battery_20261013/` (DA) against section
+111's TR arm (base), seeds 55000-55009.
+
+- 73 problems: base 687, DA 703. Gains: sum_distinct 0 -> 10,
+  odd_frequency_values 0 -> 10. Drops: **elements_twice 10 -> 8**,
+  count_leaders 10 -> 9, three_sum 7 -> 6.
+- New problems (both arms here): sum_unique_values 0 -> 10,
+  even_frequency_values 3 -> 10, **max_repeated_value 4 -> 0** (a ruler
+  the base reaches 4/10 on these seeds, 0/10 in the screen),
+  sum_abs_from_last 1 -> 4, the rest equal.
+
+Prediction 4 (no drop >= 2) **failed** on elements_twice and
+max_repeated_value. Plausible mechanism: dilution. With the flag on, a
+DistinctCount block counts 1/3 of the time instead of 1/2, and the
+threshold test is replaced by parity 1/3 of the time, so the exact
+shapes elements_twice needs are drawn less often. Under section 99 the
+piece is not promoted on this evidence; next step is the user's call
+(30-seed retest of the two drops, or a redesign that keeps the old
+draw probabilities).
