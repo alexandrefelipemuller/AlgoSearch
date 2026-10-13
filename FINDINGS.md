@@ -8360,3 +8360,12 @@ Predictions: nobb (bruteforce only) >= 8/10, base and nobf 10/10, noboth 0/10.
 If nobb >= 8/10 both skeletons are independent routes to tsp and both are
 kept (the heapsort/binarysearch precedent, section 108). If nobb still
 fails, tspbruteforce is removable under section 99 after a 30-seed A/B.
+
+## 107d (results). At V <= 9 both tsp skeletons are independent routes
+
+`data/tsp_rescreen_cap9_20261012/`, seeds 53100-53109: base 10/10, nobf
+(branchandbound only) 10/10, nobb (bruteforce only) 10/10, noboth 0/10.
+All predictions held. Section 107c's brute-force failure was an artifact
+of the V <= 10 cap. Each skeleton alone solves tsp and nothing generic
+reaches it, so both are kept (section 108 precedent). The V <= 9 cap stays.
+tsp is no longer a 0/10 artifact in batteries.
