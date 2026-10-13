@@ -8383,3 +8383,19 @@ Predictions: total within 667 +- 15 of section 104's arm (seeds differ, so
 this is a new sample, not a replay); count_leaders >= 8/10 (it was -2
 cumulative over sections 103-104 on unmatched seeds). A count_leaders
 score <= 7 reopens that question; nothing is removed or promoted here.
+
+## 110 (results). Current main: 667/730, identical total to section 104
+
+`data/reference_battery_20261012/`, 730 runs, seeds 55000-55009.
+
+- Total 667 (prediction 667 +- 15 held; section 104 arm: 667 on other seeds).
+- count_leaders 10/10: the -2 cumulative of sections 103-104 was noise. Closed.
+- Six problems are 0/10 in both batteries: longest_run_value,
+  majority_value, odd_frequency_values, sum_abs_from_first, sum_distinct,
+  sum_of_rises (63 of the 63 misses are these plus three_sum).
+- three_sum 7/10 (10/10 in section 104). Within the section 103 A/B's
+  spread (25/30 in both arms there, i.e. ~8.3/10 expected); not a regression
+  signal by itself.
+
+This is the reference number for the next cycle: 667/730 on the 73
+problems, plus tsp 10/10 under its own settings (section 107d).
