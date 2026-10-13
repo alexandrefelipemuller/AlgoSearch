@@ -8369,3 +8369,17 @@ All predictions held. Section 107c's brute-force failure was an artifact
 of the V <= 10 cap. Each skeleton alone solves tsp and nothing generic
 reaches it, so both are kept (section 108 precedent). The V <= 9 cap stays.
 tsp is no longer a 0/10 artifact in batteries.
+
+## 110. Reference battery of the current main -- registered before running
+
+After sections 101-109 no joint battery measured the final state together
+(shortestpath deletion, grid default, tsp cap). Base arm only, the 73
+joint-battery problems x 10 fresh seeds (55000-55009), same settings as
+the section 104 battery (`scripts/run_reference_battery.sh`,
+`data/reference_battery_20261012/`). tsp is not in this list (it needs
+num-vars 12 and step limit 200000; section 107d is its measurement).
+
+Predictions: total within 667 +- 15 of section 104's arm (seeds differ, so
+this is a new sample, not a replay); count_leaders >= 8/10 (it was -2
+cumulative over sections 103-104 on unmatched seeds). A count_leaders
+score <= 7 reopens that question; nothing is removed or promoted here.
