@@ -8549,3 +8549,24 @@ shapes elements_twice needs are drawn less often. Under section 99 the
 piece is not promoted on this evidence; next step is the user's call
 (30-seed retest of the two drops, or a redesign that keeps the old
 draw probabilities).
+
+## 112b. Non-diluting redesign of `--distinct-aggregate` -- registered before running
+
+Section 112's piece drew the aggregate uniformly from {count, exists, sum}
+and replaced the threshold test by parity 1/3 of the time, so the
+original DistinctCount shapes kept only 4/9 of the draws. Redesign: the
+original draws (count/exists at 1/2, threshold test) are made exactly as
+before; then one extra draw e in [0, 8): e = 0 swaps the update for "sum
+of the value", e = 1 swaps the test for `t % 2 == p`, otherwise the
+block is unchanged. Original shapes keep 3/4 of the draws.
+
+Same protocol, new data directories: screen (seeds 57000-57009, the six
+section 112 problems) and joint battery (seeds 55000-55009 against
+section 111's TR arm, plus both arms on the eight new problems).
+
+Predictions.
+1. The four targets: DA >= 7/10 each (fewer draws than section 112,
+   but 1/8 is still far above what search needs).
+2. Rulers max_repeated_value and triple_frequency_values: DA <= base + 1.
+3. Joint battery: no problem drops by >= 2, including elements_twice and
+   max_repeated_value.

@@ -1558,11 +1558,12 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 ExprPtr test = makeCompare(cmp2, var(tmp), std::move(thr));
                 ExprPtr update = count ? add(var(acc), lit(1)) : lit(1);
                 if (cfg.distinctAggregate) {
-                    // Section 112: aggregate {count, exists, sum of the value};
-                    // filter t % 2 == p one time in three.
-                    int aggregate = rng.uniformInt(0, 2);
-                    update = aggregate == 0 ? add(var(acc), lit(1)) : aggregate == 1 ? lit(1) : add(var(acc), elem(var(vi)));
-                    if (rng.uniformInt(0, 2) == 0) {
+                    // Section 112b: the draws above are unchanged; one time in
+                    // eight the update becomes the sum of the value, one time
+                    // in eight the test becomes t % 2 == p.
+                    int extend = rng.uniformInt(0, 7);
+                    if (extend == 0) update = add(var(acc), elem(var(vi)));
+                    if (extend == 1) {
                         test = makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, var(tmp), lit(2)), lit(rng.uniformInt(0, 1)));
                     }
                 }
