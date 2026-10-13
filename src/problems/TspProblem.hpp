@@ -77,10 +77,10 @@ public:
     int nextLevel(int level) const override;
     bool isSolution(const std::vector<int>& input, const std::vector<int>& output) const override;
     std::vector<Instance> generateAdversarialInstances(int level) const override;
-    // Exact TSP is exponential by definition: verification stops at V = 10
-    // (FINDINGS.md section 107b), past which no exact program fits the step limit.
+    // Exact TSP is exponential by definition: verification stops at V = 9
+    // (FINDINGS.md sections 107b-107d), past which no exact program fits the step limit.
     Instance generateBenchmarkInstance(int n, uint64_t seed) const override;
-    static constexpr int maxDomainN = 10;
+    static constexpr int maxDomainN = 9;
     int numVars() const override { return numVars_; }
     // Vertex count and matrix cells are non-shiftable metadata/weights in
     // fixed slots (same rationale as ShortestPathProblem) -- a uniform

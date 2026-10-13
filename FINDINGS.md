@@ -8349,3 +8349,14 @@ every base winner is a branch-and-bound program. Under the section 99 rule
 tspbranchandbound is indispensable and tspbruteforce is a removal
 candidate. Caveat: this verdict depends on the cap -- at V <= 9 brute force
 would likely pass verification, and base would then draw from both.
+
+## 107d. tsp re-screen with verification capped at V <= 9 -- registered before running
+
+Section 107c's brute-force verdict depended on the cap. With V <= 9
+(verification sizes {1,2,3,4,5,7}; n = 10 now skipped), brute force needs
+8! = 40320 tours. Same script and seeds into `data/tsp_rescreen_cap9_20261012/`.
+
+Predictions: nobb (bruteforce only) >= 8/10, base and nobf 10/10, noboth 0/10.
+If nobb >= 8/10 both skeletons are independent routes to tsp and both are
+kept (the heapsort/binarysearch precedent, section 108). If nobb still
+fails, tspbruteforce is removable under section 99 after a 30-seed A/B.
