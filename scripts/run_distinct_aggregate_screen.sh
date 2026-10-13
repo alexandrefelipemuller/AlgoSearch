@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 D="${1:?output_root}"
 SEEDS="${SEEDS:-10}"; SEED_BASE="${SEED_BASE:-57000}"; JOBS="${JOBS:-8}"
 mkdir -p "$D"
-LIST="sum_distinct odd_frequency_values sum_unique_values even_frequency_values max_repeated_value frequency_exceeds_value"
+LIST="sum_distinct odd_frequency_values sum_unique_values even_frequency_values max_repeated_value triple_frequency_values"
 for problem in $LIST; do for arm in base DA; do for s in $(seq 0 $((SEEDS - 1))); do
   echo "$arm $problem $((SEED_BASE + s))"
 done; done; done | xargs -P "$JOBS" -L1 sh -c '
@@ -21,4 +21,4 @@ done; done; done | xargs -P "$JOBS" -L1 sh -c '
     --candidates 1500 --max-program-size 150 --step-limit 20000 "$@" --benchmark --benchmark-seeds 1 \
     > '"$D"'/log_${arm}_${problem}_${seed}.txt 2>&1
   echo "$arm $problem $seed exit=$? $(date +%T)" >> '"$D"'/driver.log'
-echo "DISTINCT_SCREEN_DONE $(date +%T)" >> "$D/driver.log"
+echo "DISTINCT_AGG_SCREEN_DONE $(date +%T)" >> "$D/driver.log"
