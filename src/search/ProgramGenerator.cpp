@@ -1557,18 +1557,21 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 ExprPtr thr = thrKind < 3 ? lit(thrKind) : makeBinOp(ExprKind::Div, bound(), lit(2));
                 ExprPtr test = makeCompare(cmp2, var(tmp), std::move(thr));
                 ExprPtr update = count ? add(var(acc), lit(1)) : lit(1);
+                StmtPtr take = nullptr;
                 if (cfg.distinctAggregate) {
-                    // Section 112b: the draws above are unchanged; one time in
-                    // eight the update becomes the sum of the value, one time
-                    // in eight the test becomes t % 2 == p.
+                    // Section 112b/d: the draws above are unchanged; one time in
+                    // eight each, the update becomes the sum of the value, the
+                    // running max of the value, or the test t % 2 == p.
                     int extend = rng.uniformInt(0, 7);
                     if (extend == 0) update = add(var(acc), elem(var(vi)));
                     if (extend == 1) {
                         test = makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, var(tmp), lit(2)), lit(rng.uniformInt(0, 1)));
                     }
+                    if (extend == 2) take = keepBest(ExprKind::Gt, acc, elem(var(vi)));
                 }
+                if (!take) take = makeAssign(acc, std::move(update));
                 outer.push_back(makeIf(makeCompare(ExprKind::Eq, var(cur), lit(0)),
-                                       one(makeIf(std::move(test), one(makeAssign(acc, std::move(update)))))));
+                                       one(makeIf(std::move(test), one(std::move(take))))));
             });
             break;
         }

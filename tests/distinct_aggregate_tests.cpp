@@ -4,6 +4,7 @@
 #include "interpreter/Interpreter.hpp"
 #include "problems/EvenFrequencyValuesProblem.hpp"
 #include "problems/MaxRepeatedValueProblem.hpp"
+#include "problems/MinRepeatedValueProblem.hpp"
 #include "problems/OddFrequencyValuesProblem.hpp"
 #include "problems/SumDistinctProblem.hpp"
 #include "problems/TripleFrequencyValuesProblem.hpp"
@@ -58,6 +59,8 @@ TEST(section_112_problems_compute_their_answers) {
     CHECK_EQ(EvenFrequencyValuesProblem().answer({2, 2, 1, 5, 5, 5, 5}), 2);
     CHECK_EQ(MaxRepeatedValueProblem().answer({4, 1, 3, 1, 3}), 3);
     CHECK_EQ(MaxRepeatedValueProblem().answer({4, 1}), 0);
+    CHECK_EQ(MinRepeatedValueProblem().answer({4, 1, 3, 1, 3}), 1);
+    CHECK_EQ(MinRepeatedValueProblem().answer({4, 1}), -1);
     CHECK_EQ(TripleFrequencyValuesProblem().answer({2, 2, 1, 2, 3, 3, 3, 3}), 1);
 }
 
@@ -74,13 +77,14 @@ TEST(distinct_aggregate_is_byte_identical_when_off) {
 }
 
 TEST(distinct_aggregate_reaches_its_targets_and_not_its_rulers) {
-    // Section 112 predictions 1-3, at the piece level.
+    // Section 112d predictions 1-2, at the piece level.
     CHECK_EQ(distinctHits(SumDistinctProblem(), false, 1), 0);
     CHECK_EQ(distinctHits(OddFrequencyValuesProblem(), false, 2), 0);
     CHECK(distinctHits(SumDistinctProblem(), true, 1) > 0);
     CHECK(distinctHits(OddFrequencyValuesProblem(), true, 2) > 0);
     CHECK(distinctHits(SumUniqueValuesProblem(), true, 3) > 0);
     CHECK(distinctHits(EvenFrequencyValuesProblem(), true, 4) > 0);
-    CHECK_EQ(distinctHits(MaxRepeatedValueProblem(), true, 5), 0);
+    CHECK(distinctHits(MaxRepeatedValueProblem(), true, 5) > 0);
+    CHECK_EQ(distinctHits(MinRepeatedValueProblem(), true, 7), 0);
     CHECK_EQ(distinctHits(TripleFrequencyValuesProblem(), true, 6), 0);
 }

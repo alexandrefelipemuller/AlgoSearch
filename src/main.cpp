@@ -58,6 +58,7 @@
 #include "problems/SumUniqueValuesProblem.hpp"
 #include "problems/EvenFrequencyValuesProblem.hpp"
 #include "problems/MaxRepeatedValueProblem.hpp"
+#include "problems/MinRepeatedValueProblem.hpp"
 #include "problems/TripleFrequencyValuesProblem.hpp"
 #include "problems/SumExcessOverFirstProblem.hpp"
 #include "problems/SumOfDropsProblem.hpp"
@@ -289,7 +290,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|triple_frequency_values --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|triple_frequency_values --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -426,6 +427,7 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "sum_of_rises") return std::make_unique<SumOfRisesProblem>(numVars, seed);
     if (name == "sum_unique_values") return std::make_unique<SumUniqueValuesProblem>(numVars, seed);
     if (name == "even_frequency_values") return std::make_unique<EvenFrequencyValuesProblem>(numVars, seed);
+    if (name == "min_repeated_value") return std::make_unique<MinRepeatedValueProblem>(numVars, seed);
     if (name == "max_repeated_value") return std::make_unique<MaxRepeatedValueProblem>(numVars, seed);
     if (name == "triple_frequency_values") return std::make_unique<TripleFrequencyValuesProblem>(numVars, seed);
     if (name == "sum_excess_over_first") return std::make_unique<SumExcessOverFirstProblem>(numVars, seed);

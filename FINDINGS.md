@@ -8615,3 +8615,25 @@ a deceptive near-solution created by the piece, not dilution or noise.
 It is specific to problems where "sum of the selected values" coincides
 with the answer on small instances; a max/min over selected values is
 the one ruler shape exposed to it.
+
+## 112d. Max aggregate on DistinctCount -- registered before running
+
+Section 112c showed the distinct-sum block is a deceptive near-solution
+for max_repeated_value. Fix: the aggregate axis gets its missing member.
+The extra draw e in [0, 8) keeps e = 0 sum and e = 1 parity (same rates
+as 112b) and adds e = 2: `if (elem(i) > acc) acc = elem(i)` under the
+block's test (acc starts at 0). Original shapes keep 5/8 of the draws.
+
+max_repeated_value thereby becomes a target. New ruler, written now:
+`min_repeated_value` (the smallest value occurring at least twice, -1
+when none repeats; min is not on the axis and the -1 fallback is a
+sentinel).
+
+Predictions (screen seeds 57000-57009 on the six section 112 problems
+with min_repeated_value replacing max_repeated_value as ruler, plus
+max_repeated_value as target; joint battery seeds 55000-55009 against
+section 111's TR arm):
+1. The five targets (sum_distinct, odd_frequency_values,
+   sum_unique_values, even_frequency_values, max_repeated_value): DA >= 7/10.
+2. Rulers triple_frequency_values and min_repeated_value: DA <= base + 1.
+3. Joint battery: no problem drops by >= 2.

@@ -264,8 +264,8 @@ struct GenConfig {
     // false here is byte-identical. (Replaces section 86's refuted
     // first-occurrence filter.)
     bool combinatorDistinct = false;
-    // Section 112b: DistinctCount's update becomes the sum of the value one
-    // time in eight, and its test t % 2 == p one time in eight. Opt-in
+    // Sections 112b/d: one time in eight each, DistinctCount's update becomes
+    // the sum or the running max of the value, or its test t % 2 == p. Opt-in
     // (`--distinct-aggregate`); false is byte-identical.
     bool distinctAggregate = false;
     bool pointerInput = false;
