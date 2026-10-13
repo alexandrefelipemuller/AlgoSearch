@@ -8637,3 +8637,28 @@ section 111's TR arm):
    sum_unique_values, even_frequency_values, max_repeated_value): DA >= 7/10.
 2. Rulers triple_frequency_values and min_repeated_value: DA <= base + 1.
 3. Joint battery: no problem drops by >= 2.
+
+## 112d (results). Promoted: 704 vs 687, no drop >= 2, attractor gone
+
+`make test` 218/218 (run in the same detached chain).
+
+Screen (`data/distinct_aggregate_screen_112d_20261013/`, seeds 57000-57009),
+base vs DA: sum_distinct, odd_frequency_values, sum_unique_values,
+max_repeated_value 0 -> 10; even_frequency_values 2 -> 10; rulers
+triple_frequency_values and min_repeated_value 0 -> 0.
+
+Joint battery (`data/distinct_aggregate_joint_battery_112d_20261013/`,
+seeds 55000-55009, base = section 111's TR arm): 73 problems 687 -> 704.
+Gains sum_distinct and odd_frequency_values 0 -> 10; drops of 1 only
+(count_leaders, elements_twice, graph_reachability 10 -> 9). New
+problems: max_repeated_value 4 -> 10 (was 3 -> 0 in 112b),
+even_frequency_values 3 -> 10, sum_unique_values 0 -> 10, the rest equal.
+
+All three predictions held. Giving the aggregate axis its missing member
+removed the deceptive attractor of section 112c. `--distinct-aggregate`
+is now the CLI default (`--no-distinct-aggregate` restores the old one);
+GenConfig's default stays false.
+
+Open rulers: majority_value, longest_run_value (piece 3), sum_squared_steps,
+sum_abs_from_last, triple_frequency_values, min_repeated_value, cycle_entry,
+second_last_node.

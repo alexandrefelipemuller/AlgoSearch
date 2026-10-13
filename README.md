@@ -195,6 +195,9 @@ Results worth calling out:
   term (`--combinator-transform`, default: max(0, step) on step sums,
   elem(i) - elem(0) under id/|.|/max(0,.) on element sums), which solves
   the old rulers `sum_of_rises` and `sum_abs_from_first` 10/10 (from 0);
+  since section 112d DistinctCount also sums, takes the max of, or
+  parity-filters the selected values (`--distinct-aggregate`, default),
+  which solves `sum_distinct` and `odd_frequency_values` 10/10 (from 0);
   the `tsp` verification is capped at V <= 9 (sections 107b-107d). In the 2026-09-17 sweep `graph_reachability` also had a lower
   confirmation rate (1 of 6 SUCCESS candidates survived independent
   re-verification); in the current sweep 3 of 3 survive. See section 17
