@@ -8505,3 +8505,25 @@ the flag *off* (FrequencyTable already sums each element's frequency,
 which is sum f^2). It is replaced by `triple_frequency_values` (distinct
 values whose frequency is a multiple of 3; parity only covers mod 2),
 0 hits off and on in the same probe. max_repeated_value: 0 off, 0 on.
+
+## 112 (screen results). Every target 10/10, both rulers held
+
+`data/distinct_aggregate_screen_20261013/`, seeds 57000-57009, base vs DA:
+
+| problem | base | DA |
+|---|---|---|
+| sum_distinct (old ruler) | 0 | **10** |
+| odd_frequency_values (old ruler) | 0 | **10** |
+| sum_unique_values | 0 | **10** |
+| even_frequency_values | 1 | **10** |
+| max_repeated_value (new ruler) | 0 | 0 |
+| triple_frequency_values (new ruler) | 0 | 0 |
+
+Predictions 1-3 held. (A concurrent session briefly registered a second
+replacement ruler, `frequency_exceeds_value`; it was never registered in
+the CLI, its runs were invalid, and it was reverted in 387d1d6.)
+
+Joint battery next: DA on the 73 problems against section 111's TR arm
+(same seeds 55000-55009; the flag off is byte-identical and TR is now the
+default), plus both arms on the eight section 111-112 problems
+(`scripts/run_distinct_aggregate_joint_battery.sh`).
