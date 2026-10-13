@@ -8399,3 +8399,35 @@ score <= 7 reopens that question; nothing is removed or promoted here.
 
 This is the reference number for the next cycle: 667/730 on the 73
 problems, plus tsp 10/10 under its own settings (section 107d).
+
+## 111. Per-term transform piece (`--combinator-transform`) -- registered before implementing
+
+Target rulers (sections 80, 110: 0/10 in every battery): `sum_of_rises`
+and `sum_abs_from_first`. Both are a sum of a *transformed* term, and the
+combinator's sums only add the raw term (Sum: elem(i); SumStep: the step,
+or |step| since section 80).
+
+**Piece.** Two axes, drawn only with the flag on (byte-identical off):
+- SumStep gains a clamp transform: with |step| not drawn, one time in
+  three `if (step < 0) step = 0` (with the existing direction flip this is
+  the sum of rises or of drops).
+- Sum on a single loop gains a reference axis, half the time: the term
+  becomes `t = elem(i) - elem(start)` (or `elem(start) - elem(i)`, half),
+  then one transform of {identity, |t|, max(0, t)}.
+
+**New problems** (written now, before running):
+- predicted reachable: `sum_excess_over_first` (sum of max(0, arr[i] - arr[0]))
+  and `sum_of_drops` (sum of max(0, arr[i-1] - arr[i]));
+- new rulers, predicted unreachable: `sum_squared_steps` (sum of the
+  squared adjacent steps; square is no transform) and `sum_abs_from_last`
+  (sum of |arr[i] - arr[n-1]|; the reference is only elem(start)).
+
+**Protocol** (section 99): screen 10 seeds base vs TR on the four
+targets/rulers plus the two old rulers; then 30-seed A/B; then the joint
+battery of 73 x 10 (+ the four new problems), no problem dropping >= 2.
+
+**Predictions.**
+1. sum_of_rises and sum_abs_from_first: TR >= 7/10 each (base 0).
+2. sum_excess_over_first and sum_of_drops: TR >= 7/10 each.
+3. sum_squared_steps and sum_abs_from_last: TR <= 1/10.
+4. Joint battery: no problem drops by >= 2.

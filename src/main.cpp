@@ -55,6 +55,10 @@
 #include "problems/FirstMinusLastProblem.hpp"
 #include "problems/LargestDropStepProblem.hpp"
 #include "problems/SumOfRisesProblem.hpp"
+#include "problems/SumExcessOverFirstProblem.hpp"
+#include "problems/SumOfDropsProblem.hpp"
+#include "problems/SumSquaredStepsProblem.hpp"
+#include "problems/SumAbsFromLastProblem.hpp"
 #include "problems/SumAbsFromFirstProblem.hpp"
 #include "problems/ListQueryProblem.hpp"
 #include "problems/ElementsTwiceProblem.hpp"
@@ -152,6 +156,7 @@ struct CliArgs {
     bool combinatorTriple = true;  // FINDINGS.md section 103, default
     bool combinatorRelax = true;  // FINDINGS.md section 104, default
     bool combinatorGrid = true;  // FINDINGS.md section 109, default
+    bool combinatorTransform = false;  // FINDINGS.md section 111, opt-in
     bool scalarLoopIndexRange = true;  // FINDINGS.md section 101, default
     int regressionGuard = 12;  // default since FINDINGS.md section 89; --regression-guard 0 restores the old default
     bool combinatorStep = true;  // default since FINDINGS.md section 53; --no-combinator-step restores the old default
@@ -250,6 +255,8 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-combinator-relax") args.combinatorRelax = false;
         else if (arg == "--combinator-grid") args.combinatorGrid = true;
         else if (arg == "--no-combinator-grid") args.combinatorGrid = false;
+        else if (arg == "--combinator-transform") args.combinatorTransform = true;
+        else if (arg == "--no-combinator-transform") args.combinatorTransform = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
@@ -275,12 +282,12 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--combinator-transform] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] "
@@ -410,6 +417,10 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "first_minus_last") return std::make_unique<FirstMinusLastProblem>(numVars, seed);
     if (name == "largest_drop_step") return std::make_unique<LargestDropStepProblem>(numVars, seed);
     if (name == "sum_of_rises") return std::make_unique<SumOfRisesProblem>(numVars, seed);
+    if (name == "sum_excess_over_first") return std::make_unique<SumExcessOverFirstProblem>(numVars, seed);
+    if (name == "sum_of_drops") return std::make_unique<SumOfDropsProblem>(numVars, seed);
+    if (name == "sum_squared_steps") return std::make_unique<SumSquaredStepsProblem>(numVars, seed);
+    if (name == "sum_abs_from_last") return std::make_unique<SumAbsFromLastProblem>(numVars, seed);
     if (name == "sum_abs_from_first") return std::make_unique<SumAbsFromFirstProblem>(numVars, seed);
     if (name == "elements_twice") return std::make_unique<ElementsTwiceProblem>(numVars, seed);
     if (name == "min_frequency") return std::make_unique<MinFrequencyProblem>(numVars, seed);
@@ -494,6 +505,8 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.combinatorTriple = args.combinatorTriple;
         config.genConfig.combinatorRelax = args.combinatorRelax;
         config.genConfig.combinatorGrid = args.combinatorGrid;
+    config.genConfig.combinatorTransform = args.combinatorTransform;
+        config.genConfig.combinatorTransform = args.combinatorTransform;
         config.genConfig.combinatorOrthogonal = args.combinatorOrthogonal;
         config.genConfig.combinatorArgBest = args.combinatorArgBest;
         config.genConfig.combinatorDistinct = args.combinatorDistinct;

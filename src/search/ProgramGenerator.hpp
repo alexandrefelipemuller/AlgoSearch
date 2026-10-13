@@ -252,6 +252,10 @@ struct GenConfig {
     // >= 11) fill a DP table over two sequences from up/left/diag cells.
     // Opt-in (`--combinator-grid`); false is byte-identical.
     bool combinatorGrid = false;
+    // Section 111: per-term transforms on sums -- a clamp on SumStep, and on
+    // a single-loop Sum the term elem(i) - elem(start) under {id, |.|, max(0,.)}.
+    // Opt-in (`--combinator-transform`); false is byte-identical.
+    bool combinatorTransform = false;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

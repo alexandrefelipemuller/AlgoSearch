@@ -2003,6 +2003,23 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     ExprPtr rhs = b ? b->clone() : key->clone();
     switch (rel) {
         case Relation::Sum:
+            // Section 111: half the time the term is t = elem(i) - elem(start)
+            // (or reversed), in `found`, under one of {t, |t|, max(0, t)}.
+            if (cfg.combinatorTransform && loop == Loop::Single && rng.chance(0.5)) {
+                ExprPtr ref = makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), makeIntConst(loopStart)));
+                bool flip = rng.chance(0.5);
+                inner.push_back(makeAssign(found, flip ? makeBinOp(ExprKind::Sub, std::move(ref), a->clone())
+                                                       : makeBinOp(ExprKind::Sub, a->clone(), std::move(ref))));
+                int transform = rng.uniformInt(0, 2);
+                if (transform > 0) {
+                    std::vector<StmtPtr> fix;
+                    fix.push_back(makeAssign(found, transform == 1 ? makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(found))
+                                                                   : makeIntConst(0)));
+                    inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(fix)));
+                }
+                inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeVar(found))));
+                break;
+            }
             inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), a->clone())));
             break;
         case Relation::Xor:
@@ -2081,6 +2098,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 std::vector<StmtPtr> negate;
                 negate.push_back(makeAssign(found, makeBinOp(ExprKind::Sub, makeIntConst(0), makeVar(found))));
                 inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(negate)));
+            }
+            // Section 111: max(0, step), one time in three when |step| was not drawn.
+            if (cfg.combinatorTransform && rel == Relation::SumStep && !absStep && rng.uniformInt(0, 2) == 0) {
+                std::vector<StmtPtr> clamp;
+                clamp.push_back(makeAssign(found, makeIntConst(0)));
+                inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(clamp)));
             }
             if (rel == Relation::SumStep) {
                 inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeVar(found))));
