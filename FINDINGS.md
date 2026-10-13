@@ -8595,3 +8595,23 @@ score partially on max_repeated_value and crowd the beam. Not verified.
 Under section 99 the piece is not promoted on this evidence. The drop is
 on a section 112 ruler, not on one of the 73; whether that counts is the
 user's call.
+
+## 112c. Diagnosis of the max_repeated_value loss: a deceptive attractor (logs only, no new runs)
+
+Per run, the last best program printed in the section 112b logs:
+
+- DA: 9 of 10 runs end on a DistinctCount *sum* block, e.g. at N = 3
+  `if (first occurrence && t != 1) acc += elem(i)` -- the sum of the
+  repeated values -- scoring 159-162 of 170. It equals the answer
+  whenever at most one value repeats, so it scores high and fills the
+  beam, but no mutation turns a sum into a max. 8 of those 9 runs never
+  pass N = 3.
+- base: 0 of 10 end on a sum block. 9 of 10 hold the nested pair
+  relation's arg-take shape (keep elem(i) of the best t); every win (3)
+  is that shape.
+
+The beam-competition hypothesis of section 112b is confirmed: the loss is
+a deceptive near-solution created by the piece, not dilution or noise.
+It is specific to problems where "sum of the selected values" coincides
+with the answer on small instances; a max/min over selected values is
+the one ruler shape exposed to it.
