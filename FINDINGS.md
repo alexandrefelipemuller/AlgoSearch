@@ -8662,3 +8662,49 @@ GenConfig's default stays false.
 Open rulers: majority_value, longest_run_value (piece 3), sum_squared_steps,
 sum_abs_from_last, triple_frequency_values, min_repeated_value, cycle_entry,
 second_last_node.
+
+## 113. Arg runs and sentinel guards (`--arg-sentinel`) -- registered before implementing
+
+Target rulers (0/10 in every battery): `majority_value` and
+`longest_run_value` (section 82). RunBest returns only the length of the
+best run, never a value at it; the FrequencyTable arg-best pass returns
+the most frequent value, but has no way to return a sentinel when that
+frequency fails a test.
+
+**Piece.** Two axes, drawn only with the flag on (byte-identical off):
+- RunBest arg, half the time: alongside `acc = cur` when the run beats the
+  best, `r = elem(i)`; r starts at elem(0) (0 on an empty array) and is
+  the result.
+- Sentinel guard on FrequencyTable's arg-best pass, one time in three:
+  after the pass, `if (acc CMP thr) r = -1`, CMP drawn from the six
+  comparators and thr from {0, 1, 2, n/2}, acc being the best frequency.
+
+**New problems** (written now, before running):
+- predicted reachable: `longest_increasing_run_end` (the last value of
+  the first longest strictly increasing run) and `frequent_mode_or_none`
+  (the first most frequent value if it occurs at least twice, else -1);
+- new rulers, predicted unreachable: `longest_run_start` (the index where
+  the first longest run of equal elements starts; the arg records the
+  value, not a start index) and `plurality_value` (the most frequent
+  value, -1 when two values tie for the top; the guard tests a
+  threshold, not a second-best).
+
+**Protocol** as sections 111-112: piece-level probe, 10-seed screen
+(seeds 58000-58009) on the six problems, joint battery (seeds
+55000-55009 against section 112d's DA arm, now the default), all in one
+detached chain with `make test` first.
+
+**Predictions.**
+1. majority_value and longest_run_value: AS >= 7/10 each (base 0).
+2. longest_increasing_run_end and frequent_mode_or_none: AS >= 7/10.
+3. longest_run_start and plurality_value: AS <= base + 1.
+4. Joint battery: no problem drops by >= 2.
+
+**Amendment before running (piece-level probe).** With the flag on,
+longest_run_value, longest_increasing_run_end and frequent_mode_or_none
+are reached within 40000 draws; both rulers and, with the flag off, both
+old rulers are not. majority_value is reached but rarely: 0 of 40000,
+3 of 400000 draws. It needs FrequencyTable x arg-best on the value x the
+exact guard `acc <= n/2` (1 comparator of 6, 1 threshold of 4). The
+design is kept; prediction 1 for majority_value is now an open question
+for the search rather than a confident >= 7/10.

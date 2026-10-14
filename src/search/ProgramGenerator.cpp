@@ -1446,14 +1446,29 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     switch (piece) {
         case 0: {  // RunBest
             ExprKind cmp = combinator::drawComparator(rng);
+            // Section 113: half the time also record elem(i) where the best
+            // run grows, in tmp, and return that instead of the length.
+            bool argRun = cfg.argSentinel && rng.chance(0.5);
             root.push_back(makeAssign(acc, lit(0)));
             root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(acc, lit(1)))));
+            if (argRun) {
+                root.push_back(makeAssign(tmp, lit(0)));
+                root.push_back(makeIf(makeCompare(ExprKind::Lt, lit(0), bound()), one(makeAssign(tmp, elem(lit(0))))));
+                result = tmp;
+            }
             root.push_back(makeAssign(cur, lit(1)));
             root.push_back(makeAssign(vi, lit(1)));
             appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
                 body.push_back(makeIf(makeCompare(cmp, elem(sub(var(vi), lit(1))), elem(var(vi))),
                                       one(makeAssign(cur, add(var(cur), lit(1)))), one(makeAssign(cur, lit(1)))));
-                body.push_back(keepBest(ExprKind::Gt, acc, var(cur)));
+                if (!argRun) {
+                    body.push_back(keepBest(ExprKind::Gt, acc, var(cur)));
+                    return;
+                }
+                std::vector<StmtPtr> take;
+                take.push_back(makeAssign(acc, var(cur)));
+                take.push_back(makeAssign(tmp, elem(var(vi))));
+                body.push_back(makeIf(makeCompare(ExprKind::Gt, var(cur), var(acc)), std::move(take)));
             });
             break;
         }
@@ -1534,6 +1549,14 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 body.push_back(makeIf(makeCompare(cmp2, aux(var(vi)), std::move(thr)),
                                       one(makeAssign(acc, pass == 2 ? add(var(acc), lit(1)) : lit(1)))));
             });
+            // Section 113: one time in three, the arg falls back to -1 when the
+            // best frequency (acc) passes a test.
+            if (cfg.argSentinel && argBest && rng.uniformInt(0, 2) == 0) {
+                ExprKind guard = combinator::drawComparator(rng);
+                int guardThr = rng.uniformInt(0, 3);
+                ExprPtr thr = guardThr < 3 ? lit(guardThr) : makeBinOp(ExprKind::Div, bound(), lit(2));
+                root.push_back(makeIf(makeCompare(guard, var(acc), std::move(thr)), one(makeAssign(cur, lit(-1)))));
+            }
             break;
         }
         case 5: {  // DistinctCount (section 87)

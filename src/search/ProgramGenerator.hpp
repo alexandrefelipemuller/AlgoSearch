@@ -268,6 +268,10 @@ struct GenConfig {
     // the sum or the running max of the value, or its test t % 2 == p. Opt-in
     // (`--distinct-aggregate`); false is byte-identical.
     bool distinctAggregate = false;
+    // Section 113: RunBest can return the element where the best run grows,
+    // and FrequencyTable's arg-best pass can fall back to -1 when the best
+    // frequency passes a test. Opt-in (`--arg-sentinel`); false is byte-identical.
+    bool argSentinel = false;
     bool pointerInput = false;
 
     // Section 90: two more follow relations -- Trailing (the last in-range
