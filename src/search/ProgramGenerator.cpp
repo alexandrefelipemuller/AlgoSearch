@@ -2848,6 +2848,40 @@ void collectCondSites(Stmt& s, std::vector<Stmt*>& out) {
     for (auto& c : s.elseBody) collectCondSites(*c, out);
 }
 
+bool isCompareKind(ExprKind k) {
+    return k == ExprKind::Lt || k == ExprKind::Gt || k == ExprKind::Eq || k == ExprKind::Le || k == ExprKind::Ge ||
+           k == ExprKind::Ne;
+}
+
+// Section 115: one local step on a comparison. Half the time the comparator
+// changes; otherwise one operand moves to a neighbour: a constant by +-1, a
+// variable to another variable or to v / 2, and x / 2 back to x. Any other
+// operand shape falls back to the comparator step.
+void mutateCompareLocally(Expr& cond, Random& rng, const GenConfig& cfg) {
+    static const ExprKind cmps[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
+    ExprPtr& side = rng.chance(0.5) ? cond.lhs : cond.rhs;
+    bool operandStep = rng.chance(0.5);
+    if (operandStep && side->kind == ExprKind::IntConst) {
+        side->intValue += rng.chance(0.5) ? 1 : -1;
+        return;
+    }
+    if (operandStep && side->kind == ExprKind::Var) {
+        if (rng.chance(0.5)) {
+            side = makeBinOp(ExprKind::Div, std::move(side), makeIntConst(2));
+        } else {
+            side->varIndex = rng.uniformInt(0, cfg.numVars - 1);
+        }
+        return;
+    }
+    if (operandStep && side->kind == ExprKind::Div && side->rhs->kind == ExprKind::IntConst && side->rhs->intValue == 2) {
+        side = std::move(side->lhs);
+        return;
+    }
+    ExprKind next = cond.kind;
+    while (next == cond.kind) next = cmps[rng.uniformInt(0, 5)];
+    cond.kind = next;
+}
+
 // Collects every statement node in the tree (read-only), for picking an
 // arbitrary donor subtree in crossover -- deliberately every node, not
 // just top-level block members, so a deeply nested `if` or `while` found
@@ -2978,6 +3012,17 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
         if (!condSites.empty()) {
             Stmt* target = condSites[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(condSites.size()) - 1))];
             target->cond = genStmtCondExpr(rng, cfg);
+        }
+    }
+    if (cfg.localCondMutationRate > 0.0 && rng.chance(cfg.localCondMutationRate)) {
+        std::vector<Stmt*> sites, compares;
+        collectCondSites(*root, sites);
+        for (Stmt* site : sites) {
+            if (site->kind == StmtKind::If && site->cond && isCompareKind(site->cond->kind)) compares.push_back(site);
+        }
+        if (!compares.empty()) {
+            Stmt* target = compares[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(compares.size()) - 1))];
+            mutateCompareLocally(*target->cond, rng, cfg);
         }
     }
     return root;

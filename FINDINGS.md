@@ -8789,3 +8789,34 @@ against 717/730 on the battery we built alongside the pieces. That gap
 is the measurement this set was for: the battery overstates how far the
 system generalizes. No piece was designed for these three and none is
 proposed here; the next step is the user's call.
+
+## 115. Local comparison mutation (`--local-cond-mutation`) -- registered before running
+
+Section 113 left two problems reachable but rarely solved
+(majority_value 1-2/10, frequent_mode_or_none 3-6/10) because a guard
+must be drawn exactly; a wrong guard scores like no guard, and the only
+operators that touch a guard redraw it whole (point mutation of the
+enclosing statement, or `--expr-mutation-rate`, which redraws the whole
+condition). Section 114's external set (4/30) suggests the same kind of
+near-miss is common outside our battery. This is a search change, not a
+grammar piece: it targets a class, not a problem.
+
+**Operator.** With probability r per grown candidate, pick one `if`
+whose condition is a comparison and take one local step: half the time
+swap the comparator for another of the six; otherwise move one operand to
+a neighbour (constant +-1; variable -> another variable or v / 2; x / 2
+-> x), falling back to the comparator step for other shapes. `while`
+conditions are left alone (a loop bound step risks non-termination).
+r = 0.3, fixed before running; r = 0 is byte-identical.
+
+**Runs** (one detached chain: `make test`, screen, joint battery):
+- screen, base vs LC, seeds 60000-60009, on majority_value,
+  frequent_mode_or_none and the three section 114 problems (used as
+  evaluation only: nothing in the operator was designed from them);
+- joint battery, LC on the 73 problems + 16 added problems, seeds
+  55000-55009, base = section 113's AS arm (both arms on the 16).
+
+**Predictions.**
+1. majority_value and frequent_mode_or_none: LC >= base + 3 each.
+2. The external three, summed: LC >= base + 3.
+3. Joint battery: no problem drops by >= 2.

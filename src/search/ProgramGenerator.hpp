@@ -135,6 +135,11 @@ struct GenConfig {
     // search a way to tweak a comparison in place without also blowing
     // away everything nested under it.
     double exprMutationRate = 0.0;
+    // Section 115: a local step on one if/while comparison -- swap only its
+    // comparator, or move one operand to a neighbour (constant +-1, another
+    // variable, x <-> x / 2) -- so a nearly-right guard has a path to the
+    // right one. Probability per grown candidate; 0.0 is byte-identical.
+    double localCondMutationRate = 0.0;
 
     // Opt-in (false = off, reproduces today's behavior exactly -- the
     // detectors below never touch the RNG): generation-time pruning of
