@@ -8845,3 +8845,15 @@ is that the changes go the same way in 4 of 5 targets across both runs.
 Not promoted yet: the merge rule asks for a measurable improvement, and
 the user decides whether a 30-seed A/B on the five screen problems is the
 next step.
+
+## 115b. 30-seed A/B of `--local-cond-mutation 0.3` -- registered before running
+
+Fresh seeds 61000-61029, base vs LC, on the five screen problems
+(majority_value, frequent_mode_or_none, peak_element, search_rotated,
+equilibrium_point), screen settings (max-n 8, wall 180), detached
+(`scripts/run_local_cond_ab.sh`, `data/local_cond_ab_20261014/`).
+
+Decision rule (fixed now): promote if the summed LC total over the five
+problems is >= base + 8 (about +5 percentage points of 150 runs; with
+section 115's pooled rate, ~+11 is expected) and no problem drops by
+>= 3 (the section 99 A/B tolerance). Otherwise it stays opt-in.
