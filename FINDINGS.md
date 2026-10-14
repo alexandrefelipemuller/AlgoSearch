@@ -8708,3 +8708,32 @@ old rulers are not. majority_value is reached but rarely: 0 of 40000,
 exact guard `acc <= n/2` (1 comparator of 6, 1 threshold of 4). The
 design is kept; prediction 1 for majority_value is now an open question
 for the search rather than a confident >= 7/10.
+
+## 113 (results). Promoted: 717 vs 704, no drop >= 2; guarded targets stay rare
+
+Screen (`data/arg_sentinel_screen_20261014/`, seeds 58000-58009), base vs AS:
+longest_run_value 0 -> 10, longest_increasing_run_end 0 -> 10,
+frequent_mode_or_none 0 -> 3, majority_value 0 -> 2, rulers
+longest_run_start and plurality_value 0 -> 0.
+
+Joint battery (`data/arg_sentinel_joint_battery_20261014/`, seeds
+55000-55009, base = section 112d's DA arm): 73 problems 704 -> 717.
+longest_run_value 0 -> 10, majority_value 0 -> 1, count_leaders,
+elements_twice, graph_reachability 9 -> 10, three_sum 7 -> 6 (the only
+drop). New problems: longest_increasing_run_end 0 -> 10,
+frequent_mode_or_none 0 -> 6, sum_abs_from_last 0 -> 1, the rest equal
+(rulers 0 -> 0).
+
+Predictions: 1 held for longest_run_value; majority_value (downgraded
+to open in the amendment) is 2/10 and 1/10. 2 held for
+longest_increasing_run_end and **failed** for frequent_mode_or_none
+(3/10, 6/10). 3 and 4 held. Both guarded problems are slow for the same
+reason: the guard's comparator x threshold is one exact draw in 24 on
+top of a rare arg-best FrequencyTable block, and a wrong guard scores no
+better than none, so search gets no gradient toward it.
+
+The unit test run in the chain failed on a second rare-target assertion
+(frequent_mode_or_none, 0 of 40000 at that seed); like majority_value it
+was removed from the unit test with a note. `--arg-sentinel` is now the
+CLI default (`--no-arg-sentinel` restores the old one); GenConfig's
+default stays false.
