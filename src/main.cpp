@@ -55,6 +55,9 @@
 #include "problems/FirstMinusLastProblem.hpp"
 #include "problems/LargestDropStepProblem.hpp"
 #include "problems/SumOfRisesProblem.hpp"
+#include "problems/PeakElementProblem.hpp"
+#include "problems/SearchRotatedProblem.hpp"
+#include "problems/EquilibriumPointProblem.hpp"
 #include "problems/LongestIncreasingRunEndProblem.hpp"
 #include "problems/FrequentModeOrNoneProblem.hpp"
 #include "problems/LongestRunStartProblem.hpp"
@@ -297,7 +300,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|triple_frequency_values --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|peak_element|search_rotated|equilibrium_point|triple_frequency_values --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -432,6 +435,9 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "first_minus_last") return std::make_unique<FirstMinusLastProblem>(numVars, seed);
     if (name == "largest_drop_step") return std::make_unique<LargestDropStepProblem>(numVars, seed);
     if (name == "sum_of_rises") return std::make_unique<SumOfRisesProblem>(numVars, seed);
+    if (name == "peak_element") return std::make_unique<PeakElementProblem>(numVars, seed);
+    if (name == "search_rotated") return std::make_unique<SearchRotatedProblem>(numVars, seed);
+    if (name == "equilibrium_point") return std::make_unique<EquilibriumPointProblem>(numVars, seed);
     if (name == "longest_increasing_run_end") return std::make_unique<LongestIncreasingRunEndProblem>(numVars, seed);
     if (name == "frequent_mode_or_none") return std::make_unique<FrequentModeOrNoneProblem>(numVars, seed);
     if (name == "longest_run_start") return std::make_unique<LongestRunStartProblem>(numVars, seed);

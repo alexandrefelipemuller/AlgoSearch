@@ -8737,3 +8737,37 @@ The unit test run in the chain failed on a second rare-target assertion
 was removed from the unit test with a note. `--arg-sentinel` is now the
 CLI default (`--no-arg-sentinel` restores the old one); GenConfig's
 default stays false.
+
+## 114. External held-out set: three problems from a public list -- registered before running
+
+Why: the 73-problem battery is near saturation (717/730) and every
+ruler so far was written by us alongside a piece. This set is chosen by
+a rule fixed in advance, from a source not written for this grammar.
+
+**Selection rule** (user's instruction): web search "easy array problems
+list"; take the first readable list; walk it in order; keep the first
+three problems whose input is an int array and whose output is one int,
+and that are not already implemented. The first result (a Scribd
+"LeetCode Easy Array Problems" upload) is truncated after three titles,
+so the list used is the "Easy" section of Tutorialspoint's "Top 50 Array
+Coding Problems for Programming Interviews". Walk: 1 Array Peak Element
+(kept), 2 Find Minimum in Sorted Array (skipped: on a rotated sorted
+array it is the existing `min`), 3 Search in Rotated Array (kept), 4-7
+(skipped: array or list outputs), 8 Find Equilibrium Point (kept).
+
+**Definitions** (the list gives titles only; common conventions, fixed
+now; answer() must be total over arbitrary arrays):
+- `peak_element`: the first index i with a[i] >= its existing neighbours
+  (0 for an empty array).
+- `search_rotated`: arr[0] is the key, arr[1..] the haystack (constructed
+  instances are rotated sorted arrays, key present or absent); the answer
+  is the first index i >= 1 with arr[i] == arr[0], or -1. On arbitrary
+  arrays this is a linear search: correctness is measured, not O(log n).
+- `equilibrium_point`: the first index i with sum(a[0..i-1]) ==
+  sum(a[i+1..n-1]), or -1 (-1 for an empty array).
+
+**Protocol.** No per-piece reach prediction (that would bring back the
+contamination this set avoids). Current default, 10 seeds (59000-59009),
+joint-battery settings (max-n 8, wall 180), detached. One registered
+expectation, as a calibration of our own judgement: at least one of the
+three is solved >= 7/10.
