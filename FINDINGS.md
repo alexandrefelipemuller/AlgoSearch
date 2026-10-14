@@ -8771,3 +8771,21 @@ contamination this set avoids). Current default, 10 seeds (59000-59009),
 joint-battery settings (max-n 8, wall 180), detached. One registered
 expectation, as a calibration of our own judgement: at least one of the
 three is solved >= 7/10.
+
+## 114 (results). External set: 4 of 30; the calibration expectation failed
+
+`data/external_heldout_20261014/`, seeds 59000-59009, current default
+(`make test` 224/224 in the same chain):
+
+| problem | solved | where the others stall |
+|---|---|---|
+| peak_element | 3/10 | 5 at N = 2, 2 at N = 3 |
+| search_rotated | 1/10 | 7 at N = 2, 2 at N = 3 |
+| equilibrium_point | 0/10 | all 10 at N = 1 (never confirm N = 2) |
+
+The one registered expectation (at least one problem >= 7/10) **failed**:
+on problems chosen outside our loop, the default solves 4 of 30 runs,
+against 717/730 on the battery we built alongside the pieces. That gap
+is the measurement this set was for: the battery overstates how far the
+system generalizes. No piece was designed for these three and none is
+proposed here; the next step is the user's call.
