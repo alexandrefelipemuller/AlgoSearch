@@ -8820,3 +8820,28 @@ r = 0.3, fixed before running; r = 0 is byte-identical.
 1. majority_value and frequent_mode_or_none: LC >= base + 3 each.
 2. The external three, summed: LC >= base + 3.
 3. Joint battery: no problem drops by >= 2.
+
+## 115 (results). Small, consistent gains; the guard prediction failed
+
+`make test` 226/226. Screen (`data/local_cond_screen_20261014/`, seeds
+60000-60009), base -> LC: majority_value 2 -> 1, frequent_mode_or_none
+5 -> 6, peak_element 4 -> 6, search_rotated 0 -> 1, equilibrium_point
+0 -> 0.
+
+Joint battery (`data/local_cond_joint_battery_20261014/`, seeds
+55000-55009, base = section 113's AS arm on the 73; both arms on the 16):
+73 problems 717 -> 720 (majority_value 1 -> 3, three_sum 6 -> 7, nothing
+else moved); 16 added problems 70 -> 75 (frequent_mode_or_none 6 -> 9,
+peak_element 3 -> 5, search_rotated 0 -> 1, sum_abs_from_last 1 -> 0).
+
+Pooled over screen and joint (20 seeds each): majority_value 3 -> 4,
+frequent_mode_or_none 11 -> 15, external three 7 -> 13.
+
+Predictions: 1 (each guarded problem >= base + 3) **failed** in the
+screen and held only for frequent_mode_or_none in the joint battery.
+2 (external three >= base + 3) held in both (4 -> 7, 3 -> 6). 3 (no drop
+>= 2) held. Every per-problem change is within 10-seed noise; the signal
+is that the changes go the same way in 4 of 5 targets across both runs.
+Not promoted yet: the merge rule asks for a measurable improvement, and
+the user decides whether a 30-seed A/B on the five screen problems is the
+next step.
