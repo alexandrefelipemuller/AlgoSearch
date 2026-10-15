@@ -8990,3 +8990,15 @@ No such shape in the failed peak_element or elements_twice runs, so
 those two are unexplained (dilution of other draws, or noise). Which
 flag causes which drop is not separable from this run (the joint
 battery ran FIPS only).
+
+## 117b. Attribution A/B of the three drops -- registered before running
+
+Fresh seeds 63000-63029, arms base / FI (`--first-index`) / PS
+(`--prefix-split`), on frequent_mode_or_none, peak_element and
+elements_twice, screen settings (`scripts/run_first_index_split_ab.sh`,
+`data/first_index_split_ab_20261015/`).
+
+Reading rule (fixed now): an arm "causes" a drop on a problem if it
+scores <= base - 4 of 30 there (the section 99 A/B tolerance is -3).
+Expectation: FI causes the frequent_mode_or_none drop (the attractor seen
+in 117's logs); the other two drops are not reproduced by either arm.
