@@ -8878,3 +8878,39 @@ does nothing for search_rotated and equilibrium_point, so it is not the
 general unlock for the external set. With section 115's joint battery
 (no drop >= 2), `--local-cond-mutation 0.3` is now the CLI default
 (`--no-local-cond-mutation` turns it off); GenConfig's default stays 0.
+
+## 116. Diagnosis of equilibrium_point (user request; it stops being an independent held-out problem)
+
+Facts:
+- Solvable in Mini-C: a hand-written two-pass reference passes every
+  generated, adversarial and exhaustive instance
+  (`equilibrium_point_has_a_two_pass_reference_solution`).
+- Every run (0/80 over sections 114-115) stalls at level 2, best 58-72 of
+  74. Labels at n = 2 are -1:33, 0:17, 1:12; at n = 4 -1:81 of 134. So a
+  constant -1 already scores about half, and the search sits just above.
+- The reference needs four ingredients:
+  1. a first pass leaving the total in a variable;
+  2. a second pass with a running prefix sum;
+  3. a test that mixes both: `prefix == total - prefix - a[i]`;
+  4. "first index where the test holds, else -1": `r = -1` before the
+     loop, `if (r < 0 && test) r = i` inside it.
+- What the generator emits: (2) exists (Sum, ResetSum, scalar loop);
+  (1) exists only as a block's private accumulator, and no block reads
+  another block's variable except by chance; (3) no piece builds a
+  comparison of an element against an expression of two accumulators;
+  (4) **no piece emits it at all**: Exists sets a flag, arg-best returns
+  the index of the best value, Place keeps an index for a swap; nothing
+  returns the first index satisfying a predicate, and -1 appears only as
+  the section 113 sentinel (after an arg-best FrequencyTable pass).
+
+Reading: ingredient 4 is a missing relation, not a gradient problem.
+`search_rotated` (first index equal to the key, else -1, 2/70) needs
+exactly the same relation and nothing else, so the two external failures
+share one gap. equilibrium_point additionally needs cross-pass data flow
+(1 + 3), a second, harder gap: one block consuming another block's
+result, which no piece expresses.
+
+Proposed next step (not run): a "first index" relation (FirstIndex: r =
+-1; first i with `a CMP rhs` sets r = i) as one more single-loop relation.
+search_rotated would test it directly; equilibrium_point would still need
+the cross-pass ingredient, and is expected to stay at 0 with it.
