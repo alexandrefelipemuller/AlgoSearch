@@ -277,6 +277,13 @@ struct GenConfig {
     // and FrequencyTable's arg-best pass can fall back to -1 when the best
     // frequency passes a test. Opt-in (`--arg-sentinel`); false is byte-identical.
     bool argSentinel = false;
+    // Section 117: FirstIndex, a single-loop combinator relation (r = -1; the
+    // first i with `a CMP rhs` sets r = i), and PrefixSplit, a stateful piece
+    // (T = total; per i, P = sum before, S = T - P - elem(i), `P CMP S` fed
+    // to first index / count / exists). Opt-in (`--first-index`,
+    // `--prefix-split`); false is byte-identical.
+    bool firstIndex = false;
+    bool prefixSplit = false;
     bool pointerInput = false;
 
     // Section 90: two more follow relations -- Trailing (the last in-range

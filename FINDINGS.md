@@ -8914,3 +8914,46 @@ Proposed next step (not run): a "first index" relation (FirstIndex: r =
 -1; first i with `a CMP rhs` sets r = i) as one more single-loop relation.
 search_rotated would test it directly; equilibrium_point would still need
 the cross-pass ingredient, and is expected to stay at 0 with it.
+
+## 117. Closing section 116's two gaps (`--first-index`, `--prefix-split`) -- registered before implementing
+
+Both are opt-in GenConfig flags, byte-identical off.
+
+**FirstIndex (gap 4).** One more single-loop combinator relation, drawn
+one time in six on a single loop with the flag on: `r = -1` before the
+loop; inside, `if (r < 0) { if (a CMP rhs) r = i; }`; r is the result.
+`a`, `rhs` and CMP come from the block's existing operand and comparator
+draws (element vs key or constant), and i is the loop index, so on the
+key-prefixed layout r is an array index.
+
+**PrefixSplit (gaps 1 + 3).** A seventh stateful piece, drawn one time in
+seven with the flag on (two loop slots): a first pass leaves T = sum of
+the elements; a second pass keeps P = sum before i and S = T - P - elem(i)
+= sum after i, and feeds `P CMP S` (CMP drawn) to one aggregator of
+{first index (-1 default), count, exists}. This is the cross-pass
+dependency in its most common form (prefix vs suffix of one array), not
+general block-to-block data flow.
+
+**Problems.** Targets now: search_rotated (FirstIndex) and
+equilibrium_point (PrefixSplit); both lost independence in section 116.
+New, written now:
+- targets: `first_greater_than_first` (first i >= 1 with arr[i] >
+  arr[0], else -1; FirstIndex) and `count_balance_points` (number of i
+  with sum before == sum after; PrefixSplit count);
+- rulers: `second_index_of_key` (second i >= 1 with arr[i] == arr[0],
+  else -1; needs a count inside the first-match) and
+  `first_split_two_to_one` (first i with sum before == 2 * sum after, else
+  -1; no multiple on the split).
+
+**Runs** (one detached chain): make test; screen with arms base, FI
+(`--first-index`), FIPS (both), seeds 62000-62009, on the six problems;
+joint battery FIPS on the 73 + 16 problems, seeds 55000-55009, base =
+section 115's LC arm (the current default), both arms on the four new.
+
+**Predictions.**
+1. FI: search_rotated and first_greater_than_first >= 7/10;
+   equilibrium_point stays <= 1.
+2. FIPS: equilibrium_point and count_balance_points >= 7/10.
+3. Rulers second_index_of_key, first_split_two_to_one: <= base + 1 in
+   every arm.
+4. Joint battery (FIPS): no problem drops by >= 2.

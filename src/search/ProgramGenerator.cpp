@@ -1347,7 +1347,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, Place };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, Place, FirstIndex };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -1442,6 +1442,8 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     bool distinctOk = cfg.combinatorDistinct && nestedOk;
     int piece = rng.uniformInt(0, maxPiece + (distinctOk ? 1 : 0));
     if (distinctOk && piece == maxPiece + 1) piece = 5;
+    // Section 117: PrefixSplit replaces the draw one time in seven (two loops).
+    if (cfg.prefixSplit && nestedOk && rng.uniformInt(0, 6) == 0) piece = 6;
     ExprKind keep = rng.chance(0.5) ? ExprKind::Gt : ExprKind::Lt;
     switch (piece) {
         case 0: {  // RunBest
@@ -1557,6 +1559,33 @@ StmtPtr genStatefulBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 ExprPtr thr = guardThr < 3 ? lit(guardThr) : makeBinOp(ExprKind::Div, bound(), lit(2));
                 root.push_back(makeIf(makeCompare(guard, var(acc), std::move(thr)), one(makeAssign(cur, lit(-1)))));
             }
+            break;
+        }
+        case 6: {  // PrefixSplit (section 117)
+            // acc = T (total); cur = P (sum before i); tmp = S (sum after i);
+            // vj = the first index (-1 default), or acc counts / flags.
+            ExprKind split = combinator::drawComparator(rng);
+            int aggregate = rng.uniformInt(0, 2);  // first index, count, exists
+            root.push_back(makeAssign(acc, lit(0)));
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                body.push_back(makeAssign(acc, add(var(acc), elem(var(vi)))));
+            });
+            root.push_back(makeAssign(cur, lit(0)));
+            root.push_back(makeAssign(vj, aggregate == 0 ? lit(-1) : lit(0)));
+            root.push_back(makeAssign(vi, lit(0)));
+            appendCountingWhile(root, vi, bound(), loopsUsed, [&](std::vector<StmtPtr>& body) {
+                body.push_back(makeAssign(tmp, sub(sub(var(acc), var(cur)), elem(var(vi)))));
+                ExprPtr test = makeCompare(split, var(cur), var(tmp));
+                if (aggregate == 0) {
+                    body.push_back(makeIf(makeCompare(ExprKind::Lt, var(vj), lit(0)),
+                                          one(makeIf(std::move(test), one(makeAssign(vj, var(vi)))))));
+                } else {
+                    body.push_back(makeIf(std::move(test), one(makeAssign(vj, aggregate == 1 ? add(var(vj), lit(1)) : lit(1)))));
+                }
+                body.push_back(makeAssign(cur, add(var(cur), elem(var(vi)))));
+            });
+            result = vj;
             break;
         }
         case 5: {  // DistinctCount (section 87)
@@ -1981,6 +2010,8 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     static const Relation singleRel[] = {Relation::Sum, Relation::Best, Relation::CountIf, Relation::Exists, Relation::Xor};
     static const Relation pairRel[] = {Relation::CountIf, Relation::Exists, Relation::Forall, Relation::SwapIf, Relation::Swap};
     Relation rel = loop == Loop::Single ? singleRel[rng.uniformInt(0, 4)] : pairRel[rng.uniformInt(0, 4)];
+    // Section 117: FirstIndex joins the single-loop relations one time in six.
+    if (cfg.firstIndex && loop == Loop::Single && rng.uniformInt(0, 5) == 0) rel = Relation::FirstIndex;
     if (layout == Layout::Pair && (rel == Relation::SwapIf || rel == Relation::Swap)) rel = Relation::Forall;
     // Section 52: on an adjacent pass, the two step relations join the five
     // pair relations as equals (2 of 7). Drawn only with the flag on, so the
@@ -2077,6 +2108,17 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                 inner.push_back(makeIf(makeCompare(keep, a->clone(), makeVar(acc)), std::move(then)));
             }
             accInit = -1;  // sentinel: initialized from the first element below
+            break;
+        }
+        case Relation::FirstIndex: {
+            // Section 117: r = -1; if (r < 0) { if (a CMP rhs) r = i; }
+            std::vector<StmtPtr> take;
+            take.push_back(makeAssign(found, makeVar(vi)));
+            std::vector<StmtPtr> unset;
+            unset.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(take)));
+            inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(unset)));
+            resultVar = found;
+            argInit = makeIntConst(-1);
             break;
         }
         case Relation::CountIf: {
