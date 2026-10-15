@@ -9002,3 +9002,25 @@ Reading rule (fixed now): an arm "causes" a drop on a problem if it
 scores <= base - 4 of 30 there (the section 99 A/B tolerance is -3).
 Expectation: FI causes the frequent_mode_or_none drop (the attractor seen
 in 117's logs); the other two drops are not reproduced by either arm.
+
+## 117b (results). PrefixSplit, not FirstIndex, causes the frequent_mode_or_none drop
+
+`data/first_index_split_ab_20261015/`, seeds 63000-63029:
+
+| problem | base | FI | PS |
+|---|---|---|---|
+| frequent_mode_or_none | 23 | 20 | **13** |
+| peak_element | 11 | 8 | 14 |
+| elements_twice | 29 | 29 | 28 |
+
+By the registered rule (<= base - 4) only PS causes a drop, on
+frequent_mode_or_none (-10). The expectation that FI's attractor caused
+it is **falsified**: FI is -3 there (within tolerance) and -3 on
+peak_element. The elements_twice drop of section 117 does not reproduce.
+
+Likely mechanism for PS (not verified): dilution. frequent_mode_or_none
+is solved by a FrequencyTable arg-best block with a sentinel guard, which
+lives in the stateful pool; PrefixSplit takes 1/7 of that pool's draws,
+on top of a shape that was already a rare multi-axis draw (section 113).
+The FirstIndex-ending runs seen in section 117's logs were where stalled
+searches ended up, not why they stalled.
