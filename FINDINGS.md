@@ -8957,3 +8957,36 @@ section 115's LC arm (the current default), both arms on the four new.
 3. Rulers second_index_of_key, first_split_two_to_one: <= base + 1 in
    every arm.
 4. Joint battery (FIPS): no problem drops by >= 2.
+
+## 117 (results). Gaps closed in the screen; three regressions in the joint battery
+
+`make test` 230/230. Screen (`data/first_index_split_screen_20261014/`,
+seeds 62000-62009), base / FI / FIPS:
+
+| problem | base | FI | FIPS |
+|---|---|---|---|
+| search_rotated | 1 | **10** | **10** |
+| first_greater_than_first | 3 | **10** | **10** |
+| equilibrium_point | 0 | 0 | **10** |
+| count_balance_points | 0 | 0 | **10** |
+| second_index_of_key (ruler) | 0 | 0 | 0 |
+| first_split_two_to_one (ruler) | 0 | 0 | 0 |
+
+Predictions 1-3 held exactly: FirstIndex alone closes gap 4 and not the
+split; both pieces close both gaps.
+
+Joint battery (`data/first_index_split_joint_battery_20261014/`, seeds
+55000-55009, base = section 115's LC arm): 89 problems 795 -> 805
+(search_rotated 1 -> 10, equilibrium_point 0 -> 10, majority_value
+3 -> 4, sum_abs_from_last 0 -> 1) but **frequent_mode_or_none 9 -> 4,
+peak_element 5 -> 2, elements_twice 10 -> 8**, power 10 -> 9. New:
+count_balance_points 0 -> 10, first_greater_than_first 5 -> 10, rulers 0.
+
+Prediction 4 **failed** on three problems: not promoted. Log check (last
+best program per run): in 3 of the 6 failed FIPS frequent_mode_or_none
+runs the search ends on a FirstIndex block (a first-match with -1
+default resembles "the mode or -1"): an attractor like section 112c's.
+No such shape in the failed peak_element or elements_twice runs, so
+those two are unexplained (dilution of other draws, or noise). Which
+flag causes which drop is not separable from this run (the joint
+battery ran FIPS only).
