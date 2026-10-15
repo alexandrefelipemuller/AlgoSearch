@@ -202,6 +202,10 @@ Results worth calling out:
   FrequencyTable's arg pass can fall back to -1 under a frequency test
   (`--arg-sentinel`, default): `longest_run_value` 0 -> 10/10,
   `majority_value` 0 -> 1-2/10 (the exact guard is a rare draw);
+  since section 115b the search also takes local steps on an if's
+  comparison (`--local-cond-mutation 0.3`, default: comparator swap or
+  one operand to a neighbour), 44 vs 21 of 150 runs on five near-miss
+  problems including three from an external list (section 114);
   the `tsp` verification is capped at V <= 9 (sections 107b-107d). In the 2026-09-17 sweep `graph_reachability` also had a lower
   confirmation rate (1 of 6 SUCCESS candidates survived independent
   re-verification); in the current sweep 3 of 3 survive. See section 17

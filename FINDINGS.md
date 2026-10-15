@@ -8857,3 +8857,24 @@ Decision rule (fixed now): promote if the summed LC total over the five
 problems is >= base + 8 (about +5 percentage points of 150 runs; with
 section 115's pooled rate, ~+11 is expected) and no problem drops by
 >= 3 (the section 99 A/B tolerance). Otherwise it stays opt-in.
+
+## 115b (results). Promoted: 44 vs 21 of 150
+
+`data/local_cond_ab_20261014/`, seeds 61000-61029:
+
+| problem | base | LC |
+|---|---|---|
+| frequent_mode_or_none | 8 | **19** |
+| majority_value | 4 | **10** |
+| peak_element (external) | 8 | **15** |
+| search_rotated (external) | 1 | 0 |
+| equilibrium_point (external) | 0 | 0 |
+| total | 21 | **44** |
+
+The rule (>= base + 8, no drop >= 3) passes: +23, worst change -1. At
+30 seeds the guard effect section 115 could not resolve is clear (both
+guarded problems more than double). Externally it helps peak_element and
+does nothing for search_rotated and equilibrium_point, so it is not the
+general unlock for the external set. With section 115's joint battery
+(no drop >= 2), `--local-cond-mutation 0.3` is now the CLI default
+(`--no-local-cond-mutation` turns it off); GenConfig's default stays 0.

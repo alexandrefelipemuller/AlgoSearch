@@ -147,7 +147,7 @@ struct CliArgs {
     double controlFlowBias = 0.0;
     double compositeBias = 0.0;
     double exprMutationRate = 0.0;
-    double localCondMutationRate = 0.0;  // FINDINGS.md section 115, opt-in
+    double localCondMutationRate = 0.3;  // FINDINGS.md section 115b, default
     bool pruneGeneration = false;
     bool roleTypedVars = false;
     double combinatorBias = 0.5;  // default since FINDINGS.md section 48 (A/B in section 47); --combinator-bias 0 restores the old default
@@ -233,6 +233,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--composite-bias") args.compositeBias = std::stod(next("--composite-bias"));
         else if (arg == "--expr-mutation-rate") args.exprMutationRate = std::stod(next("--expr-mutation-rate"));
         else if (arg == "--local-cond-mutation") args.localCondMutationRate = std::stod(next("--local-cond-mutation"));
+        else if (arg == "--no-local-cond-mutation") args.localCondMutationRate = 0.0;
         else if (arg == "--prune-generation") args.pruneGeneration = true;
         else if (arg == "--role-typed-vars") args.roleTypedVars = true;
         else if (arg == "--combinator-bias") args.combinatorBias = std::stod(next("--combinator-bias"));
@@ -307,7 +308,7 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.0] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] "
+                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] "
