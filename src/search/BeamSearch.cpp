@@ -1,6 +1,7 @@
 #include "search/BeamSearch.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -181,6 +182,16 @@ std::string behaviorSignature(const CandidateRecord& rec) {
 // mutable state), so this is embarrassingly parallel and needs no locking.
 constexpr size_t behaviorPrefixInstances = 3;
 
+// Section 118b: set by BeamSearch::run from SearchConfig::forbidStmtMask.
+std::atomic<unsigned> gForbidStmtMask{0};
+
+bool containsForbiddenStmt(const Stmt& s, unsigned mask) {
+    if ((mask >> static_cast<unsigned>(s.kind)) & 1u) return true;
+    for (const auto& c : s.body) if (containsForbiddenStmt(*c, mask)) return true;
+    for (const auto& c : s.elseBody) if (containsForbiddenStmt(*c, mask)) return true;
+    return false;
+}
+
 void mixHash(size_t& h, size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); }
 
 void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& instances, const Problem& problem,
@@ -188,6 +199,7 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                       int& timeouts, int& errors, bool trackCorrectness = false, double speedBonusWeight = 0.0,
                       long stepLimit = 1, bool trackBehaviorHash = false) {
     size_t n = pool.size();
+    const unsigned forbidMask = gForbidStmtMask.load();
     for (size_t i = 0; i < n; ++i) {
         scored[outOffset + i].program = std::move(pool[i]);
         scored[outOffset + i].totalTests = static_cast<int>(instances.size());
@@ -211,6 +223,13 @@ void scoreCandidates(std::vector<Program>& pool, const std::vector<Instance>& in
                 CandidateRecord& rec = scored[outOffset + i];
                 int score = 0;
                 double fitness = 0.0;
+                if (forbidMask != 0 && containsForbiddenStmt(*rec.program, forbidMask)) {
+                    rec.size = rec.program->size();
+                    rec.score = 0;
+                    rec.fitness = 0.0;
+                    if (trackCorrectness) rec.correctness.assign(instances.size(), false);
+                    continue;
+                }
                 if (trackCorrectness) rec.correctness.reserve(instances.size());
                 size_t instIndex = 0;
                 for (const auto& inst : instances) {
@@ -391,6 +410,7 @@ std::vector<std::pair<std::string, std::string>> configToPairs(const SearchConfi
 BeamSearch::BeamSearch(const Problem& problem, SearchConfig config) : problem_(problem), config_(std::move(config)) {}
 
 std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
+    gForbidStmtMask.store(config_.forbidStmtMask);
     Random rng(config_.seed);
     Interpreter interp(config_.stepLimit, /*maxRecursionDepth=*/200, config_.genConfig.recursionCallBias > 0.0);
     Dedup dedup;
@@ -453,6 +473,8 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
 
     // Moção 1 (Etapa 2): divergence-window state. See SearchConfig::postSolveSizes.
     bool postSolveWindowOpen = false;
+    std::unordered_map<std::string, bool> banCache;  // section 118: canonical text -> profile already archived
+    long profileBansGiven = 0;
     bool postSolveWindowOpenedThisSize = false;
     int postSolveRemaining = 0;
     int postSolvePendingAdvance = 0;
@@ -738,6 +760,24 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                     scored[i].fitness += bonus;
                     profileBonusesGiven++;
                 }
+            }
+        }
+
+        // Section 118: demote full solvers whose cost profile is already archived.
+        if (config_.profileBan && config_.profileNovelty > 0.0 && postSolveWindowOpen && !archivedProfiles.empty()) {
+            int budget = config_.profileBanBudget;
+            for (auto& c : scored) {
+                if (c.score != static_cast<int>(instances.size())) continue;
+                std::string key = canonicalText(*c.program);
+                if (banCache.find(key) == banCache.end()) {
+                    if (budget <= 0) continue;
+                    --budget;
+                    CostProfile p = costProfile(*c.program, problem_, probeInterp, currentLevel, config_.maxLevel, probeCache);
+                    if (!p.valid || profileIsNovel(p, archivedProfiles)) continue;
+                    banCache.emplace(key, true);
+                }
+                c.score--;
+                profileBansGiven++;
             }
         }
 
@@ -1156,6 +1196,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 postSolveBestCascadeLevel = 0;
                 postSolveBestSize = 0;
                 frozenChampions.clear();
+                banCache.clear();
                 log::info("  divergence window closed: promoting to N=" + std::to_string(currentLevel));
                 if (!config_.checkpointPath.empty()) saveSolutions(config_.checkpointPath, solutions);
             }
@@ -1189,6 +1230,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 postSolveBestSize = 0;
                 postSolveBestFitness = 0.0;
                 frozenChampions.clear();
+                banCache.clear();
                 restartBestLevel = currentLevel;
                 stallSteps = 0;
                 size = 0;  // ++size makes the new run start at size 1
@@ -1200,7 +1242,8 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count();
     if (config_.profileNovelty > 0.0) {
         log::info("  profile novelty: " + std::to_string(archivedProfiles.size()) + " archived profiles, " +
-                  std::to_string(profileBonusesGiven) + " bonuses given");
+                  std::to_string(profileBonusesGiven) + " bonuses given, " + std::to_string(profileBansGiven) +
+                  " bans given");
     }
     log::searchFinished(elapsed);
     if (elapsed > 0.0) {

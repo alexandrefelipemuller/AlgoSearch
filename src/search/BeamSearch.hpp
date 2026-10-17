@@ -255,6 +255,19 @@ struct SearchConfig {
     // (exponent differs by > 0.3 or steps by > 1.5x). 0 = off, byte-identical.
     double profileNovelty = 0.0;
     int profileNoveltyTop = 64;
+    // Section 118: attractor ban. Inside a divergence window (needs
+    // profileNovelty > 0 for the archive), a full solver whose cost profile
+    // is already archived loses one score point, so it stops counting as a
+    // solve and its variants stop crowding the beam; only a new profile
+    // can still win the level. At most profileBanBudget new canonical
+    // texts are profiled per size step. false = off, byte-identical.
+    bool profileBan = false;
+    // Section 118b: statement kinds a candidate may not contain (bit k =
+    // StmtKind k). A program containing one scores 0 and is never run, so
+    // the search must reach the problem by another route (e.g. sorting
+    // without swap). 0 = nothing forbidden, byte-identical.
+    unsigned forbidStmtMask = 0;
+    int profileBanBudget = 256;
 };
 
 // Beam Search over the space of Mini-C programs for a given Problem.

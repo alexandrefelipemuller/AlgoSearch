@@ -9024,3 +9024,40 @@ lives in the stateful pool; PrefixSplit takes 1/7 of that pool's draws,
 on top of a shape that was already a rare multi-axis draw (section 113).
 The FirstIndex-ending runs seen in section 117's logs were where stalled
 searches ended up, not why they stalled.
+
+## 118. Attractor ban (`--profile-ban`): diversity A/B -- registered before running
+
+**Prototype (seed 1, 20 min, sorting, `data/profile_ban_proto_20261017/`).**
+`--profile-novelty 0.5` alone: 4 archived profiles, 75 records, 3 behavior
+classes. Plus `--profile-ban`: 9 profiles, 142 records, 6 classes, 39,764 bans.
+The 3 extra classes are a selection sort with a redundant bubble pass (exp
+2.00) and two programs that glue the merge-sort skeleton after junk. No new
+exponent family. One seed, so only indicative.
+
+**Mechanism.** Inside a divergence window, a full solver whose reduced cost
+profile (section 98) is already archived loses one score point. It no longer
+counts as a solve and its junk variants stop crowding the beam; only a new
+profile can still win the level. At most 256 new canonical texts are profiled
+per size step. Off by default, byte-identical.
+
+**A/B.** Arms `--profile-novelty 0.5` (control) vs `+ --profile-ban`, same
+section 98 profile, 20 min per arm, matched seeds 2001-2008 (fresh; the
+prototype used seed 1), arms in parallel with 4 threads each.
+(a) sorting, `scripts/run_profile_ban_ab.sh data/profile_ban_ab_sorting_20261017 2001..2008`;
+(b) max_subarray_sum, `PROBLEM=max_subarray_sum MAX_N=64 WALL=600`, same seeds.
+Triage with `scripts/triage_ab_diversity.sh`. Metric: distinct behavior
+classes among generalizing programs (triage hash, comparable across arms),
+core exponents, classes found only in one arm.
+
+**Predictions.**
+1. Sorting: ban gives more classes in at least 6 of 8 seeds (prototype: +3).
+2. Sorting: no exponent family absent from the control's union over seeds
+   (selection ~2, exchange ~2, heap ~1.2); the extra classes are hybrids and
+   padding. Falsified by any new core exponent or a live-recursion sort.
+3. max_subarray_sum: ban finds a quadratic or cubic scan in at least 1 seed
+   (control: none, sections 96 and 98). My expectation is that it does not
+   (the limit is reachability), and a null here is the honest reading.
+
+**Decision rule, fixed now.** Merge policy: `--profile-ban` is promoted to a
+recommended diversity-triage flag only if prediction 1 holds. It becomes a
+default only with a new exponent family; padding does not count.

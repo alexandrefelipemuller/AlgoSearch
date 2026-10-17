@@ -552,3 +552,23 @@ TEST(profile_novelty_archives_fewer_alternative_champions) {
     CHECK(!gated.empty());
     CHECK(gatedIds.size() < plainIds.size());
 }
+
+TEST(forbid_stmt_swap_never_yields_a_program_containing_swap) {
+    SortingProblem problem(6, 20, 3, 99);
+    SearchConfig cfg;
+    cfg.beamWidth = 50;
+    cfg.maxProgramSize = 8;
+    cfg.stepLimit = 2000;
+    cfg.maxLevel = 1;
+    cfg.seed = 99;
+    cfg.candidatesPerSize = 100;
+    cfg.genConfig.numVars = 3;
+    cfg.forbidStmtMask = 1u << static_cast<unsigned>(StmtKind::Swap);
+
+    BeamSearch search(problem, cfg);
+    auto solutions = search.run();
+    for (const auto& s : solutions) CHECK(s.programText.find("swap(") == std::string::npos);
+    cfg.forbidStmtMask = 0;
+    BeamSearch control(problem, cfg);
+    CHECK(!control.run().empty());
+}

@@ -129,6 +129,8 @@ struct CliArgs {
     int restartOnStall = 0;  // section 94
     double wallSeconds = 0.0;
     double profileNovelty = 0.0;  // section 98
+    bool profileBan = false;      // section 118
+    unsigned forbidStmtMask = 0;  // section 118b
     int confirmReseed = 12;  // default since section 97; --confirm-reseed 0 turns it off
     int startLevel = 1;
     int candidatesPerSize = 800;
@@ -217,6 +219,14 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--restart-on-stall") args.restartOnStall = std::stoi(next("--restart-on-stall"));
         else if (arg == "--wall-seconds") args.wallSeconds = std::stod(next("--wall-seconds"));
         else if (arg == "--confirm-reseed") args.confirmReseed = std::stoi(next("--confirm-reseed"));
+        else if (arg == "--forbid-stmt") {
+            std::string k = next("--forbid-stmt");
+            if (k == "swap") args.forbidStmtMask |= 1u << static_cast<unsigned>(StmtKind::Swap);
+            else if (k == "call") args.forbidStmtMask |= 1u << static_cast<unsigned>(StmtKind::Call);
+            else if (k == "assignarray") args.forbidStmtMask |= 1u << static_cast<unsigned>(StmtKind::AssignArray);
+            else { std::cerr << "--forbid-stmt takes swap|call|assignarray\n"; std::exit(1); }
+        }
+        else if (arg == "--profile-ban") args.profileBan = true;
         else if (arg == "--profile-novelty") args.profileNovelty = std::stod(next("--profile-novelty"));
         else if (arg == "--start-level") args.startLevel = std::stoi(next("--start-level"));
         else if (arg == "--candidates") args.candidatesPerSize = std::stoi(next("--candidates"));
@@ -321,7 +331,7 @@ void printUsage() {
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
-                 "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] "
+                 "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
 
@@ -1229,6 +1239,8 @@ int main(int argc, char** argv) {
     config.restartOnStall = args.restartOnStall;
     config.wallSeconds = args.wallSeconds;
     config.profileNovelty = args.profileNovelty;
+    config.profileBan = args.profileBan;
+    config.forbidStmtMask = args.forbidStmtMask;
     std::unique_ptr<Problem> confirmProblem;
     if (args.confirmReseed > 0) {
         confirmProblem = makeProblem(args.problem, args.numVars, args.seed ^ 0x5bd1e995ULL);
