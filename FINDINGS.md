@@ -9103,3 +9103,27 @@ even as a recommended triage flag. It stays opt-in and unused. Selection and
 demotion levers are now exhausted on these two problems (sections 93, 95,
 96, 98, 118); what remains is changing what the grammar can reach, which is
 the point of `--forbid-stmt` (next: sorting without swap).
+
+## 118b (results). Sorting without swap re-selects the hand-written merge sort skeleton
+
+`data/forbid_swap_proto_20261017/` (not versioned), seed 1, 20 min per arm,
+`--forbid-stmt swap` (arm `noswap_ban` adds `--profile-novelty 0.5
+--profile-ban`).
+
+- `noswap`: 466 records, 302 programs, 1 generalizing behavior class (6
+  members, N=2 only); `noswap_ban`: 30 records, 1 class, reaches N=30.
+- The class is exponent 1.20 with `call` and `aux`, and the smallest
+  representative (99-102 nodes) is the MergeSort skeleton block unchanged
+  (`genMergeSortSkeletonBlock`). It never uses swap, so the ban leaves it as
+  the only skeleton that can fire.
+- 280 of the 302 programs fail held-out tests (the usual small-N fits).
+
+**Prediction check.** I expected no solution in 20 min: **falsified**, but for
+the wrong reason. Nothing was discovered; the constraint just selected the one
+skeleton the project already contains. This is a flaw in the experiment, not a
+finding about the search.
+
+**Next (118c).** The same run with the merge skeleton also disabled
+(`ALGOSEARCH_DISABLE_SKELETON=mergesort`), so every swap-free sorter has to
+come from the generic pieces. Prediction: 0 generalizing programs; any
+solution would be a sorter no skeleton contains.
