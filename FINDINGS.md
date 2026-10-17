@@ -9127,3 +9127,19 @@ finding about the search.
 (`ALGOSEARCH_DISABLE_SKELETON=mergesort`), so every swap-free sorter has to
 come from the generic pieces. Prediction: 0 generalizing programs; any
 solution would be a sorter no skeleton contains.
+
+## 118c (results). Sorting without swap and without the merge skeleton: 0 generalizing programs
+
+`data/forbid_swap_nomerge_20261017/` (not versioned), seed 1, 20 min per arm,
+`--forbid-stmt swap` + `ALGOSEARCH_DISABLE_SKELETON=mergesort`.
+
+- `noswap`: 244 records, 244 programs, **0 generalizing** (217 WRONG, 19
+  timeout, 5 depth abort, 3 out-of-bounds).
+- `noswap_ban`: 2 records, 0 generalizing.
+- Both arms only fit a small N (first window opened early, never confirmed).
+
+**Prediction held** (0 generalizing programs). With every skeleton that can
+sort removed, the generic pieces do not reach a swap-free sorter in 20 min.
+One seed per arm, so this is a weak negative; it is consistent with section
+92-93 (sorting without sort skeletons needs a lever, not budget) and with
+section 118's reading that reachability is the limit.
