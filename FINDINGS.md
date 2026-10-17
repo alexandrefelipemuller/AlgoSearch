@@ -9061,3 +9061,45 @@ core exponents, classes found only in one arm.
 **Decision rule, fixed now.** Merge policy: `--profile-ban` is promoted to a
 recommended diversity-triage flag only if prediction 1 holds. It becomes a
 default only with a new exponent family; padding does not count.
+
+## 118 (results). The ban adds at most two classes per seed, never a family; stays opt-in
+
+`data/profile_ban_ab_sorting_20261017/` and `data/profile_ban_ab_msub_20261017/`
+(not versioned), seeds 2001-2008, arms in parallel. Triage:
+`scripts/triage_ab_diversity.sh`. The prototype's +3 (seed 1) was the high end.
+
+**Sorting** (20 min per arm), generalizing behavior classes:
+
+| seed | 2001 | 2002 | 2003 | 2004 | 2005 | 2006 | 2007 | 2008 | mean |
+|---|---|---|---|---|---|---|---|---|---|
+| novelty | 3 | 4 | 4 | 3 | 3 | 4 | 3 | 4 | 3.50 |
+| novelty + ban | 4 | 4 | 4 | 3 | 3 | 4 | 5 | 5 | 4.00 |
+
+Paired difference: +1, 0, 0, 0, 0, 0, +2, +1: 3 wins, 5 ties, 0 losses.
+Core exponents in every run of both arms: 1.2 and 2.0 only.
+
+**max_subarray_sum** (10 min cap; every run finished in about 3 min): one
+class (Kadane, exponent 1.0) in all 16 runs, both arms.
+
+**Predictions.**
+1. Ban gives more classes in at least 6 of 8 seeds: **falsified** (3 of 8).
+2. No exponent family absent from the control: **held** (1.2 and 2.0 in both
+   arms, every seed).
+3. A quadratic or cubic max_subarray_sum scan in at least 1 seed: **falsified**
+   as a discovery claim, 0 of 8. I expected this null.
+
+**Reading.**
+- The ban does what it was built for (28,000 to 34,000 demotions per run in
+  sorting) but the extra classes are rare and small: hybrids and padded
+  variants, as in the prototype.
+- The mechanism removes attractors, yet nothing else is reachable behind
+  them. This is section 98's reading again: the limit is reachability in the
+  grammar and beam, not selection pressure.
+- In max_subarray_sum the ban never matters: the window closes before any
+  alternative profile has a chance.
+
+**Decision.** By the registered rule, `--profile-ban` is not promoted, not
+even as a recommended triage flag. It stays opt-in and unused. Selection and
+demotion levers are now exhausted on these two problems (sections 93, 95,
+96, 98, 118); what remains is changing what the grammar can reach, which is
+the point of `--forbid-stmt` (next: sorting without swap).
