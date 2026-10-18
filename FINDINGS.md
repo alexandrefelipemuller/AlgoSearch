@@ -9341,3 +9341,42 @@ canonical version (10/10 vs 2/10), but it did not produce an asymptotically
 different algorithm. The binary-search peak needs `lo/hi/mid` state the loop
 pieces do not draw, which connects back to section 119: the recursion/interval
 shape is still the missing piece. Not paper material yet.
+
+## 121. One-call interval shell (`--dc-shell-search`) on any_peak -- design registered before running
+
+Combination of ideas 1 and 2, requested after section 120. Section 120 left
+the binary-search peak unreached; section 119 showed the two-call shell never
+becomes a reduction. A peak search needs ONE recursive call on a chosen half,
+so a new opt-in shell `--dc-shell-search BIAS` (needs `--recursion-call-bias`
+> 0, numVars >= 5, `make test` 235/235) emits:
+
+    if ((v2 - v1) > 1) { v3 = v1 + (v2 - v1)/2;
+        if (arr[v3] OP arr[v3 +- 1]) call(v3 + {0,1}, v2) else call(v1, v3 + {0,1}) }
+    else arr[0] = (v1 | v2 - 1)
+
+OP in {<, <=, >, >=}, neighbour side, half offsets and the base value are
+drawn at random; the shell fixes only the interval-halving shape and the
+else-branch write. It does NOT fix which combination is correct. Honest
+caveat: this is a strongly shaped piece, close to a skeleton for interval
+searches; it is judged as the generic piece it is meant to be by whether it
+helps problems other than the one it was designed on (see decision rule).
+
+**Protocol** (`scripts/run_dc_search_ab.sh`): any_peak, seeds 59000-59009, the
+section 120 settings plus `--recursion-call-bias 0.1 --profile-novelty 0.5
+--profile-ban`; arms base (no shell), search (`--dc-shell-search 0.15`),
+search_noloop (`--dc-shell-search 0.15 --no-scalar-loop --combinator-bias 0`).
+A hit = engine SUCCESS with adversarial all passed, contains `call(`, no
+`while`, and step exponent < 0.5 on an ascending array (worst case for the
+early-exit scans), re-executed outside the engine.
+
+**Predictions.**
+1. Hits in the search arm: >= 1 of 10 seeds; base: 0 (no `call(` peak search
+   has ever been found).
+2. search_noloop: >= 1 hit as well, and more hits than search (the loop no
+   longer wins the size race, as in section 119).
+3. No loss in solved count for search versus base (tolerance -1 of 10).
+
+**Decision rule.** If predictions 1 holds, the shell stays opt-in and is
+reported as the first logarithmic result, but promotion needs it to help a
+second problem (a different search shape, tested next); a hit only on any_peak
+is reported as a skeleton in disguise. If prediction 1 fails, honest negative.

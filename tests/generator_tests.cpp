@@ -277,3 +277,30 @@ TEST(dc_shell_bias_emits_the_guarded_two_call_shape_only_when_enabled) {
     CHECK(countShells(on) >= 5);
     CHECK_EQ(countShells(off), 0);
 }
+
+TEST(dc_shell_search_bias_emits_the_one_call_interval_shape_only_when_enabled) {
+    GenConfig on;
+    on.numVars = 7;
+    on.maxLoops = 2;
+    on.maxBlockDepth = 3;
+    on.maxStatementsPerBlock = 3;
+    on.loopAccumulatorBias = 0.0;
+    on.recursionCallBias = 0.1;
+    on.dcShellSearchBias = 1.0;
+    GenConfig off = on;
+    off.dcShellSearchBias = 0.0;
+
+    auto countShells = [&](const GenConfig& cfg) {
+        Random rng(11);
+        int shells = 0;
+        for (int attempt = 0; attempt < 30; ++attempt) {
+            std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+            if (text.find("(v2 - v1) > 1") != std::string::npos && text.find("v3 = (v1 + ((v2 - v1) / 2))") != std::string::npos &&
+                text.find("call(v1, ") != std::string::npos && text.find("arr[0] = ") != std::string::npos)
+                shells++;
+        }
+        return shells;
+    };
+    CHECK(countShells(on) >= 5);
+    CHECK_EQ(countShells(off), 0);
+}

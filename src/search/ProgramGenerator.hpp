@@ -380,6 +380,8 @@ struct GenConfig {
     // step drawn from the ordinary grammar). Needs recursionCallBias > 0 (for
     // the lo/hi seeding) and numVars >= 5. 0 = off, byte-identical.
     double dcShellBias = 0.0;
+    // Section 121: probability of the one-call interval (binary-search) shell. Same gating as dcShellBias.
+    double dcShellSearchBias = 0.0;
 
     // These are NOT separate opt-in flags one problem-by-problem run has
     // to be told to turn on (an earlier version of this file did exactly
