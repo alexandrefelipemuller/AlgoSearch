@@ -6,7 +6,7 @@ problem's property on many random inputs (duplicates, negatives, n up to 256), a
 the vector of output[0] on a fixed input set (so different valid answers give different classes). Also reports
 the fitted step exponent on random inputs of n = 32..256.
 
-Usage: scripts/triage_open_spec.py RUN_DIR PROBLEM [--num-vars 8]   (RUN_DIR holds seed_*.json)
+Usage: scripts/triage_open_spec.py RUN_DIR PROBLEM [--num-vars 8] [--seed-rec]   (RUN_DIR holds seed_*.json)
 """
 import glob, hashlib, json, math, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -25,6 +25,8 @@ def check(problem, inp, out):
         return is_peak(inp, out[0])
     dup = [v for v in set(inp) if inp.count(v) >= 2]
     return (out[0] in dup) if dup else out[0] == -1
+
+SEED_REC = '--seed-rec' in sys.argv
 
 def main():
     run_dir, problem = sys.argv[1], sys.argv[2]
@@ -49,7 +51,7 @@ def main():
                 prog = T.Parser(T.tokenize(src)).program()
             except Exception:
                 continue
-            m = T.Machine(prog, nv, False, 5_000_000, None)
+            m = T.Machine(prog, nv, SEED_REC, 5_000_000, None)
             try:
                 if not all(check(problem, a, m.run(a)) for a in tests): continue
                 sig = tuple(m.run(a)[0] for a in fixed)

@@ -9380,3 +9380,51 @@ early-exit scans), re-executed outside the engine.
 reported as the first logarithmic result, but promotion needs it to help a
 second problem (a different search shape, tested next); a hit only on any_peak
 is reported as a skeleton in disguise. If prediction 1 fails, honest negative.
+
+## 121 (results). The one-call shell finds binary-search peak in 9 of 10 seeds; the loop-free arm finds nothing
+
+`data/dc_search_ab_20261018/` (`scripts/run_dc_search_ab.sh`, any_peak, seeds
+59000-59009, `--start-level 2`). Triage: `scripts/triage_open_spec.py ... --seed-rec`
+(new flag: the engine seeds v1/v2 = 0/n when `--recursion-call-bias > 0`; without
+it the Python port rejects every recursive program, which is what the first
+triage pass did before the flag existed).
+
+| arm | engine-verified | verified `call(` without `while` | fitted exponent of those |
+|---|---|---|---|
+| base | 9/10 | **0** | -- |
+| search (`--dc-shell-search 0.15`) | 9/10 | **9 seeds, 10 programs** | 0.19 (n = 32 -> 1024, ascending and descending) |
+| search_noloop | **0/10** | 0 | -- |
+
+Smallest program, size 32, found in 6 of the 9 seeds in the same form (the other
+hits are variants of the comparison and offsets):
+
+    if ((v2 - v1) > 1) { v3 = v1 + (v2 - v1)/2;
+        if (arr[v3] >= arr[v3 - 1]) call(v3, v2); else call(v1, v3); }
+    else arr[0] = v1;
+
+It is correct: invariant a[lo-1] < a[lo] (or lo = 0) and a[hi-1] >= a[hi] (or
+hi = n), kept by both branches; passes the engine's adversarial check and 300
+outside inputs up to n = 256 with duplicates and negatives.
+
+**Prediction 1 (>= 1 hit in search, 0 in base): held** (9 against 0).
+**Prediction 2 (noloop >= 1 hit and more than search): falsified**: 0/10, the
+opposite order. Without the scalar-loop skeleton and the combinator, any_peak
+stays at N = 2: the generic grammar does not reach even the linear scans in
+the budget, so the loop-free arm is starved, not recursion-rich.
+**Prediction 3 (no loss, tolerance -1): held** (9 against 9).
+
+**Reading, without inflating it.** This is the first logarithmic-time program in
+the project and the first time a recursive program passes where no loop does.
+It is also the shell with one lucky draw: the program is the shell, minus
+the randomization of four small choices (operator, neighbour side, two
+offsets). The honest statement is "a generic interval-halving piece plus a
+property checker lets the search find a known O(log n) algorithm in 90% of the
+runs"; it is not "the search invented binary search". Binary-search peak is
+textbook (LeetCode's Find Peak Element).
+
+**Decision rule.** Prediction 1 held, so the shell stays opt-in and is
+reported. Promotion needs the second problem registered above: a different
+search shape on which the same piece, unchanged, finds something. Next
+candidate: a sorted-array search (`contains_ordered` / lower bound) where the
+halving comparison is against a key, not a neighbour. Not promoted, not
+paper-ready alone.
