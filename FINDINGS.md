@@ -9296,3 +9296,48 @@ every record is UNCONFIRMED at level 1 (0/10 in all arms, including the
 control). Same trap as section 119 round 1. Fix: `--start-level 2`
 (`START_LEVEL` in the runner); everything else, the seeds and predictions
 1-4 are unchanged.
+
+## 120 (results). any_peak: 10/10 and six behavior classes; no sublinear peak; any_duplicate stalls
+
+`data/open_spec_20261018/` (runner `scripts/run_open_spec.sh`, `--start-level 2`,
+seeds 59000-59009; the level-1 launch is in `data/open_spec_start1_20261018/`).
+Triage: `scripts/triage_open_spec.py` (programs re-run outside the engine, 300
+random inputs with duplicates, negatives and n up to 256; behavior class = the
+output vector on 40 fixed inputs).
+
+| problem | engine-verified (SUCCESS + adversarial) | max level reached | programs passing the Python check | behavior classes |
+|---|---|---|---|---|
+| any_peak | **10/10** | 8 in all 10 | 75 in 10 seeds | **6** |
+| peak_element (control) | 2/10 | 8 in 2, 2 in 8 | 6 in 2 seeds | 1 |
+| any_duplicate | 1/10 | 8 in 1, 2 in 8, 3 in 1 | 2 in 1 seed | 1 |
+
+**Prediction 1 (any_peak >= 7/10, control ~3/10): held** (10/10 against 2/10).
+**Prediction 2 (>= 2 classes in any_peak, 1 in the control): held** (6 against 1).
+The six classes, smallest representative each, are real scans with different
+outputs, not padding:
+- first argmax (`>`), 29 programs, 10 seeds; last argmax (`>=`), 26 programs, 10 seeds;
+- "last index whose left neighbour is smaller" (`<`), 5 programs in 5 seeds, and its `<=` twin (3 in 3 seeds): an ascent-end finder, size 31, no running maximum;
+- two early-exit variants (`v0 = v4` ends the loop at the first descent) that count the ascending prefix: the first peak, 12 programs in 4 seeds. The controls' only class, 1dcaebbb, is the same early-exit first-peak scan.
+
+**Prediction 3 (no sublinear peak): held.** The minimum fitted exponent on random
+inputs is 0.32, but it is the early exit of the first-peak scan: on an ascending
+array every class costs ~1.0 (0.99-1.01), only the early-exit ones drop to 0
+on a descending array. No class has a log-time shape (no halving, no `call`).
+**Prediction 4 (any_duplicate >= 5/10 and >= 2 classes): failed**, 1/10 with 1
+class; 8 seeds stall at N = 2.
+
+One curiosity from any_duplicate (seed with the 74-size program): it writes -1
+into `arr[0]` first and reads `arr[v6]` afterwards, with `v6` the last index
+holding an element that repeats an earlier one (0 if none): the not-found value
+comes for free from `arr[0] = -1` overwriting the element that is read when
+`v6 = 0`. Correct on all 300 tests but exponent 1.98 and padded; not a new
+algorithm, a small trick.
+
+**Decision rule.** Prediction 2 held with non-padding classes, so the family is
+worth keeping, but the honest reading is narrow: the extra classes are
+alternatives of one linear scan (argmax, ascent end), all known and all O(n). A
+property checker widens the solution set and nearly eliminates the stall of the
+canonical version (10/10 vs 2/10), but it did not produce an asymptotically
+different algorithm. The binary-search peak needs `lo/hi/mid` state the loop
+pieces do not draw, which connects back to section 119: the recursion/interval
+shape is still the missing piece. Not paper material yet.
