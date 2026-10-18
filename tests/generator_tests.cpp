@@ -45,48 +45,6 @@ TEST(loop_accumulator_bias_zero_disables_the_skeleton_bias) {
     CHECK_EQ(cfg.loopAccumulatorBias, 0.0);
 }
 
-TEST(index_increment_bias_increases_increment_frequency) {
-    // Force everything into a single while loop's body (no loop-bias, so
-    // the increment can only come from the generic-assign path being
-    // biased) and check the increment idiom shows up far more often with
-    // the prior on than off.
-    GenConfig biased;
-    biased.numVars = 3;
-    biased.maxLoops = 1;
-    biased.loopAccumulatorBias = 0.0;  // isolate: only the generic-assign path should produce increments here
-    biased.indexIncrementBias = 1.0;   // always, when inside a while
-
-    Random rng(5);
-    // Build one big while loop directly and count increments in its body.
-    int loopsUsed = 0;
-    // Use generateRandomProgram with a high target so a while is likely
-    // generated at least once across a few attempts, then inspect it.
-    int incrementHits = 0, totalAssigns = 0;
-    for (int attempt = 0; attempt < 30; ++attempt) {
-        Program p = generateRandomProgram(rng, 12, biased);
-        std::function<void(const Stmt&, bool)> walk = [&](const Stmt& s, bool insideWhile) {
-            if (insideWhile && s.kind == StmtKind::Assign) {
-                totalAssigns++;
-                if (s.valueExpr->kind == ExprKind::Add && s.valueExpr->lhs->kind == ExprKind::Var &&
-                    s.valueExpr->lhs->varIndex == s.varIndex && s.valueExpr->rhs->kind == ExprKind::IntConst &&
-                    s.valueExpr->rhs->intValue == 1) {
-                    incrementHits++;
-                }
-            }
-            // Mirrors genStmt's own context propagation: entering an If's
-            // body resets insideWhile to false (only the DIRECT parent
-            // matters), entering a While's body sets it true.
-            bool childInsideWhile = s.kind == StmtKind::While ? true : (s.kind == StmtKind::If ? false : insideWhile);
-            for (const auto& c : s.body) walk(*c, childInsideWhile);
-            for (const auto& c : s.elseBody) walk(*c, childInsideWhile);
-        };
-        walk(*p, false);
-    }
-    (void)loopsUsed;
-    CHECK(totalAssigns > 0);
-    CHECK(incrementHits == totalAssigns);  // bias=1.0 forces every in-loop assign to be the increment
-}
-
 TEST(grow_program_increases_size) {
     Random rng(3);
     GenConfig cfg;

@@ -26,9 +26,6 @@ namespace algosearch {
 
 namespace {
 
-// Number of score deciles used by score-band niching (SearchConfig::scoreBandRate).
-constexpr int kScoreBands = 10;
-
 // Stable, short id for a program: a hex hash of its canonical text. Every
 // per-N row produced by one promotion cascade shares this id, since they
 // all describe the exact same unmutated program.
@@ -435,23 +432,6 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         std::cout << "[pointer-input] " << (config_.genConfig.pointerInput ? "yes" : "no") << "\n";
     }
 
-    // Simulated-annealing walker: a SINGLE persistent solution, mutated
-    // one local step at a time each round (never a fresh random restart --
-    // that's what diversityRate already does), and accepted as the new
-    // current state even when it scores WORSE, with Boltzmann probability
-    // exp(delta/temperature). This is the one thing neither diversityRate
-    // (random immigrants, no relation to current progress) nor
-    // shapeNicheRate (keeps only the best of each shape, never accepts a
-    // worse move) actually does: a controlled downhill walk that can cross
-    // a fitness valley to escape a local optimum, the way real SA does.
-    // Runs independently of beam selection -- its current candidate is
-    // still injected into the same scored pool each round, so if it ever
-    // becomes competitive, the elitist beam can adopt it too. Temperature
-    // cools linearly over the size sweep (config_.annealingTemperature at
-    // size=1, down to a small floor as size approaches maxProgramSize).
-    Program annealState;
-    double annealFitness = -1.0;
-
     auto searchStart = std::chrono::steady_clock::now();
 
     // Throughput profiling: coarse wall-clock split of where each round's
@@ -601,16 +581,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                                                             *beam[static_cast<size_t>(ib)].program, rng, config_.genConfig));
             }
         }
-        // Annealer pool: one mutation of the walker's current state (or a
-        // fresh random program on its very first round). Scored the same
-        // as everything else; acceptance is decided after scoring, below.
-        std::vector<Program> annealPool;
-        if (config_.annealingTemperature > 0.0) {
-            annealPool.push_back(annealState ? growProgram(*annealState, size, rng, config_.genConfig)
-                                              : generateRandomProgram(rng, size, config_.genConfig));
-        }
-
-        totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size()) + static_cast<int>(annealPool.size());
+        totalCandidatesGenerated += guard + static_cast<int>(crossoverPool.size());
         genPhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - genStart).count();
 
         int timeouts = 0, errors = 0;
@@ -621,16 +592,13 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         bool trackCorrectness = config_.behaviorNicheRate > 0.0 || debugLandscape;
         bool debugBehavior = std::getenv("ALGOSEARCH_DEBUG_BEHAVIOR") != nullptr;
         auto scoreStart = std::chrono::steady_clock::now();
-        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size() + annealPool.size());
+        std::vector<CandidateRecord> scored(grownPool.size() + freshPool.size() + crossoverPool.size());
         scoreCandidates(grownPool, instances, problem_, interp, threadCount, scored, 0, timeouts, errors, trackCorrectness,
                          config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         scoreCandidates(freshPool, instances, problem_, interp, threadCount, scored, grownPool.size(), timeouts, errors,
                          trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
                          timeouts, errors, trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
-        size_t annealIndex = grownPool.size() + freshPool.size() + crossoverPool.size();
-        scoreCandidates(annealPool, instances, problem_, interp, threadCount, scored, annealIndex, timeouts, errors,
-                         trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         totalCandidatesScored += static_cast<long>(scored.size());
 
         // Diagnostic only (FINDINGS.md section 35, idea E's go/no-go): how
@@ -664,7 +632,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 tally(i, 0);
             }
             for (size_t i = grownPool.size(); i < grownPool.size() + freshPool.size(); ++i) tally(i, 1);
-            for (size_t i = grownPool.size() + freshPool.size(); i < annealIndex; ++i) tally(i, 2);
+            for (size_t i = grownPool.size() + freshPool.size(); i < grownPool.size() + freshPool.size() + crossoverPool.size(); ++i) tally(i, 2);
         }
         scorePhaseSeconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - scoreStart).count();
 
@@ -708,31 +676,6 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             std::cerr << "LANDSCAPE size=" << size << " overallBest=" << overallBest << " grownBest=" << grownBest
                       << " freshBest=" << freshBest << " distinctBehaviorsNear" << nearCeiling << "="
                       << distinctBehaviorsNearCeiling.size() << " topScores[score:count]=" << histStr.str() << "\n";
-        }
-
-        if (!annealPool.empty()) {
-            // Boltzmann acceptance: always take an improving/equal move;
-            // take a worsening one anyway with probability
-            // exp(delta/temperature), delta normalized by instance count
-            // so the configured temperature means roughly the same thing
-            // regardless of how many instances this level has. Rejecting
-            // simply leaves annealState as-is (the walker stays put, tries
-            // a different local mutation from the same spot next round) --
-            // real SA behavior, never a hard reset.
-            const CandidateRecord& candidate = scored[annealIndex];
-            double normalizedFitness = static_cast<double>(instances.size()) > 0
-                                            ? candidate.fitness / static_cast<double>(instances.size())
-                                            : candidate.fitness;
-            double prevNormalized = annealFitness;
-            double temperature =
-                config_.annealingTemperature * (1.0 - static_cast<double>(size) / static_cast<double>(std::max(1, config_.maxProgramSize)));
-            temperature = std::max(temperature, 0.02);
-            bool accept = !annealState || normalizedFitness >= prevNormalized ||
-                          rng.chance(std::exp((normalizedFitness - prevNormalized) / temperature));
-            if (accept) {
-                annealState = candidate.program->clone();
-                annealFitness = normalizedFitness;
-            }
         }
 
         if (scored.empty()) {
@@ -831,12 +774,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
             behaviorNicheCount = static_cast<int>(std::lround(config_.behaviorNicheRate * config_.beamWidth));
             behaviorNicheCount = std::clamp(behaviorNicheCount, 0, eliteCount - shapeNicheCount);
         }
-        int scoreBandCount = 0;
-        if (config_.scoreBandRate > 0.0) {
-            scoreBandCount = static_cast<int>(std::lround(config_.scoreBandRate * config_.beamWidth));
-            scoreBandCount = std::clamp(scoreBandCount, 0, eliteCount - shapeNicheCount - behaviorNicheCount);
-        }
-        int nicheCount = shapeNicheCount + behaviorNicheCount + scoreBandCount;
+        int nicheCount = shapeNicheCount + behaviorNicheCount;
         int pureEliteCount = eliteCount - nicheCount;
 
         if (nicheCount > 0 && static_cast<int>(scored.size()) > pureEliteCount) {
@@ -882,27 +820,6 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                 }
             }
 
-            // Fill the score-band slots: one representative per score
-            // decile, taken in ranking order so each band contributes its
-            // own best member. Because the elite core has already claimed
-            // the top bands, this pass necessarily reaches DOWN the
-            // ranking and keeps lineages the beam would otherwise discard
-            // -- the whole point (see SearchConfig::scoreBandRate).
-            if (scoreBandCount > 0) {
-                auto bandOf = [&](const CandidateRecord& c) {
-                    int denom = std::max(1, c.totalTests);
-                    return c.score * kScoreBands / (denom + 1);
-                };
-                std::unordered_set<int> bandsInBeam;
-                for (const auto& b : nextBeam) bandsInBeam.insert(bandOf(b));
-                for (size_t i = static_cast<size_t>(pureEliteCount);
-                     i < scored.size() && static_cast<int>(nextBeam.size()) < eliteCount; ++i) {
-                    if (!scored[i].program) continue;  // already claimed by an earlier pass
-                    if (bandsInBeam.insert(bandOf(scored[i])).second) {
-                        nextBeam.push_back(std::move(scored[i]));
-                    }
-                }
-            }
             beam = std::move(nextBeam);
         } else {
             if (static_cast<int>(scored.size()) > eliteCount) scored.resize(static_cast<size_t>(eliteCount));
@@ -1220,8 +1137,6 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                           ", new seed " + std::to_string(runSeed));
                 beam.clear();
                 dedup = Dedup();
-                annealState.reset();
-                annealFitness = -1.0;
                 currentLevel = config_.startLevel;
                 postSolveWindowOpen = false;
                 postSolveRemaining = 0;

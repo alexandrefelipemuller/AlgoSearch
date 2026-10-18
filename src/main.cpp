@@ -146,18 +146,12 @@ struct CliArgs {
     double diversityRate = 0.0;
     double crossoverRate = 0.0;
     double shapeNicheRate = 0.0;
-    double annealingTemperature = 0.0;
     double behaviorNicheRate = 0.0;
-    double scoreBandRate = 0.0;
     double speedBonusWeight = 0.0;
     int postSolveSizes = 0;
     int tailEnumTop = 10;  // default since FINDINGS.md section 54; --tail-enum 0 restores the old default
     double loopBias = 0.4;  // best value found by a 160-run sweep, see ProgramGenerator.hpp
-    double indexIncrementBias = 0.0;
-    double bareSwapPenalty = 0.0;
-    double controlFlowBias = 0.0;
     double compositeBias = 0.0;
-    double exprMutationRate = 0.0;
     double localCondMutationRate = 0.3;  // FINDINGS.md section 115b, default
     bool pruneGeneration = false;
     bool roleTypedVars = false;
@@ -245,18 +239,12 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--diversity-rate") args.diversityRate = std::stod(next("--diversity-rate"));
         else if (arg == "--crossover-rate") args.crossoverRate = std::stod(next("--crossover-rate"));
         else if (arg == "--shape-niche-rate") args.shapeNicheRate = std::stod(next("--shape-niche-rate"));
-        else if (arg == "--annealing-temperature") args.annealingTemperature = std::stod(next("--annealing-temperature"));
         else if (arg == "--behavior-niche-rate") args.behaviorNicheRate = std::stod(next("--behavior-niche-rate"));
-        else if (arg == "--score-band-rate") args.scoreBandRate = std::stod(next("--score-band-rate"));
         else if (arg == "--speed-bonus-weight") args.speedBonusWeight = std::stod(next("--speed-bonus-weight"));
         else if (arg == "--post-solve-sizes") args.postSolveSizes = std::stoi(next("--post-solve-sizes"));
         else if (arg == "--tail-enum") args.tailEnumTop = std::stoi(next("--tail-enum"));
         else if (arg == "--loop-bias") args.loopBias = std::stod(next("--loop-bias"));
-        else if (arg == "--index-increment-bias") args.indexIncrementBias = std::stod(next("--index-increment-bias"));
-        else if (arg == "--bare-swap-penalty") args.bareSwapPenalty = std::stod(next("--bare-swap-penalty"));
-        else if (arg == "--control-flow-bias") args.controlFlowBias = std::stod(next("--control-flow-bias"));
         else if (arg == "--composite-bias") args.compositeBias = std::stod(next("--composite-bias"));
-        else if (arg == "--expr-mutation-rate") args.exprMutationRate = std::stod(next("--expr-mutation-rate"));
         else if (arg == "--local-cond-mutation") args.localCondMutationRate = std::stod(next("--local-cond-mutation"));
         else if (arg == "--no-local-cond-mutation") args.localCondMutationRate = 0.0;
         else if (arg == "--prune-generation") args.pruneGeneration = true;
@@ -323,8 +311,8 @@ void printUsage() {
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
-                 "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
+                 "[--behavior-niche-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
+                 "[--composite-bias 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
@@ -531,19 +519,13 @@ void runBenchmarkMode(const CliArgs& args) {
         config.diversityRate = args.diversityRate;
         config.crossoverRate = args.crossoverRate;
         config.shapeNicheRate = args.shapeNicheRate;
-        config.annealingTemperature = args.annealingTemperature;
         config.behaviorNicheRate = args.behaviorNicheRate;
-        config.scoreBandRate = args.scoreBandRate;
         config.speedBonusWeight = args.speedBonusWeight;
         config.postSolveSizes = args.postSolveSizes;
         config.tailEnumTop = args.tailEnumTop;
         config.regressionGuard = args.regressionGuard;
         config.genConfig.loopAccumulatorBias = args.loopBias;
-        config.genConfig.indexIncrementBias = args.indexIncrementBias;
-        config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
-        config.genConfig.controlFlowBias = args.controlFlowBias;
         config.genConfig.compositeBias = args.compositeBias;
-        config.genConfig.exprMutationRate = args.exprMutationRate;
     config.genConfig.localCondMutationRate = args.localCondMutationRate;
         config.genConfig.localCondMutationRate = args.localCondMutationRate;
         config.genConfig.pruneGeneration = args.pruneGeneration;
@@ -1201,19 +1183,13 @@ int main(int argc, char** argv) {
     config.diversityRate = args.diversityRate;
     config.crossoverRate = args.crossoverRate;
     config.shapeNicheRate = args.shapeNicheRate;
-    config.annealingTemperature = args.annealingTemperature;
     config.behaviorNicheRate = args.behaviorNicheRate;
-    config.scoreBandRate = args.scoreBandRate;
     config.speedBonusWeight = args.speedBonusWeight;
     config.postSolveSizes = args.postSolveSizes;
     config.tailEnumTop = args.tailEnumTop;
     config.regressionGuard = args.regressionGuard;
     config.genConfig.loopAccumulatorBias = args.loopBias;
-    config.genConfig.indexIncrementBias = args.indexIncrementBias;
-    config.genConfig.bareSwapPenalty = args.bareSwapPenalty;
-    config.genConfig.controlFlowBias = args.controlFlowBias;
     config.genConfig.compositeBias = args.compositeBias;
-    config.genConfig.exprMutationRate = args.exprMutationRate;
     config.genConfig.pruneGeneration = args.pruneGeneration;
     config.genConfig.roleTypedVars = args.roleTypedVars;
     config.genConfig.combinatorBias = args.combinatorBias;

@@ -97,26 +97,6 @@ struct SearchConfig {
     // top-K-by-score, same as always).
     double shapeNicheRate = 0.0;
 
-    // Simulated-annealing walker temperature (0.0 = disabled). Maintains
-    // one persistent solution, mutated locally each round via
-    // growProgram, and accepted as the new state -- even when it scores
-    // WORSE -- with Boltzmann probability exp(fitnessDelta/temperature),
-    // where fitnessDelta is normalized by instance count so the same
-    // temperature value is roughly comparable across problems of
-    // different instance-set sizes. Temperature cools linearly across the
-    // program-size sweep (this value at size=1, down to a small floor
-    // near maxProgramSize), same idea as real annealing schedules. Unlike
-    // diversityRate (fresh random restarts, unrelated to current
-    // progress) or shapeNicheRate (never accepts a worse candidate), this
-    // is a genuine controlled downhill walk that can cross a fitness
-    // valley to escape a local optimum a pure-elitist beam can never
-    // leave once it's fully converged onto one family. The walker's
-    // current candidate is injected into the same scored pool every
-    // round, so the elitist beam can adopt it the moment it becomes
-    // competitive. 0.0 (default) disables it and reproduces prior
-    // behavior exactly.
-    double annealingTemperature = 0.0;
-
     // Behavior-niche elitism: reserves `behaviorNicheRate * beamWidth`
     // beam slots for the best candidate of each distinct BEHAVIOR
     // signature -- which exact instances it gets right, not what its code
@@ -136,33 +116,6 @@ struct SearchConfig {
     // decision-relevant signal. 0.0 (default) disables it and reproduces
     // prior behavior exactly.
     double behaviorNicheRate = 0.0;
-
-    // Score-band niching: reserves `scoreBandRate * beamWidth` beam slots
-    // for the best candidate of each distinct SCORE BAND (score bucketed
-    // into kScoreBands deciles of the instance count), scanning the
-    // ranking downward so each band contributes its own best member.
-    //
-    // Motivated by a direct measurement, not a hypothesis. Probing the
-    // mod problem's true solution (v1=arr[0]; v2=arr[1];
-    // while (v1 > v2-1) { v1 = v1-v2; } arr[0]=v1) showed it scores
-    // 100/100 while EVERY program one mutation away from it scores <= 73
-    // -- and the plateau the search reaches unaided is 79. The correct
-    // answer therefore sits on an isolated peak whose entire
-    // neighbourhood is strictly below the incumbent, so a purely elitist
-    // beam culls exactly the 72-73 candidates that are a single mutation
-    // from 100. Several of those neighbours differ from the solution by
-    // one variable index, so the final step is genuinely reachable -- the
-    // search just never gets to keep a program standing on it.
-    //
-    // The four mechanisms already tried (diversityRate, shapeNicheRate,
-    // behaviorNicheRate, annealingTemperature) all diversify within the
-    // top score tier, which is why they failed identically here: none of
-    // them preserves a lineage whose score is well below the best. This
-    // one deliberately does, and is still problem-agnostic -- it knows
-    // nothing about any specific problem, it only refuses to discard
-    // fitness diversity. 0.0 (default) disables it and reproduces prior
-    // behavior exactly.
-    double scoreBandRate = 0.0;
 
     // Speed-aware fitness tie-break (data/skeleton_middle_ground_experiments.md,
     // "Tests 2 and 4" follow-up hypothesis): `score` (exact-correctness

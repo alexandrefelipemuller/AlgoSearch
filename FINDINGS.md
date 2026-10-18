@@ -9767,3 +9767,25 @@ commit before this cleanup is the tag `pre-cleanup`, on which they run
 unchanged, so sections 47-117 remain reproducible with
 `git checkout pre-cleanup`. Check: same seed, same flags, `max_subarray_sum`,
 output md5 identical before and after; `make test` 241/241.
+
+## 125b. Cleanup, group 2: six dead levers removed (and a correction to the proposal)
+
+The proposal listed 13 selection and generation levers as dead. A usage check
+before deleting showed that five of them are NOT: `--diversity-rate`,
+`--crossover-rate`, `--shape-niche-rate`, `--behavior-niche-rate` and
+`--speed-bonus-weight` are the diversity configuration of every long run
+since section 92 (`run_profile_ban_ab.sh` still passes them), and
+`--prune-generation` and `--role-typed-vars` each have an A/B of their own
+whose outcome I did not re-read. They stay.
+
+Removed (no script outside the early experiments, no adoption in
+FINDINGS.md): `--annealing-temperature` (walker, pool, acceptance and stall
+reset in `BeamSearch`), `--score-band-rate` (niching pass),
+`--index-increment-bias`, `--bare-swap-penalty` (the swap draw is now a
+fixed 0.5), `--control-flow-bias` and `--expr-mutation-rate` (generator and
+mutation), plus the `index_increment_bias` test. Scripts that passed them moved
+to `scripts/archive/`; `pre-cleanup2` is the tag before this change. All six
+were `rng.chance()`-guarded at 0, so the default random stream is untouched:
+three runs (max_subarray_sum; sorting with the five diversity flags and
+`--post-solve-sizes`, `--composite-bias`; contains with `--restart-on-stall`)
+give identical output on both binaries. `make test` 240/240.

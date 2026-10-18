@@ -46,62 +46,6 @@ struct GenConfig {
     // the original unbiased generator.
     double loopAccumulatorBias = 0.4;
 
-    // Structural prior, layer 2 (independent of loopAccumulatorBias):
-    // targets the two specific patterns the forensic AST analysis flagged
-    // as discriminating generalizers from non-generalizers on their own,
-    // rather than only via the fixed counting-loop template.
-    //
-    // When generating a generic assignment INSIDE a while body, with this
-    // probability emit the self-increment idiom `v = v + 1` for a random
-    // variable instead of a fully random expression -- every generalizing
-    // min/max/sum program found so far contained this idiom (94.5%
-    // overall, 100% for min/max/sum specifically; see
-    // data/structural_features.csv), so nudging the *generic* generator
-    // (not just the dedicated loop template) to produce it more often is
-    // a direct test of whether that correlation is causal.
-    //
-    // Default stays 0.0 (opt-in): an A/B test at 0.3 (+ bareSwapPenalty
-    // 0.3, on top of loopAccumulatorBias=0.4) moved combined
-    // generalization only 17/20 -> 18/20 with mixed per-problem effects
-    // (contains clearly better and faster; max/sum slower), and a
-    // follow-up falsification test (this alone, loopAccumulatorBias=0.0,
-    // strength up to 0.9) never rescued MinArrayProblem on its own --
-    // flat 0/5 at every strength. The idiom alone isn't causally
-    // sufficient; it has to co-occur with correct init and bound
-    // generation, which is exactly what loopAccumulatorBias's atomic
-    // template provides and this marginal per-statement nudge doesn't.
-    // See data/prior_ab/ and data/falsification2/. Left available for
-    // further experimentation, not promoted to a default.
-    double indexIncrementBias = 0.0;
-
-    // Reduces (never eliminates -- a prior should shrink probability, not
-    // remove expressiveness) the chance of generating a swap OUTSIDE an
-    // if's body, i.e. one not immediately guarded by a comparison.
-    // Non-generalizers used swap almost twice as often as generalizers
-    // (0.74 vs 0.39 mean occurrences) -- this tests whether that's because
-    // ungated/unconditional swaps are a marker of unstructured search, not
-    // whether swap itself is bad (a guarded compare-and-swap is exactly
-    // what sorting needs, and stays at its original probability). Applied
-    // as `effective swap chance = 0.5 - bareSwapPenalty` when not directly
-    // inside an if; capped so at least a 0.05 residual chance remains.
-    double bareSwapPenalty = 0.0;
-
-    // Opt-in (0.0 = off, reproduces today's behavior exactly): probability,
-    // when generating a GENERIC statement (not a dedicated skeleton) INSIDE
-    // a while loop's body, of emitting `continue` or `break` instead. This
-    // is Mini-C's missing early-exit primitive -- see
-    // data/skeleton_middle_ground_experiments.md Test 4: every exact
-    // branch-and-bound-style pruning algorithm needs a way to abandon the
-    // rest of a loop iteration (or the loop itself) early, and until now
-    // nothing in the grammar could express that at all, no matter how
-    // biased generation got. Only ever emitted inside a while body (the
-    // generator threads `insideLoop` through genStmt to enforce this), so
-    // it can never appear as a structurally invalid orphan statement.
-    // Split 70/30 continue/break when it fires: continue (skip to the next
-    // candidate) is the shape branch-and-bound-style pruning actually
-    // needs; break is included for completeness/symmetry at a lower rate.
-    double controlFlowBias = 0.0;
-
     // Moção 2 (Etapa 3): composite-primitives operator, opt-in (0.0 = off,
     // reproduces today's behavior exactly). Probability, at a generic
     // statement slot with 2 free loop slots, of emitting a two-loop block
@@ -118,23 +62,6 @@ struct GenConfig {
     // `substring`; Test B (`lis`) must stay out of reach by construction.
     double compositeBias = 0.0;
 
-    // Opt-in (0.0 = off, reproduces today's behavior exactly): probability
-    // that growProgram, on top of its existing whole-STATEMENT point
-    // mutation (which replaces an entire if/while -- condition, body, AND
-    // else-body -- with a freshly generated one), also tries a finer-
-    // grained EXPRESSION-level mutation: pick one existing if/while
-    // somewhere in the tree and regenerate ONLY its condition, leaving its
-    // body/else-body completely untouched. See
-    // data/skeleton_middle_ground_experiments.md Test 3: a real gap found
-    // while investigating why the branch-and-bound "hole" experiment never
-    // refined a vacuous guard into a real one after its first random
-    // draw -- the only existing mutation that could touch a guard replaces
-    // the WHOLE enclosing if, destroying whatever correct logic lives
-    // inside its body, so any such mutation is almost always fatal to a
-    // candidate's score and never survives selection. This gives the
-    // search a way to tweak a comparison in place without also blowing
-    // away everything nested under it.
-    double exprMutationRate = 0.0;
     // Section 115: a local step on one if/while comparison -- swap only its
     // comparator, or move one operand to a neighbour (constant +-1, another
     // variable, x <-> x / 2) -- so a nearly-right guard has a path to the
@@ -326,8 +253,8 @@ struct GenConfig {
     // adaptive-bias experiment section once run.
     double adaptiveSkeletonBiasRate = 0.0;
     // Floor: never let the adapted bias reach exactly 0 -- a prior should
-    // shrink probability, not remove expressiveness (same principle as
-    // bareSwapPenalty's residual floor).
+    // shrink probability, not remove expressiveness (a prior should
+    // shrink probability, not remove expressiveness).
     double adaptiveSkeletonBiasMin = 0.05;
     // Ceiling: avoid the beam collapsing onto skeleton-only generation.
     double adaptiveSkeletonBiasMax = 0.8;

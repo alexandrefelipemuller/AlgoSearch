@@ -1147,11 +1147,6 @@ StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
-StmtPtr genIndexIncrementStmt(Random& rng, const GenConfig& cfg) {
-    int v = rng.uniformInt(0, cfg.numVars - 1);
-    return makeAssign(v, makeBinOp(ExprKind::Add, makeVar(v), makeIntConst(1)));
-}
-
 // Moção 2 (Etapa 3) v1: a two-loop block assembled from section 24's
 // catalogued primitives under ONE shared binding context (see
 // GenConfig::compositeBias). Unlike every named skeleton above -- each a
@@ -2532,14 +2527,6 @@ StmtPtr genPlainSwap(Random& rng, const GenConfig& cfg) {
 
 StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUsed, bool insideIf = false,
                 bool insideWhile = false) {
-    // Control-flow extension (see GenConfig::controlFlowBias): only valid,
-    // and only ever emitted, directly inside a while loop's reach (its own
-    // body or an if nested inside it) -- checked first, before anything
-    // else gets a chance to consume this statement slot, same early-out
-    // style as the small always-on arithmetic-op substitution below.
-    if (insideWhile && cfg.controlFlowBias > 0.0 && rng.chance(cfg.controlFlowBias)) {
-        return rng.chance(0.7) ? makeContinue() : makeBreak();
-    }
     // Weighted choice among available statement kinds.
     bool canNest = depthBudget > 0;
     bool canLoop = canNest && loopsUsed < cfg.maxLoops;
@@ -2817,9 +2804,8 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
     // Recursion extension (see GenConfig::recursionCallBias): checked before
     // the ordinary statement-kind choice below so a Call can appear
     // anywhere a generic statement can (top level or nested in if/while),
-    // same pattern as indexIncrementBias/controlFlowBias overriding the
-    // plain-assignment cases. Off by default (0.0), so this never fires
-    // for any existing problem.
+    // same "never breaks, just inert" pattern as the other opt-in biases.
+    // Off by default (0.0), so this never fires for any existing problem.
     if (cfg.recursionCallBias > 0.0 && cfg.numVars >= 3 && rng.chance(cfg.recursionCallBias)) {
         return makeCall(genValueExpr(rng, cfg.maxExprDepth, cfg), genValueExpr(rng, cfg.maxExprDepth, cfg));
     }
@@ -2829,13 +2815,9 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
 
     switch (choice) {
         case 0:
-            if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
-                return genIndexIncrementStmt(rng, cfg);
-            }
             return genPlainAssign(rng, cfg);
         case 1: {
-            double swapChance = insideIf ? 0.5 : std::max(0.05, 0.5 - cfg.bareSwapPenalty);
-            if (!rng.chance(swapChance)) {
+            if (!rng.chance(0.5)) {
                 if (cfg.secondArrayBias > 0.0 && rng.chance(cfg.secondArrayBias)) {
                     return genPlainArrayAssign(rng, cfg, /*aux=*/true);
                 }
@@ -2845,12 +2827,7 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         }
         case 2: {
             // insideWhile is threaded through (not hard-reset to false) so
-            // an if directly inside a loop still counts as "inside the
-            // loop" for controlFlowBias -- `if (cond) continue;` is the
-            // shape pruning actually needs, not a bare unconditional
-            // continue as a loop's own top-level statement. Existing
-            // indexIncrementBias (also insideWhile-gated) is unaffected by
-            // default since both stay off (0.0) unless explicitly enabled.
+            // an if directly inside a loop still counts as "inside the loop".
             auto thenBody = genBlockStmts(rng, depthBudget - 1, cfg, loopsUsed, cfg.maxStatementsPerBlock, /*insideIf=*/true,
                                            insideWhile);
             std::vector<StmtPtr> elseBody;
@@ -2860,9 +2837,6 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             return makeIf(genStmtCondExpr(rng, cfg), std::move(thenBody), std::move(elseBody));
         }
         case 3:
-            if (insideWhile && cfg.indexIncrementBias > 0.0 && rng.chance(cfg.indexIncrementBias)) {
-                return genIndexIncrementStmt(rng, cfg);
-            }
             return genPlainAssign(rng, cfg);
         case 4: {
             loopsUsed++;
@@ -2946,8 +2920,8 @@ void collectBlocks(Stmt& s, std::vector<BlockTarget>& out) {
 }
 
 // Collects mutable pointers to every if/while node in the tree, for
-// GenConfig::exprMutationRate -- fine-grained mutation targets whose
-// `cond` can be regenerated in place without touching `body`/`elseBody`.
+// the local comparison mutation -- targets whose `cond` can be changed in
+// place without touching `body`/`elseBody`.
 void collectCondSites(Stmt& s, std::vector<Stmt*>& out) {
     if (s.kind == StmtKind::If || s.kind == StmtKind::While) out.push_back(&s);
     for (auto& c : s.body) collectCondSites(*c, out);
@@ -3106,20 +3080,6 @@ Program growProgram(const Stmt& seed, int targetSize, Random& rng, const GenConf
         }
     }
 
-    // Fine-grained expression-level point mutation (see
-    // GenConfig::exprMutationRate): regenerate ONE existing if/while's
-    // condition in place, leaving its body/else-body untouched. Unlike
-    // the whole-statement mutation above, this can tweak a comparison
-    // (e.g. a pruning guard) without destroying whatever correct logic is
-    // nested inside it.
-    if (cfg.exprMutationRate > 0.0 && rng.chance(cfg.exprMutationRate)) {
-        std::vector<Stmt*> condSites;
-        collectCondSites(*root, condSites);
-        if (!condSites.empty()) {
-            Stmt* target = condSites[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(condSites.size()) - 1))];
-            target->cond = genStmtCondExpr(rng, cfg);
-        }
-    }
     if (cfg.localCondMutationRate > 0.0 && rng.chance(cfg.localCondMutationRate)) {
         std::vector<Stmt*> sites, compares;
         collectCondSites(*root, sites);
