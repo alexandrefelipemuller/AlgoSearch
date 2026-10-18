@@ -9217,3 +9217,37 @@ the loop's profile from the race once it is archived. Verdict by text: a
 SUCCESS record (adversarial all passed) that contains `call(` and no `while`.
 Predictions 1-3 stand with "verified recursive reduction" read that way, and
 arm shell_noloop is the pure reachability test (loop pieces off).
+
+## 119 (results). The shell never produces a recursive reduction: prediction 1 falsified
+
+Data: `data/dc_shell_ab_20261017/` (round 1, valid only for single_number and
+contains) and `data/dc_shell_ab_sl2_20261017/` (round 2, `--start-level 2`,
+sum/min/max). 10 matched seeds (3001-3010), arms ctrl / shell / shell_noloop.
+Criterion: SUCCESS, adversarial all passed, program contains `call(` and no
+`while`.
+
+| problem (round) | ctrl solved | shell solved | shell_noloop solved | recursive reductions (all arms) |
+|---|---|---|---|---|
+| sum (2) | 10 | 10 | 0 (1 UNCONFIRMED record seen) | 0 |
+| min (2) | 10 | 10 | 10 | 0 |
+| max (2) | 10 | 10 | 9 | 0 |
+| single_number (1) | 10 | 10 | 10 | 0 |
+| contains (1) | 10 | 9 | 0 | 0 |
+
+**Prediction 1 (recursive sum in >= 3/10 seeds): falsified, 0/10.** Prediction
+2 is vacuous (0 vs 0). Prediction 3 (no loss beyond -3/10): held on solved
+counts, but the shell_noloop arm shows the cost of removing the loop: sum 0/10
+and contains 0/10 against 10/10 for control.
+
+The `call(` that appears in solved min/max programs is the merge-sort skeleton
+and its swap tail, present in the control too; none is a reduction. The
+shell-shaped code shows up only as dead code or inside sorting-based solutions.
+
+**Decision.** By the rule fixed above, `--dc-shell` stays opt-in and is not
+promoted: it adds no family where control had none. With the loop gone
+(shell_noloop) the search finds no recursive sum at all, so the failure is
+reachability of the combine, not competition from the loop.
+
+**Next lever (registered in the falsification clause).** Draw the combine
+from the combinator's two-operand relations instead of random statements.
+Idea 2 (open-specification problems) starts only after this is reported.
