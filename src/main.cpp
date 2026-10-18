@@ -264,44 +264,27 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--combinator-bias") args.combinatorBias = std::stod(next("--combinator-bias"));
         else if (arg == "--combinator-adjacent") args.combinatorAdjacent = true;  // now the default; kept so section 40's scripts still run
         else if (arg == "--combinator-v1") args.combinatorAdjacent = false;
-        else if (arg == "--combinator-step") args.combinatorStep = true;  // now the default; kept so section 52's scripts still run
         else if (arg == "--no-combinator-step") args.combinatorStep = false;
-        else if (arg == "--combinator-state") args.combinatorState = true;  // now the default; kept so sections 55-61 scripts still run
         else if (arg == "--no-combinator-state") args.combinatorState = false;
-        else if (arg == "--combinator-nested") args.combinatorNested = true;  // now the default; kept so section 71 scripts still run
         else if (arg == "--no-combinator-nested") args.combinatorNested = false;
         else if (arg == "--nested-canonical-tests") args.nestedCanonicalTests = true;
-        else if (arg == "--combinator-frequency") args.combinatorFrequency = true;  // now the default; kept so section 75-76 scripts still run
         else if (arg == "--no-combinator-frequency") args.combinatorFrequency = false;
         else if (arg == "--combinator-follow") args.combinatorFollow = true, args.followPointerInputsOnly = false;  // ungated (section 77)
-        else if (arg == "--follow-pointer-inputs") args.combinatorFollow = args.followPointerInputsOnly = true;  // now the default
         else if (arg == "--no-follow-pointer-inputs") args.combinatorFollow = args.followPointerInputsOnly = false;
-        else if (arg == "--combinator-orthogonal") args.combinatorOrthogonal = true;  // now the default; kept so section 80 scripts still run
         else if (arg == "--no-combinator-orthogonal") args.combinatorOrthogonal = false;
-        else if (arg == "--combinator-argbest") args.combinatorArgBest = true;  // now the default; kept so section 82-84 scripts still run
         else if (arg == "--no-combinator-argbest") args.combinatorArgBest = false;
-        else if (arg == "--combinator-distinct") args.combinatorDistinct = true;  // now the default; kept so section 87 scripts still run
         else if (arg == "--no-combinator-distinct") args.combinatorDistinct = false;
         else if (arg == "--regression-guard") args.regressionGuard = std::stoi(next("--regression-guard"));
-        else if (arg == "--follow-extended") args.followExtended = true;  // now the default
         else if (arg == "--no-follow-extended") args.followExtended = false;
-        else if (arg == "--scalar-loop") args.scalarLoop = true;  // now the default; kept so section 100 scripts still run
         else if (arg == "--no-scalar-loop") args.scalarLoop = false;
-        else if (arg == "--scalar-loop-index-range") args.scalarLoopIndexRange = true;
         else if (arg == "--no-scalar-loop-index-range") args.scalarLoopIndexRange = false;
         else if (arg == "--nested-place") args.nestedPlace = true;
         else if (arg == "--nested-place-option") args.nestedPlaceOption = true;
-        else if (arg == "--combinator-triple") args.combinatorTriple = true;
         else if (arg == "--no-combinator-triple") args.combinatorTriple = false;
-        else if (arg == "--combinator-relax") args.combinatorRelax = true;
         else if (arg == "--no-combinator-relax") args.combinatorRelax = false;
-        else if (arg == "--combinator-grid") args.combinatorGrid = true;
         else if (arg == "--no-combinator-grid") args.combinatorGrid = false;
-        else if (arg == "--combinator-transform") args.combinatorTransform = true;
         else if (arg == "--no-combinator-transform") args.combinatorTransform = false;
-        else if (arg == "--distinct-aggregate") args.distinctAggregate = true;
         else if (arg == "--no-distinct-aggregate") args.distinctAggregate = false;
-        else if (arg == "--arg-sentinel") args.argSentinel = true;
         else if (arg == "--no-arg-sentinel") args.argSentinel = false;
         else if (arg == "--first-index") args.firstIndex = true;
         else if (arg == "--no-first-index") args.firstIndex = false;

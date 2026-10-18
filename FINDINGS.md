@@ -9753,3 +9753,17 @@ contains_ascending, was already 10/10). It stays opt-in
 --dc-shell-search-end 0.3`) with this honest summary: no cost on the 73, and
 on three interval-search specifications the reported solution becomes an
 O(log n) program. Steps 1-3 are done.
+
+## 125. Cleanup, group 1: redundant positive flags removed
+
+Seventeen CLI flags that only set to `true` what has been the default since
+sections 53-113 are gone (`--combinator-state/-nested/-frequency/-orthogonal/
+-argbest/-distinct/-relax/-triple/-grid/-transform/-step`, `--follow-extended`,
+`--follow-pointer-inputs`, `--distinct-aggregate`, `--arg-sentinel`,
+`--scalar-loop`, `--scalar-loop-index-range`). Every `--no-...` form stays for
+ablations; `--combinator-follow` stays (it also lifts the pointer-inputs gate).
+The 34 scripts that passed one of them moved to `scripts/archive/`; the
+commit before this cleanup is the tag `pre-cleanup`, on which they run
+unchanged, so sections 47-117 remain reproducible with
+`git checkout pre-cleanup`. Check: same seed, same flags, `max_subarray_sum`,
+output md5 identical before and after; `make test` 241/241.
