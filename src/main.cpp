@@ -64,6 +64,7 @@
 #include "problems/AnyPeakProblem.hpp"
 #include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
+#include "problems/RotatedMinProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "problems/EquilibriumPointProblem.hpp"
 #include "problems/LongestIncreasingRunEndProblem.hpp"
@@ -193,6 +194,7 @@ struct CliArgs {
     double dcShellBias = 0.0;  // section 119
     double dcShellSearchBias = 0.0;  // section 121
     double dcShellSearchKey = 0.0;  // section 121c
+    double dcShellSearchEnd = 0.0;  // section 123
     std::string adaptiveBiasLog;
     std::string output = "solutions.json";
     std::string checkpointPath;
@@ -309,6 +311,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
         else if (arg == "--dc-shell") args.dcShellBias = std::stod(next("--dc-shell"));
         else if (arg == "--dc-shell-search") args.dcShellSearchBias = std::stod(next("--dc-shell-search"));
+        else if (arg == "--dc-shell-search-end") args.dcShellSearchEnd = std::stod(next("--dc-shell-search-end"));
         else if (arg == "--dc-shell-search-key") args.dcShellSearchKey = std::stod(next("--dc-shell-search-key"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
@@ -333,14 +336,14 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|peak_element|search_rotated|equilibrium_point|first_greater_than_first|second_index_of_key|count_balance_points|first_split_two_to_one|triple_frequency_values|any_peak|any_duplicate|any_valley|contains_ascending --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|peak_element|search_rotated|equilibrium_point|first_greater_than_first|second_index_of_key|count_balance_points|first_split_two_to_one|triple_frequency_values|any_peak|any_duplicate|any_valley|contains_ascending|rotated_min --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
-                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] "
+                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
@@ -400,6 +403,7 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "max") return std::make_unique<MaxArrayProblem>(6, 40, numVars, seed);
     if (name == "sum") return std::make_unique<SumArrayProblem>(6, 40, numVars, seed);
     if (name == "contains") return std::make_unique<ContainsProblem>(6, 40, numVars, seed);
+    if (name == "rotated_min") return std::make_unique<RotatedMinProblem>(numVars, seed);
     if (name == "contains_ascending") return std::make_unique<ContainsAscendingProblem>(6, 40, numVars, seed);
     if (name == "contains_ordered") return std::make_unique<ContainsOrderedProblem>(6, 40, numVars, seed);
     if (name == "is_prime") return std::make_unique<IsPrimeProblem>(30, 40, numVars, seed);
@@ -596,6 +600,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.dcShellBias = args.dcShellBias;
         config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
+    config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;
 
         std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
         BeamSearch search(*problem, config);
@@ -1254,6 +1259,7 @@ int main(int argc, char** argv) {
     config.genConfig.dcShellBias = args.dcShellBias;
     config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
+    config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
     config.checkpointPath = args.checkpointPath;
     config.restartOnStall = args.restartOnStall;

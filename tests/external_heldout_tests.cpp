@@ -11,6 +11,7 @@
 #include "problems/ContainsAscendingProblem.hpp"
 #include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
+#include "problems/RotatedMinProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "test_framework.hpp"
 
@@ -160,4 +161,17 @@ TEST(section_122_contains_ordered_adversarial_covers_one_element_haystacks) {
     }
     CHECK(singleAbsent);
     CHECK(singlePresent);
+}
+
+TEST(section_123_rotated_min_instances_are_rotations_with_distinct_values) {
+    RotatedMinProblem p;
+    for (int level = 1; level <= 6; ++level) {
+        for (const auto& inst : p.generateInstances(level)) {
+            std::vector<int> sorted = inst.input;
+            std::sort(sorted.begin(), sorted.end());
+            CHECK(std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end());
+            CHECK_EQ(inst.expectedOutput[0], sorted.front());
+        }
+    }
+    CHECK(!p.generateAdversarialInstances(4).empty());
 }

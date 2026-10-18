@@ -325,3 +325,22 @@ TEST(dc_shell_search_key_mode_compares_with_the_key_and_ends_in_a_membership_fla
     }
     CHECK(keyShells >= 5);
 }
+
+TEST(dc_shell_search_end_mode_compares_with_the_interval_end_and_writes_a_value) {
+    GenConfig cfg;
+    cfg.numVars = 7;
+    cfg.maxLoops = 2;
+    cfg.maxBlockDepth = 3;
+    cfg.maxStatementsPerBlock = 3;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.recursionCallBias = 0.1;
+    cfg.dcShellSearchBias = 1.0;
+    cfg.dcShellSearchEnd = 1.0;
+    Random rng(11);
+    int endShells = 0;
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+        if (text.find("arr[(v2 - 1)])") != std::string::npos && text.find("arr[0] = arr[") != std::string::npos) endShells++;
+    }
+    CHECK(endShells >= 5);
+}

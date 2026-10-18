@@ -14,6 +14,7 @@ done; done | xargs -P "$JOBS" -L1 sh -c '
     base) extra="" ;;
     search) extra="--dc-shell-search 0.15" ;;
     search_noloop) extra="--dc-shell-search 0.15 --no-scalar-loop --combinator-bias 0" ;;
+    searchend) extra="--dc-shell-search 0.15 --dc-shell-search-end 0.5" ;;
     searchkey) extra="--dc-shell-search 0.15 --dc-shell-search-key 0.5" ;;
   esac
   mkdir -p '"$D"'/$arm

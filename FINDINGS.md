@@ -9602,3 +9602,41 @@ outside-verified (400 inputs) = the same five; programs the engine accepts
 and the outside check rejects: **0** (121c: 3 seeds). The trajectory was
 identical, as predicted. The three variants are rejected by the every-size
 adversarial set. Step 1 done; the correct count for 121c is 5 of 10.
+
+## 123. Step 2 of 3: a third search shape, the minimum of a rotated sorted array -- design registered before running
+
+Why this problem: it is the Tutorialspoint "Easy" list item skipped in section 114
+(on rotated input it is not the existing `min`: a halving search applies and
+costs O(log n)). The comparison is neither a neighbour (any_peak) nor the key
+(contains_ascending): it is arr[mid] against the interval's last cell
+arr[hi - 1], and the answer is a value, not an index or a flag.
+
+New problem `rotated_min`: every instance is a rotation of a strictly
+increasing sequence (distinct values), output[0] = the minimum; adversarial
+set: every size 1..level, negatives, scaled and uneven gaps, `make test` 241/241.
+New opt-in `--dc-shell-search-end P`: a share P of the one-call shells (those
+not in key mode) compares arr[mid] OP arr[hi - 1] and ends with
+`arr[0] = arr[X]`, X in {v1, v2 - 1}; operator, offsets and X stay random. A
+correct assembly: op `>`, right half [mid + 1, hi), left half [lo, mid + 1),
+X = v1. Same caveat as 121c, now stronger: three modes mean the piece carries
+a menu {neighbour, key, end} x {index, flag, value} chosen to match the
+problems it is tested on. A hit says the search assembles the remaining
+choices, not that it found the comparison.
+
+**Protocol**: rotated_min, seeds 59000-59009, settings of 121,
+`--start-level 2`, arms base and searchend (`--dc-shell-search 0.15
+--dc-shell-search-end 0.5`). Hit = engine SUCCESS, adversarial all passed,
+`call(` and no `while`, AND correct on 400 outside rotated arrays (sizes 1-256,
+negatives, uneven gaps), AND step exponent < 0.5 (n = 32 -> 1024).
+
+**Predictions.**
+1. searchend: >= 1 verified hit of 10 (about even odds: 1 of 32 end-mode
+   draws is right); base: 0 hits (linear min scans solve it, no `call`).
+2. base is solved in >= 8/10 by linear scans, so the shell is not needed for
+   correctness, only for the exponent.
+3. searchend does not lose more than 1 of 10 solved versus base.
+
+**Decision rule.** A hit means the one-call piece has assembled binary-search
+shapes on three different specifications (neighbour, key, end). 0 hits would
+say the piece is tuned to the first two and the claim stays at two problems.
+Either way, step 3 (battery A/B with the piece on) follows.
