@@ -10,7 +10,7 @@ round while the program is grown one node at a time.
 
 The interesting part isn't "beam search finds programs" — it's the
 experimental record of *why* it does or doesn't, kept in
-[`FINDINGS.md`](FINDINGS.md). Read that file before touching `src/search/`
+[`FINDINGS.md`](FINDINGS.md) (summary; the full log is in `docs/findings/`). Read the summary before touching `src/search/`
 or `src/language/` — it documents which levers (population diversity,
 grammar bias, native operators) actually mattered and which didn't, with
 pointers to the raw data backing each claim.

@@ -2,8 +2,10 @@
 
 AlgoSearch is a C++20 program-synthesis framework: beam search over a small imperative
 AST language ("Mini-C"), with no machine learning. `README.md` explains *how* it works;
-`FINDINGS.md` records *why* it does or doesn't. Read `FINDINGS.md` before changing
-`src/search/` or `src/language/`.
+`FINDINGS.md` is a short summary of *why* it does or doesn't (defaults, closed negatives,
+lessons); read it before changing `src/search/` or `src/language/`. The full log is in
+`docs/findings/` (11 chunks plus `INDEX.md`): open a chunk only for the section the
+summary points to, never the whole log.
 
 ## Project Structure & Module Organization
 
@@ -54,4 +56,4 @@ branch-and-bound skeletons`). Keep subjects under ~72 characters; put detail in 
 PRs should describe the change, link related `FINDINGS.md` sections, and report the exact
 command plus seed/budget used to reproduce any claimed result. Include test output and, for
 search-behavior claims, the raw `data/` run rather than a summary. Update `README.md` and
-append to `FINDINGS.md` when adding problems, grammar primitives, or skeletons.
+append to the last chunk in `docs/findings/` (and add one line to `FINDINGS.md`) when adding problems, grammar primitives, or skeletons.
