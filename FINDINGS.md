@@ -9593,3 +9593,12 @@ differ. Protocol: rerun arm searchkey on contains_ascending, same seeds
 2. If the trajectory is not identical (non-determinism in threads), the
    engine hit count equals the outside-check count in the new run, whatever it is.
 Falsified if the engine still accepts a program the outside check rejects.
+
+## 122 (results). Prediction held: the engine now agrees with the outside check
+
+`data/dc_search_ab_casc2_20261018/` (arm searchkey, contains_ascending, seeds
+59000-59009): engine-verified hit seeds = 59001, 59002, 59003, 59006, 59007;
+outside-verified (400 inputs) = the same five; programs the engine accepts
+and the outside check rejects: **0** (121c: 3 seeds). The trajectory was
+identical, as predicted. The three variants are rejected by the every-size
+adversarial set. Step 1 done; the correct count for 121c is 5 of 10.
