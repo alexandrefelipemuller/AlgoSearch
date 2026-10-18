@@ -9640,3 +9640,31 @@ negatives, uneven gaps), AND step exponent < 0.5 (n = 32 -> 1024).
 shapes on three different specifications (neighbour, key, end). 0 hits would
 say the piece is tuned to the first two and the claim stays at two problems.
 Either way, step 3 (battery A/B with the piece on) follows.
+
+## 123 (results). Negative: no hit on rotated_min; the claim stays at two specifications
+
+`data/dc_search_ab_rmin_20261018/` (rotated_min, seeds 59000-59009,
+`--start-level 2`, arms base and searchend).
+
+| arm | engine-verified (SUCCESS + adversarial) | verified hits (`call(`, no `while`, correct on 400 outside rotations, exponent < 0.5) | records containing the end-shell |
+|---|---|---|---|
+| base | 3/10 | 0 | 0 |
+| searchend (`--dc-shell-search-end 0.5`) | 2/10 | 0 | 0 |
+
+**Prediction 1 (>= 1 verified hit): falsified.** **Prediction 2 (base solved in
+>= 8/10): falsified** (3/10). **Prediction 3 (no loss beyond -1): held** (2 against 3).
+No archived program of any seed contains the end-shell at all: the shell was
+drawn, but no candidate with it survived to a solution, so this is a
+reachability negative, not a wrong-answer one.
+
+What the data shows about why base is so low (observed, not tested): the
+SUCCESS records in base are the merge-sort skeleton (sorting puts the minimum
+at arr[0]) and 7 further records have >= 5 confirmed levels but fail the
+adversarial set; the 7 seeds without a SUCCESS record sit at LEVEL 2 for
+90-150 size rounds. A linear min scan, the obvious solution, is not what the
+search reaches on these instances. I did not diagnose this further.
+
+**Decision.** Per the rule of section 123, the piece is tuned to the first two
+specifications (neighbour, key) and the claim stays at two problems, with the
+three-mode menu as the stated caveat. Step 3 (battery A/B with the piece on)
+follows, run on the existing joint-battery problems.
