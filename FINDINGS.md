@@ -9511,3 +9511,58 @@ on an ascending array of n = 32..1024.
 the neighbour comparison, makes the piece a candidate for promotion as the
 generic interval-search piece, reported with the caveat above. 0 hits closes
 the interval-shell line as a peak-search piece.
+
+## 121c (results). Key mode assembles an O(log n) membership search in 5 of 10 seeds (8 by the engine's check)
+
+`data/dc_search_ab_casc_20261018/`, `data/dc_search_ab_cord2_20261018/`
+(`ARMS` runner, seeds 59000-59009). Hit exponent measured on an ascending
+array, n = 32 -> 1024, key at the end.
+
+| problem | arm | engine-verified | seeds with a `call(`, no-`while` program | of those, fully correct outside the engine |
+|---|---|---|---|---|
+| contains_ascending | base | 6/10 | 0 | -- |
+| contains_ascending | search (key share 0) | **2/10** | 0 | -- |
+| contains_ascending | searchkey | 8/10 | **8** | **5** |
+| contains_ordered | base | 0/10 | 0 | -- |
+| contains_ordered | searchkey | 0/10 | 0 | -- |
+
+Smallest program (size 40, fully correct in 5 seeds: 59001-59003, 59006, 59007; exponent 0.19):
+
+    if ((v2 - v1) > 1) { if (v1 < 1) v1 = 1;
+        v3 = v1 + (v2 - v1)/2;
+        if (arr[v3] <= arr[0]) call(v3, v2); else call(v1, v3); }
+    else arr[0] = (arr[v1] == arr[0]);
+
+It is the correct assembly named in the registration (op `<=`, right half
+[mid, hi), left half [lo, mid), base arr[lo]).
+
+**Outside check** (400 ascending inputs, n up to 256, key present and absent,
+duplicates, negatives): the 3 other seeds (59004, 59008, 59009) return a size-42
+variant with base `arr[v2 - 1]` that is wrong on 13 of 400 inputs although it
+passed the engine's adversarial set and every confirmed level. So the engine
+count (8) overstates the verified count (5): a generalization gap of the
+checker, same family as section 38's `cycle` false positive. That is a
+finding in itself: a halving search needs boundary-key instances (key below
+the minimum, above the maximum, at both ends) in the adversarial set.
+
+**Prediction 1 (>= 1 hit in searchkey, 0 in base/search): held** (8 by the engine,
+5 verified outside). **Prediction 2 (contains_ordered 0): held** (0 solved in both
+arms, as the missing direction test implies). **Prediction 3 (searchkey not worse
+than base by more than 1): held** (8 against 6), but the `search` arm without
+key mode solved only **2 against 6**: shells that cannot express the problem
+cost budget there, a loss that the merge policy would have to weigh.
+
+**Reading.** The same shell, with the comparison operand and base-case type
+drawn at random, finds a known O(log n) algorithm on a second problem with a
+different search shape (against a key, not a neighbour). The caveat registered
+before the run stands in full: the key, the clamp and the flag are in the
+piece. The honest sentence: "a small generic interval-halving piece with random
+operator, offsets and base index lets the search assemble binary search for two
+different specifications". Not "discovered binary search".
+
+**Decision.** By the rule of 121c the piece is a promotion candidate, but not
+promoted: (1) the `search` arm lost 4 of 10 on contains_ascending, so a
+default would need a battery run; (2) the engine's adversarial set missed a
+wrong variant. Next steps, none run: add boundary-key instances to the
+adversarial set of contains_ordered/ascending; battery A/B of the piece with
+the key share on for the whole existing set.
