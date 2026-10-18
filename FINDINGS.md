@@ -9697,3 +9697,59 @@ aggregate not worse, and a measured reachability gain (here only
 contains_ascending can supply it). Anything else stays opt-in. The merge
 policy asks for a measured improvement; a log-time exponent on a subset is
 evidence for the paper, not for a default.
+
+## 124 (results). The piece costs nothing measurable and changes the selected solution on three problems
+
+`data/interval_piece_joint_battery_20261018/` (77 problems x 2 arms x 10
+seeds = 1540 runs, seeds 60100-60109, `--benchmark`; solved = benchmark keeps
+>= 1 generalizing solution). `rec/` holds the confound arm (recursion seeding
+only, `--recursion-call-bias 0.1`) on the six problems whose counts differ.
+
+Totals: base 755 / 770, PIECE 757 / 770.
+
+| problem | base | rec-only | PIECE |
+|---|---|---|---|
+| majority_value | 2 | 4 | 6 |
+| mode | 9 | 10 | 10 |
+| least_frequent_value | 9 | 10 | 10 |
+| count_leaders | 10 | 10 | 8 |
+| count_dominated | 10 | 10 | 9 |
+| min_gap | 10 | 8 | 9 |
+| any_peak, any_valley, contains_ascending, rotated_min | 10, 10, 10, 10 | -- | 10, 10, 10, 10 |
+
+**Prediction 1 (no loss beyond tolerance): held**: the largest loss is
+count_leaders -2, only one problem loses more than 1, and the aggregate is
++2. **Prediction 2 (gains only on the interval problems, contains_ascending
+>= base + 1, none on the 73): falsified in both parts.** contains_ascending is
+10/10 in base already, and majority_value gains +4 (2 -> 6), mode and
+least_frequent_value +1. The rec-only arm splits the effect: of
+majority_value's +4, +2 comes from the recursion seeding alone and +2 from
+the shells; with 10 seeds none of these differences is distinguishable from
+noise, and I do not claim an effect. The mechanism, if any, is untested (the
+v1/v2 = 0/n seeding gives free initialised variables, as in the gnome-sort
+find of the early sections).
+
+**What did change, and is the useful result.** In the battery's own
+configuration (no post-solve window, no profile ban) the fastest solution the
+benchmark reports is the recursive halving program in **10/10 seeds for
+any_peak, 10/10 for any_valley and 7/10 for contains_ascending** (it has
+`call(`, no `while`; the benchmark labels it "O(1)" with fitted exponent
+0.24, its classifier has no logarithmic class), and in 0/10 for the same
+problems in base. rotated_min stays 0/10: the third-mode negative of section 123
+holds under this configuration too.
+
+**Correction to section 123.** There base solved rotated_min in 3/10, here 10/10. The
+difference between the two configurations is `--post-solve-sizes 150
+--profile-novelty 0.5 --profile-ban` (section 123) against none. The ban
+penalises programs whose cost profile is already known, which includes the
+linear min scan; this is the likely cause of the low base count, not the
+problem's difficulty. Not isolated by its own arm. The same applies to
+contains_ascending (base 6/10 in 121c, 10/10 here).
+
+**Decision.** By the rule of section 124 the piece is NOT promoted to default:
+there is no measured reachability gain in solved counts (the only candidate,
+contains_ascending, was already 10/10). It stays opt-in
+(`--recursion-call-bias 0.1 --dc-shell-search 0.15 --dc-shell-search-key 0.3
+--dc-shell-search-end 0.3`) with this honest summary: no cost on the 73, and
+on three interval-search specifications the reported solution becomes an
+O(log n) program. Steps 1-3 are done.
