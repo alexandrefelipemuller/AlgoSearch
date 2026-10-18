@@ -9286,3 +9286,13 @@ from the archived programs that pass the adversarial check.
 **Decision rule.** The family is a success for the paper goal only if
 prediction 2 holds (a non-canonical class that the canonical control cannot
 produce) and the extra class is not padding of the same read/write trace.
+
+## 120 (amendment, before any valid result). Level 1 is trivial: rerun with `--start-level 2`
+
+The first launch (`data/open_spec_start1_20261018/`, all three arms) is
+invalid, not a negative: `arr[0] = 0` solves N = 1 for any_peak,
+peak_element and any_duplicate, the post-solve window opens at N = 1 and
+every record is UNCONFIRMED at level 1 (0/10 in all arms, including the
+control). Same trap as section 119 round 1. Fix: `--start-level 2`
+(`START_LEVEL` in the runner); everything else, the seeds and predictions
+1-4 are unchanged.
