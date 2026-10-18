@@ -124,12 +124,6 @@ struct GenConfig {
     // false here is byte-identical, which the generator tests rely on.
     bool combinatorNested = false;
 
-    // Section 73: the nested aggregate's outer test drawn from six canonical
-    // tests on t >= 0 (t == 0, t > 0, t == 1, t > 1, t > n/2, t <= n/2)
-    // instead of comparator x threshold. Opt-in
-    // (`--nested-canonical-tests`); false is byte-identical.
-    bool nestedCanonicalTests = false;
-
     // Section 75: a fifth stateful piece, FrequencyTable -- aux[i] = how many
     // j have cmp(elem(j), elem(i)) (frequency or rank), then one pass over
     // aux (max, min, count-if, exists). CLI default since section 76
@@ -163,15 +157,6 @@ struct GenConfig {
     // last, or the smaller element wins). CLI default since section 85
     // (`--no-combinator-argbest` turns it off); false here is byte-identical.
     bool combinatorArgBest = false;
-    // Section 102: a third of Nested relations become "place the best of the
-    // rest at i" -- t = i; inner arg-best of elem(j) into t; per outer
-    // iteration swap(elem(i), elem(t)). Opt-in (`--nested-place`); false is
-    // byte-identical.
-    bool nestedPlace = false;
-    // Section 102b: the same placement as its own pair relation (about 1/6
-    // of nested pair draws, always triangular). Opt-in
-    // (`--nested-place-option`); false is byte-identical.
-    bool nestedPlaceOption = false;
     // Section 103: an eighth of combinator blocks (three loop slots free)
     // aggregate an arithmetic predicate over all triples i < j < k.
     // Opt-in (`--combinator-triple`); false is byte-identical.
@@ -302,12 +287,8 @@ struct GenConfig {
     // numVars >= 3 to be meaningful (silently has no effect below that,
     // same "never breaks, just inert" pattern as the other opt-in biases).
     double recursionCallBias = 0.0;
-    // Section 119: probability that a top-level statement draw is the generic
-    // divide-and-conquer shell (guard, midpoint, two half calls, then a combine
-    // step drawn from the ordinary grammar). Needs recursionCallBias > 0 (for
-    // the lo/hi seeding) and numVars >= 5. 0 = off, byte-identical.
-    double dcShellBias = 0.0;
-    // Section 121: probability of the one-call interval (binary-search) shell. Same gating as dcShellBias.
+    // Section 121: probability of the one-call interval (binary-search) shell. Needs recursionCallBias > 0 (for the
+    // lo/hi seeding) and numVars >= 5. 0 = off, byte-identical.
     double dcShellSearchBias = 0.0;
     // Section 121c: share of those shells that compare arr[mid] with the key arr[0] and end in a membership flag.
     double dcShellSearchKey = 0.0;

@@ -159,7 +159,6 @@ struct CliArgs {
     bool combinatorAdjacent = true;  // v2 axes by default; --combinator-v1 restores the frozen v1 family
     bool combinatorState = true;  // default since FINDINGS.md section 62; --no-combinator-state restores the old default
     bool combinatorNested = true;  // default since FINDINGS.md section 72; --no-combinator-nested restores the old default
-    bool nestedCanonicalTests = false;  // FINDINGS.md section 73
     bool combinatorFrequency = true;  // default since FINDINGS.md section 76; --no-combinator-frequency restores the old default
     // Gated follow blocks are the default since FINDINGS.md section 79 (--no-follow-pointer-inputs turns them off).
     bool combinatorFollow = true;          // FINDINGS.md section 77
@@ -169,8 +168,6 @@ struct CliArgs {
     bool combinatorDistinct = true;  // default since FINDINGS.md section 88; --no-combinator-distinct restores the old default
     bool followExtended = true;  // default since FINDINGS.md section 90; --no-follow-extended restores the old default
     bool scalarLoop = true;  // default since FINDINGS.md section 100; --no-scalar-loop restores the old default
-    bool nestedPlace = false;  // FINDINGS.md section 102, opt-in
-    bool nestedPlaceOption = false;  // FINDINGS.md section 102b, opt-in
     bool combinatorTriple = true;  // FINDINGS.md section 103, default
     bool combinatorRelax = true;  // FINDINGS.md section 104, default
     bool combinatorGrid = true;  // FINDINGS.md section 109, default
@@ -185,7 +182,6 @@ struct CliArgs {
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
     double recursionCallBias = 0.0;
-    double dcShellBias = 0.0;  // section 119
     double dcShellSearchBias = 0.0;  // section 121
     double dcShellSearchKey = 0.0;  // section 121c
     double dcShellSearchEnd = 0.0;  // section 123
@@ -255,7 +251,6 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-combinator-step") args.combinatorStep = false;
         else if (arg == "--no-combinator-state") args.combinatorState = false;
         else if (arg == "--no-combinator-nested") args.combinatorNested = false;
-        else if (arg == "--nested-canonical-tests") args.nestedCanonicalTests = true;
         else if (arg == "--no-combinator-frequency") args.combinatorFrequency = false;
         else if (arg == "--combinator-follow") args.combinatorFollow = true, args.followPointerInputsOnly = false;  // ungated (section 77)
         else if (arg == "--no-follow-pointer-inputs") args.combinatorFollow = args.followPointerInputsOnly = false;
@@ -266,8 +261,6 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-follow-extended") args.followExtended = false;
         else if (arg == "--no-scalar-loop") args.scalarLoop = false;
         else if (arg == "--no-scalar-loop-index-range") args.scalarLoopIndexRange = false;
-        else if (arg == "--nested-place") args.nestedPlace = true;
-        else if (arg == "--nested-place-option") args.nestedPlaceOption = true;
         else if (arg == "--no-combinator-triple") args.combinatorTriple = false;
         else if (arg == "--no-combinator-relax") args.combinatorRelax = false;
         else if (arg == "--no-combinator-grid") args.combinatorGrid = false;
@@ -280,7 +273,6 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-prefix-split") args.prefixSplit = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
-        else if (arg == "--dc-shell") args.dcShellBias = std::stod(next("--dc-shell"));
         else if (arg == "--dc-shell-search") args.dcShellSearchBias = std::stod(next("--dc-shell-search"));
         else if (arg == "--dc-shell-search-end") args.dcShellSearchEnd = std::stod(next("--dc-shell-search-end"));
         else if (arg == "--dc-shell-search-key") args.dcShellSearchKey = std::stod(next("--dc-shell-search-key"));
@@ -312,9 +304,9 @@ void printUsage() {
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
                  "[--behavior-niche-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
-                 "[--composite-bias 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
+                 "[--composite-bias 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
-                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
+                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
@@ -535,15 +527,12 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.combinatorStep = args.combinatorStep;
         config.genConfig.combinatorState = args.combinatorState;
         config.genConfig.combinatorNested = args.combinatorNested;
-        config.genConfig.nestedCanonicalTests = args.nestedCanonicalTests;
         config.genConfig.combinatorFrequency = args.combinatorFrequency;
         config.genConfig.combinatorFollow = args.combinatorFollow;
         config.genConfig.followPointerInputsOnly = args.followPointerInputsOnly;
         config.genConfig.followExtended = args.followExtended;
         config.genConfig.scalarLoop = args.scalarLoop;
         config.genConfig.scalarLoopIndexRange = args.scalarLoopIndexRange;
-        config.genConfig.nestedPlace = args.nestedPlace;
-        config.genConfig.nestedPlaceOption = args.nestedPlaceOption;
         config.genConfig.combinatorTriple = args.combinatorTriple;
         config.genConfig.combinatorRelax = args.combinatorRelax;
         config.genConfig.combinatorGrid = args.combinatorGrid;
@@ -562,7 +551,6 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.combinatorDistinct = args.combinatorDistinct;
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
-        config.genConfig.dcShellBias = args.dcShellBias;
         config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
     config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;
@@ -1197,15 +1185,12 @@ int main(int argc, char** argv) {
     config.genConfig.combinatorStep = args.combinatorStep;
     config.genConfig.combinatorState = args.combinatorState;
     config.genConfig.combinatorNested = args.combinatorNested;
-    config.genConfig.nestedCanonicalTests = args.nestedCanonicalTests;
     config.genConfig.combinatorFrequency = args.combinatorFrequency;
     config.genConfig.combinatorFollow = args.combinatorFollow;
     config.genConfig.followPointerInputsOnly = args.followPointerInputsOnly;
     config.genConfig.followExtended = args.followExtended;
     config.genConfig.scalarLoop = args.scalarLoop;
     config.genConfig.scalarLoopIndexRange = args.scalarLoopIndexRange;
-    config.genConfig.nestedPlace = args.nestedPlace;
-    config.genConfig.nestedPlaceOption = args.nestedPlaceOption;
     config.genConfig.combinatorTriple = args.combinatorTriple;
     config.genConfig.combinatorRelax = args.combinatorRelax;
     config.genConfig.combinatorGrid = args.combinatorGrid;
@@ -1215,7 +1200,6 @@ int main(int argc, char** argv) {
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;
-    config.genConfig.dcShellBias = args.dcShellBias;
     config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
     config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;

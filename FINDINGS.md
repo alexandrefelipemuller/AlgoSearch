@@ -9789,3 +9789,30 @@ were `rng.chance()`-guarded at 0, so the default random stream is untouched:
 three runs (max_subarray_sum; sorting with the five diversity flags and
 `--post-solve-sizes`, `--composite-bias`; contains with `--restart-on-stall`)
 give identical output on both binaries. `make test` 240/240.
+
+## 125c. Cleanup, groups 3 and 4: four closed experiments removed, the rest kept on evidence
+
+Group 3, removed (each closed as a negative in its own section, none
+adopted): `--nested-place` and `--nested-place-option` (sections 102 and 102b,
+`selectionsort` closed as indispensable; the `Place` relation and its two
+draws are gone), `--nested-canonical-tests` (section 73, failed the
+no-regression rule) and `--dc-shell` (section 119, the two-call shell; the
+one-call `--dc-shell-search` family is separate code and stays). Four tests
+went with them. Scripts that passed these flags moved to `scripts/archive/`;
+`pre-cleanup3` is the tag before the change. All four draws were guarded at
+their default, so the random stream is untouched: min_gap, count_unique,
+sorting with the three interval-shell modes and any_peak give identical
+output on both binaries. `make test` 235/235.
+
+Kept, after reading what each section concluded instead of assuming:
+- `--fill-bsearch-hole`, `--bsearch-stage`: section 69 deliberately kept them
+  as research modes.
+- `--fill-tsp-guard`, `--soundness-labels`, `--metamorphic`,
+  `--rank-worst-scale` (group 4): sections 43-44 are a positive result, the
+  guard of the TSP branch-and-bound selected from the problem's own oracle,
+  and the pipeline is the only code that reproduces it.
+- `--first-index`, `--prefix-split`: section 117 closed two gaps in the
+  screen; their regressions are documented and attributed in 117b, so they
+  stay opt-in.
+- `--forbid-stmt`, `--profile-ban`, `--prune-generation`, `--role-typed-vars`:
+  used by current scripts or with an A/B of their own.

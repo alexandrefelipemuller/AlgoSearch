@@ -1342,7 +1342,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, Place, FirstIndex };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, FirstIndex };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2025,12 +2025,6 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 6) >= 5) {
         rel = Relation::Nested;
     }
-    // Section 102b: placement as one more pair relation, always triangular.
-    if (cfg.nestedPlaceOption && (loop == Loop::NestedFull || loop == Loop::NestedTriangular) &&
-        (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 5) == 0) {
-        rel = Relation::Place;
-        loop = Loop::NestedTriangular;
-    }
     ExprKind cmp = drawComparator(rng);
 
     // Operands for this loop shape.
@@ -2197,21 +2191,7 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             accInit = 1;
             break;
         }
-        case Relation::Place:
         case Relation::Nested: {
-            if (rel == Relation::Place || (cfg.nestedPlace && rng.uniformInt(0, 2) == 0)) {
-                // Section 102: t = i; if (elem(j) CMP elem(t)) t = j; then
-                // swap(elem(i), elem(t)) once per outer iteration.
-                static const ExprKind placeCmp[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Le, ExprKind::Ge};
-                ExprKind pc = placeCmp[rng.uniformInt(0, 3)];
-                perOuterReset.push_back(makeAssign(found, makeVar(vi)));
-                std::vector<StmtPtr> then;
-                then.push_back(makeAssign(found, makeVar(vj)));
-                inner.push_back(makeIf(makeCompare(pc, b->clone(), elemAt(base, makeVar(found))), std::move(then)));
-                perOuterConsume.push_back(makeSwap(posA->clone(), makeBinOp(ExprKind::Add, base->clone(), makeVar(found))));
-                writeBack = false;
-                break;
-            }
             // t (held in `found`) aggregates elem(j) against elem(i) over the
             // inner loop, reset per outer element; acc aggregates the t_i.
             int innerKind = rng.uniformInt(0, 2);  // CountCmp, ForallCmp, BestDiff
@@ -2237,15 +2217,6 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             ExprPtr thr = thrKind == 0 ? makeIntConst(0)
                           : thrKind == 1 ? makeIntConst(1)
                                          : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
-            if (cfg.nestedCanonicalTests) {
-                // Section 73: one of six distinct tests on t >= 0.
-                static const ExprKind ops[] = {ExprKind::Eq, ExprKind::Gt, ExprKind::Eq, ExprKind::Gt, ExprKind::Gt, ExprKind::Le};
-                int test = rng.uniformInt(0, 5);
-                cmp2 = ops[test];
-                thr = test < 2 ? makeIntConst(0)
-                      : test < 4 ? makeIntConst(1)
-                                 : makeBinOp(ExprKind::Div, bound->clone(), makeIntConst(2));
-            }
             std::vector<StmtPtr> consume;
             if (outerKind == 0 && cfg.combinatorArgBest && rng.chance(0.5)) {
                 // Section 82: the element (or index) with the best t, in capB.
@@ -2711,31 +2682,11 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         }
     }
 
-    // Section 119: generic divide-and-conquer shell. Names only the shape
-    // (recursion over the halves of [v1, v2)); the combine step is whatever
-    // the ordinary grammar draws, generated inside an if so it can not itself
-    // draw a skeleton.
-    if (!insideIf && !insideWhile && cfg.dcShellBias > 0.0 && cfg.recursionCallBias > 0.0 && cfg.numVars >= 5 &&
-        depthBudget > 0 && rng.chance(cfg.dcShellBias)) {
-        const int lo = 1, hi = 2, mid = 3;
-        std::vector<StmtPtr> body;
-        body.push_back(makeAssign(
-            mid, makeBinOp(ExprKind::Add, makeVar(lo),
-                           makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
-        body.push_back(makeCall(makeVar(lo), makeVar(mid)));
-        body.push_back(makeCall(makeVar(mid), makeVar(hi)));
-        auto combine = genBlockStmts(rng, std::max(1, depthBudget - 1), cfg, loopsUsed, 2, /*insideIf=*/true,
-                                      /*insideWhile=*/false);
-        for (auto& c : combine) body.push_back(std::move(c));
-        return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
-                      std::move(body));
-    }
-
     // Section 121: one-call interval shell (binary-search shape). Guard on
     // [v1, v2), midpoint, a comparison of arr[mid] with a neighbour picks which
     // half to recurse into (offsets and comparison drawn at random), and the
-    // else branch writes a position of the interval to arr[0]. Same gating as
-    // the two-call shell.
+    // else branch writes a position of the interval to arr[0]. Needs
+    // recursionCallBias > 0 for the lo/hi seeding.
     if (!insideIf && !insideWhile && cfg.dcShellSearchBias > 0.0 && cfg.recursionCallBias > 0.0 && cfg.numVars >= 5 &&
         depthBudget > 0 && rng.chance(cfg.dcShellSearchBias)) {
         const int lo = 1, hi = 2, mid = 3;

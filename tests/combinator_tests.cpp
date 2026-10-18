@@ -178,18 +178,6 @@ TEST(combinator_nested_pieces_emit_threshold_and_absolute_step_blocks) {
     CHECK(absStep > 0);
 }
 
-TEST(nested_canonical_tests_are_byte_identical_when_off) {
-    // Section 73: the canonical draw only happens with the flag on.
-    GenConfig a = combinatorOnly(), b = combinatorOnly();
-    a.combinatorStep = b.combinatorStep = true;
-    a.combinatorNested = b.combinatorNested = true;
-    b.nestedCanonicalTests = false;
-    Random ra(73), rb(73);
-    for (int i = 0; i < 300; ++i) {
-        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
-    }
-}
-
 TEST(frequency_table_piece_is_byte_identical_when_off) {
     // Section 75: the fifth stateful piece is drawn only with the flag on.
     GenConfig a = combinatorOnly(), b = combinatorOnly();
@@ -381,59 +369,6 @@ TEST(follow_extended_emits_trailing_and_loop_length_walks) {
     CHECK(loops > 0);
 }
 
-namespace {
-
-GenConfig nestedPlaceProbe(bool place, bool option = false) {
-    GenConfig cfg = combinatorOnly();
-    cfg.combinatorState = true;
-    cfg.combinatorNested = true;
-    cfg.combinatorFrequency = true;
-    cfg.combinatorArgBest = true;
-    cfg.maxLoops = 4;
-    cfg.nestedPlace = place;
-    cfg.nestedPlaceOption = option;
-    return cfg;
-}
-
-// Selection shape: the program sorts and its swap is not the body of an if
-// (an exchange sort guards every swap).
-int selectionSorts(bool place, uint64_t seed, int draws, bool option = false) {
-    Random rng(seed);
-    GenConfig cfg = nestedPlaceProbe(place, option);
-    SortingProblem sorting(5, 40, cfg.numVars);
-    const std::regex guardedSwap(R"(if \([^\n]*\) \{\n\s*swap)");
-    int hits = 0;
-    for (int i = 0; i < draws; ++i) {
-        Program p = generateRandomProgram(rng, 2, cfg);
-        std::string text = p->toString();
-        if (text.find("swap") == std::string::npos || std::regex_search(text, guardedSwap)) continue;
-        if (solvesLevels(sorting, *p, 2, 6)) hits++;
-    }
-    return hits;
-}
-
-}  // namespace
-
-TEST(nested_place_piece_is_byte_identical_when_off) {
-    // Section 102: the placement variant is drawn only with the flag on.
-    GenConfig a = nestedPlaceProbe(false), b = nestedPlaceProbe(false);
-    Random ra(102), rb(102);
-    for (int i = 0; i < 300; ++i) {
-        CHECK_EQ(generateRandomProgram(ra, 30, a)->toString(), generateRandomProgram(rb, 30, b)->toString());
-    }
-}
-
-TEST(nested_place_piece_reaches_selection_sort) {
-    // Section 102 prediction 1: 0 selection sorts off, some on.
-    CHECK_EQ(selectionSorts(false, 103, 20000), 0);
-    CHECK(selectionSorts(true, 103, 20000) > 0);
-}
-
-TEST(nested_place_option_reaches_selection_sort_more_often) {
-    // Section 102b: placement as its own relation is drawn more often than
-    // inside Nested.
-    CHECK(selectionSorts(false, 104, 20000, true) > selectionSorts(true, 104, 20000));
-}
 
 namespace {
 
