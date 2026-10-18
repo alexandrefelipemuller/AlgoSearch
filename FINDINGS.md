@@ -9668,3 +9668,32 @@ search reaches on these instances. I did not diagnose this further.
 specifications (neighbour, key) and the claim stays at two problems, with the
 three-mode menu as the stated caveat. Step 3 (battery A/B with the piece on)
 follows, run on the existing joint-battery problems.
+
+## 124. Step 3 of 3: joint battery with the interval piece on -- design registered before running
+
+`scripts/run_interval_piece_joint_battery.sh`: the 73 problems of the joint
+battery plus the four interval-search problems (any_peak, any_valley,
+contains_ascending, rotated_min, run with `--start-level 2`), seeds
+60100-60109, section-103 settings per problem, `--benchmark`. Arms: base
+(current default) and PIECE (`--recursion-call-bias 0.1 --dc-shell-search
+0.15 --dc-shell-search-key 0.3 --dc-shell-search-end 0.3`). Solved = the
+benchmark's "genuinely generalizing solution(s) kept" is >= 1.
+
+Known confound, stated before the run: `--recursion-call-bias` itself changes
+the generator (seeds v1/v2, draws `call`). If PIECE loses somewhere, a
+base_rec arm (recursion seeding only) is run on those problems to split the
+effect.
+
+**Predictions.**
+1. No problem of the 73 loses more than 3 of 10 (section 99 tolerance), at
+   most 3 problems lose more than 1, and the aggregate solved count of PIECE
+   is within 5% of base.
+2. The only gains are on the interval-search problems: contains_ascending
+   PIECE >= base + 1; any_peak, any_valley and rotated_min within +-1 (their
+   difference is the log-time hit, not the solved count). No gain on the 73.
+
+**Decision rule.** Default promotion needs: no problem beyond the tolerance,
+aggregate not worse, and a measured reachability gain (here only
+contains_ascending can supply it). Anything else stays opt-in. The merge
+policy asks for a measured improvement; a log-time exponent on a subset is
+evidence for the paper, not for a default.
