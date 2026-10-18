@@ -6,6 +6,8 @@
 #include "search/Benchmark.hpp"
 
 #include "problems/EquilibriumPointProblem.hpp"
+#include "problems/AnyDuplicateProblem.hpp"
+#include "problems/AnyPeakProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "test_framework.hpp"
@@ -96,4 +98,32 @@ TEST(equilibrium_point_has_a_two_pass_reference_solution) {
     p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(body)));
     p->body.push_back(makeAssignArray(lit(0), var(3)));
     CHECK(solvesEverything(EquilibriumPointProblem(), *p));
+}
+
+TEST(section_120_open_specification_checkers_accept_every_valid_answer) {
+    AnyPeakProblem peak;
+    CHECK(peak.isSolution({1, 3, 2, 5}, {1, 0, 0, 0}));
+    CHECK(peak.isSolution({1, 3, 2, 5}, {3, 0, 0, 0}));
+    CHECK(!peak.isSolution({1, 3, 2, 5}, {0, 0, 0, 0}));
+    CHECK(!peak.isSolution({1, 3, 2, 5}, {4, 0, 0, 0}));
+    AnyDuplicateProblem dup;
+    CHECK(dup.isSolution({2, 5, 2, 5}, {2, 0, 0, 0}));
+    CHECK(dup.isSolution({2, 5, 2, 5}, {5, 0, 0, 0}));
+    CHECK(!dup.isSolution({2, 5, 2, 7}, {5, 0, 0, 0}));
+    CHECK(dup.isSolution({1, 2, 3}, {-1, 0, 0}));
+    CHECK(!dup.isSolution({1, 1, 3}, {-1, 0, 0}));
+}
+
+TEST(section_120_instance_labels_pass_their_own_checkers) {
+    AnyPeakProblem peak;
+    AnyDuplicateProblem dup;
+    for (int level = 1; level <= 6; ++level) {
+        for (const ScalarFromArrayProblem* p : std::vector<const ScalarFromArrayProblem*>{&peak, &dup}) {
+            for (const auto& inst : p->generateInstances(level)) {
+                std::vector<int> out = inst.input;
+                out[0] = inst.expectedOutput[0];
+                CHECK(p->isSolution(inst.input, out));
+            }
+        }
+    }
 }

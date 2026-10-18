@@ -9251,3 +9251,38 @@ reachability of the combine, not competition from the loop.
 **Next lever (registered in the falsification clause).** Draw the combine
 from the combinator's two-operand relations instead of random statements.
 Idea 2 (open-specification problems) starts only after this is reported.
+
+## 120. Open-specification problems: the checker is a property, not one reference answer -- design registered before running
+
+Idea 2 of the long-horizon plan. Every problem so far has one canonical
+output, so the search can only rediscover the textbook algorithm that
+produces it. A property checker (`isSolution` already is one; sorting uses
+it) accepts every valid answer, so different algorithms count as solutions
+and the behavior classes can differ. New problems (`AnyPeakProblem`,
+`AnyDuplicateProblem`, `make test` 234/234):
+- `any_peak`: output[0] = ANY index i with a[i] >= its existing neighbours
+  (first peak, argmax and a binary-search peak all pass).
+- `any_duplicate`: output[0] = ANY value occurring at least twice, -1 when
+  all values are distinct.
+
+**Protocol** (`scripts/run_open_spec.sh`): the section 114 settings (max-n 8,
+beam 500, 1500 candidates, size 150, step limit 20000, 1 thread, wall 240 s)
+plus `--post-solve-sizes 150 --output`, seeds 59000-59009, arms any_peak,
+peak_element (the canonical control, same seeds), any_duplicate. Behavior
+class = the output vector on a fixed input set, computed outside the engine
+from the archived programs that pass the adversarial check.
+
+**Predictions.**
+1. any_peak is solved in >= 7/10 seeds; peak_element reproduces ~3/10
+   (section 114). Accepting any peak removes the exact "first peak" ordering
+   that stalled 7 of 10 runs.
+2. Verified any_peak solutions fall into >= 2 behavior classes over the 10
+   seeds (e.g. argmax vs first peak); peak_element has exactly 1.
+3. No sublinear (binary-search) peak: 0/10, the fitted step exponent of
+   every verified solution stays >= 0.9. This is the honest-negative
+   prediction; a hit would be the first non-textbook result of the project.
+4. any_duplicate is solved in >= 5/10 seeds with >= 2 behavior classes.
+
+**Decision rule.** The family is a success for the paper goal only if
+prediction 2 holds (a non-canonical class that the canonical control cannot
+produce) and the extra class is not padding of the same read/write trace.
