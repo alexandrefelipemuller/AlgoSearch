@@ -64,6 +64,7 @@
 #include "problems/AnyPeakProblem.hpp"
 #include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
+#include "problems/Psb2Problem.hpp"
 #include "problems/RotatedMinProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "problems/EquilibriumPointProblem.hpp"
@@ -133,6 +134,7 @@ struct CliArgs {
     bool seedGiven = false;
     int restartOnStall = 0;  // section 94
     double wallSeconds = 0.0;
+    long maxExecutions = 0;  // section 126
     double profileNovelty = 0.0;  // section 98
     bool profileBan = false;      // section 118
     unsigned forbidStmtMask = 0;  // section 118b
@@ -217,6 +219,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--seed") { args.seed = static_cast<uint64_t>(std::stoull(next("--seed"))); args.seedGiven = true; }
         else if (arg == "--restart-on-stall") args.restartOnStall = std::stoi(next("--restart-on-stall"));
         else if (arg == "--wall-seconds") args.wallSeconds = std::stod(next("--wall-seconds"));
+        else if (arg == "--max-executions") args.maxExecutions = std::stol(next("--max-executions"));
         else if (arg == "--confirm-reseed") args.confirmReseed = std::stoi(next("--confirm-reseed"));
         else if (arg == "--forbid-stmt") {
             std::string k = next("--forbid-stmt");
@@ -299,7 +302,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
 }
 
 void printUsage() {
-    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|peak_element|search_rotated|equilibrium_point|first_greater_than_first|second_index_of_key|count_balance_points|first_split_two_to_one|triple_frequency_values|any_peak|any_duplicate|any_valley|contains_ascending|rotated_min --max-n 5 --beam-width 1000 "
+    std::cout << "algorithm-discovery --problem sorting|min|max|sum|contains|contains_ordered|is_prime|gcd|factorial|fibonacci|count|average|reverse|power|three_sum|single_number|graph_reachability|shortest_path|tsp|dtw|lis|substring|cycle|dominated_window|palindrome|inversion_count|has_duplicate|is_sorted|count_descents|strictly_increasing|has_adjacent_equal|longest_run|max_adjacent_gap|median|second_smallest|count_distinct|min_gap|max_gap_sorted|max_subarray_sum|longest_increasing_run|max_profit|count_leaders|has_majority|trapping_rain_water|max_rise|min_step|count_runs|count_ascending_runs|longest_non_increasing_run|min_subarray_sum|longest_decreasing_subsequence|max_sum_increasing_subsequence|ceiling_water|max_frequency|count_unique|count_dominated|max_drawdown|total_variation|elements_twice|min_frequency|mode|values_twice|walk_length|visits_zero|cycle_length|last_node|first_minus_last|largest_drop_step|sum_of_rises|sum_abs_from_first|argmax_index|least_frequent_value|majority_value|longest_run_value|repeated_values|rare_values|sum_distinct|equal_pairs|frequent_values|has_double_value|odd_frequency_values|cycle_entry|second_last_node|sum_excess_over_first|sum_of_drops|sum_squared_steps|sum_abs_from_last|sum_unique_values|even_frequency_values|max_repeated_value|min_repeated_value|longest_increasing_run_end|frequent_mode_or_none|longest_run_start|plurality_value|peak_element|search_rotated|equilibrium_point|first_greater_than_first|second_index_of_key|count_balance_points|first_split_two_to_one|triple_frequency_values|any_peak|any_duplicate|any_valley|contains_ascending|rotated_min|psb2_fuel_cost|psb2_basement|psb2_gcd|psb2_find_pair|psb2_coin_sums|psb2_luhn|psb2_paired_digits --max-n 5 --beam-width 1000 "
                  "--max-program-size 30 --step-limit 10000 --seed 1234 "
                  "[--start-level 1] [--candidates 800] [--num-vars 4 (auto-raised per-problem if omitted; see resolveNumVars)] [--threads 0] "
                  "[--invariance-lookahead 3] [--diversity-rate 0.0] [--crossover-rate 0.0] [--shape-niche-rate 0.0] "
@@ -307,7 +310,7 @@ void printUsage() {
                  "[--composite-bias 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
                  "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
-                 "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
+                 "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--max-executions N] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
 
@@ -366,6 +369,13 @@ std::unique_ptr<Problem> makeProblem(const std::string& name, int numVars, uint6
     if (name == "max") return std::make_unique<MaxArrayProblem>(6, 40, numVars, seed);
     if (name == "sum") return std::make_unique<SumArrayProblem>(6, 40, numVars, seed);
     if (name == "contains") return std::make_unique<ContainsProblem>(6, 40, numVars, seed);
+    if (name == "psb2_fuel_cost") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::FuelCost, numVars, seed);
+    if (name == "psb2_basement") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::Basement, numVars, seed);
+    if (name == "psb2_gcd") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::Gcd, numVars, seed);
+    if (name == "psb2_find_pair") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::FindPair, numVars, seed);
+    if (name == "psb2_coin_sums") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::CoinSums, numVars, seed);
+    if (name == "psb2_luhn") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::Luhn, numVars, seed);
+    if (name == "psb2_paired_digits") return std::make_unique<Psb2Problem>(Psb2Problem::Kind::PairedDigits, numVars, seed);
     if (name == "rotated_min") return std::make_unique<RotatedMinProblem>(numVars, seed);
     if (name == "contains_ascending") return std::make_unique<ContainsAscendingProblem>(6, 40, numVars, seed);
     if (name == "contains_ordered") return std::make_unique<ContainsOrderedProblem>(6, 40, numVars, seed);
@@ -1207,6 +1217,7 @@ int main(int argc, char** argv) {
     config.checkpointPath = args.checkpointPath;
     config.restartOnStall = args.restartOnStall;
     config.wallSeconds = args.wallSeconds;
+    config.maxExecutions = args.maxExecutions;
     config.profileNovelty = args.profileNovelty;
     config.profileBan = args.profileBan;
     config.forbidStmtMask = args.forbidStmtMask;

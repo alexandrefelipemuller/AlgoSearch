@@ -443,6 +443,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     double sortPhaseSeconds = 0.0;
     long totalCandidatesGenerated = 0;
     long totalCandidatesScored = 0;
+    long executionsUsed = 0;
 
     std::ofstream adaptiveLog;
     bool adaptiveBiasOn = config_.genConfig.adaptiveSkeletonBiasRate > 0.0;
@@ -500,6 +501,10 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         if (config_.wallSeconds > 0.0 &&
             std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count() >= config_.wallSeconds) {
             log::info("  wall budget of " + std::to_string(config_.wallSeconds) + "s reached, stopping");
+            break;
+        }
+        if (config_.maxExecutions > 0 && executionsUsed >= config_.maxExecutions) {
+            log::info("  execution budget of " + std::to_string(config_.maxExecutions) + " reached, stopping");
             break;
         }
         postSolveWindowOpenedThisSize = false;
@@ -600,6 +605,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
         scoreCandidates(crossoverPool, instances, problem_, interp, threadCount, scored, grownPool.size() + freshPool.size(),
                          timeouts, errors, trackCorrectness, config_.speedBonusWeight, config_.stepLimit, debugBehavior);
         totalCandidatesScored += static_cast<long>(scored.size());
+        executionsUsed += static_cast<long>(scored.size()) * static_cast<long>(instances.size());
 
         // Diagnostic only (FINDINGS.md section 35, idea E's go/no-go): how
         // many candidates scored this size step behave EXACTLY like one

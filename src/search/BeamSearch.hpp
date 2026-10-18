@@ -195,6 +195,9 @@ struct SearchConfig {
     // Stop cleanly (archive kept, normal exit) once this much wall time has
     // elapsed. 0 = no limit, as before.
     double wallSeconds = 0.0;
+    // Section 126: stop cleanly once candidates scored x instances per scoring reaches this many program executions
+    // (an upper bound: a candidate that fails early runs fewer cases). PSB2 caps a run at 60,000,000. 0 = no limit.
+    long maxExecutions = 0;
     // Section 97: when set and confirmReseedLevels > 0, SUCCESS also needs
     // the instances of the first confirmReseedLevels levels of this
     // problem built with another seed (not owned). nullptr/0 = off.
