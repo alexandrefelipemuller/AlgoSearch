@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 D="${1:?output_root}"
 SEEDS="${SEEDS:-10}"; SEED_BASE="${SEED_BASE:-59000}"; JOBS="${JOBS:-6}"; PROBLEM="${PROBLEM:-any_peak}"
 mkdir -p "$D"
-for s in $(seq 0 $((SEEDS - 1))); do for arm in base search search_noloop; do
+for s in $(seq 0 $((SEEDS - 1))); do for arm in ${ARMS:-base search search_noloop}; do
   echo "$arm $((SEED_BASE + s))"
 done; done | xargs -P "$JOBS" -L1 sh -c '
   arm=$0; seed=$1

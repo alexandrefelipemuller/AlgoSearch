@@ -9428,3 +9428,34 @@ search shape on which the same piece, unchanged, finds something. Next
 candidate: a sorted-array search (`contains_ordered` / lower bound) where the
 halving comparison is against a key, not a neighbour. Not promoted, not
 paper-ready alone.
+
+## 121b. Second problem for the one-call shell -- predictions registered before running
+
+The decision rule of section 121 asks for a second problem on which the same,
+unchanged piece finds something. Checking the piece against the candidate I
+proposed (`contains_ordered`: arr[0] = key, arr[1..] sorted ascending or
+descending, output 1/0) before running shows it can not express it, which I
+had not checked when proposing it: the shell compares arr[mid] only with a
+NEIGHBOUR (arr[mid +- 1]), never with the key arr[0]; its base case writes an
+index, not a 0/1 membership flag; and the seeded interval [0, n) contains the
+key cell itself. So the test below is run as asked, but its expected outcome is
+negative, and a mirror problem is added as a sanity check, not as a second
+shape.
+
+New problem `any_valley` (any index with a[i] <= its neighbours; mirror of
+any_peak; `make test` 236/236). Runner: `ARMS="base search" PROBLEM=...
+scripts/run_dc_search_ab.sh`, seeds 59000-59009, same settings as 121.
+Hit criterion as in 121 (verified, `call(`, no `while`, exponent < 0.5).
+
+**Predictions.**
+1. contains_ordered: 0 hits in both arms (shape inexpressible; honest
+   negative), search solved count not worse than base by more than 1.
+2. any_valley: >= 7 of 10 hits in search, 0 in base (mirror of 121: it only
+   shows the piece is not tuned to `>=`; the operator draw covers it).
+
+**Decision rule.** any_valley does not count as a second shape. If
+contains_ordered gives 0 hits, as predicted, the piece is NOT promoted; it is
+reported as a peak-search piece. The registered next lever, not run here:
+let the shell's comparison operand be drawn from {neighbour, arr[0]} with a
+membership base case. That widens the piece toward a skeleton of binary search
+and needs its own registration.

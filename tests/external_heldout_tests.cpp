@@ -8,6 +8,7 @@
 #include "problems/EquilibriumPointProblem.hpp"
 #include "problems/AnyDuplicateProblem.hpp"
 #include "problems/AnyPeakProblem.hpp"
+#include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "test_framework.hpp"
@@ -125,5 +126,18 @@ TEST(section_120_instance_labels_pass_their_own_checkers) {
                 CHECK(p->isSolution(inst.input, out));
             }
         }
+    }
+}
+
+TEST(section_121_any_valley_accepts_every_local_minimum) {
+    AnyValleyProblem valley;
+    CHECK(valley.isSolution({3, 1, 2, 0}, {1, 0, 0, 0}));
+    CHECK(valley.isSolution({3, 1, 2, 0}, {3, 0, 0, 0}));
+    CHECK(!valley.isSolution({3, 1, 2, 0}, {0, 0, 0, 0}));
+    CHECK(!valley.isSolution({3, 1, 2, 0}, {2, 0, 0, 0}));
+    for (const auto& inst : valley.generateInstances(5)) {
+        std::vector<int> out = inst.input;
+        out[0] = inst.expectedOutput[0];
+        CHECK(valley.isSolution(inst.input, out));
     }
 }
