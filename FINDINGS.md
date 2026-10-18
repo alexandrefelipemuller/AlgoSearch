@@ -9143,3 +9143,57 @@ sort removed, the generic pieces do not reach a swap-free sorter in 20 min.
 One seed per arm, so this is a weak negative; it is consistent with section
 92-93 (sorting without sort skeletons needs a lever, not budget) and with
 section 118's reading that reachability is the limit.
+
+## 119. Generic divide-and-conquer shell (`--dc-shell`) -- design registered before implementing
+
+**Problem** (sections 57, 92-93, 118). Recursion exists only inside the
+hand-written merge sort skeleton. `--recursion-call-bias` draws a bare
+`call(e, e)` with random arguments, which never forms the guard + midpoint +
+two-half-calls shape, so no search has ever found a recursive program from
+generic pieces. Every failed lever in section 118 left reachability as the
+limit; this adds one reachable shape.
+
+**Piece** (opt-in `--dc-shell BIAS`, needs `--recursion-call-bias > 0` and
+`--num-vars >= 5`; v1/v2 are lo/hi as in the interpreter's convention,
+seeded 0/n at the top level). A top-level statement draw returns
+```
+if ((v2 - v1) > 1) {
+  v3 = v1 + (v2 - v1) / 2;
+  call(v1, v3);
+  call(v3, v2);
+  <combine: 1-2 statements from the ordinary grammar, generated inside an if>
+}
+```
+The combine step is NOT designed: it is whatever the generic grammar draws
+(array assignments, conditionals, swaps, loops), so the piece names a shape
+(recursion over halves) and leaves the algorithm to the search. It is not
+a skeleton: nothing in it is specific to a problem.
+
+**Why this can produce a new algorithm.** For an associative reduction the
+correct combine is one statement, `arr[v1] = f(arr[v1], arr[v3])`: a tree
+reduction in O(n) steps and O(log n) depth, structurally different from the
+accumulator loop every current solution uses. It is reachable level by level
+(N=1: guard false, arr unchanged; N=2: one combine).
+
+**A/B.** Arms: control (`--recursion-call-bias 0.1`) vs `+ --dc-shell 0.15`,
+matched seeds 3001-3010, the modest-battery profile (beam 500, candidates
+1500, step limit 5000, max-n 10, num-vars 7, wall 240 s, `--benchmark`),
+problems sum, min, max, single_number, contains, count. Judge by program text
+and the independent verification, not by the label.
+
+**Predictions.**
+1. The shell yields at least one verified recursive reduction (a `call` that
+   runs, no loop over the whole array) for sum in at least 3 of 10 seeds;
+   control: 0 (no recursive program has ever been found without the merge
+   skeleton).
+2. Min and max (combine needs a conditional) are rarer: at most half of sum's
+   rate. single_number (xor) is like sum.
+3. No loss on any problem versus control (section 99 tolerance, -3 of 10).
+
+**Falsification.** Prediction 1 failing means a random combine is not
+reachable even for the one-statement reduction; the next lever would be a
+combine drawn from the combinator's two-operand relations.
+
+**Decision rule, fixed now.** Merge policy: it stays opt-in unless it adds
+a family on a problem where the control had none and costs nothing elsewhere.
+A new family, even a slower or odd one, counts: that is the project's goal.
