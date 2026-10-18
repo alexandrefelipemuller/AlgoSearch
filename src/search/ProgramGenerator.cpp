@@ -2724,6 +2724,26 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         }
     }
 
+    // Section 119: generic divide-and-conquer shell. Names only the shape
+    // (recursion over the halves of [v1, v2)); the combine step is whatever
+    // the ordinary grammar draws, generated inside an if so it can not itself
+    // draw a skeleton.
+    if (!insideIf && !insideWhile && cfg.dcShellBias > 0.0 && cfg.recursionCallBias > 0.0 && cfg.numVars >= 5 &&
+        depthBudget > 0 && rng.chance(cfg.dcShellBias)) {
+        const int lo = 1, hi = 2, mid = 3;
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(
+            mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                           makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+        body.push_back(makeCall(makeVar(lo), makeVar(mid)));
+        body.push_back(makeCall(makeVar(mid), makeVar(hi)));
+        auto combine = genBlockStmts(rng, std::max(1, depthBudget - 1), cfg, loopsUsed, 2, /*insideIf=*/true,
+                                      /*insideWhile=*/false);
+        for (auto& c : combine) body.push_back(std::move(c));
+        return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
+                      std::move(body));
+    }
+
     // Composite primitives (Moção 2, Etapa 3): independent of the skeleton
     // draw above, so it can fire even at loopAccumulatorBias=0.0. Opt-in via
     // GenConfig::compositeBias. Needs 2 free loop slots (canNestedLoop) and 6

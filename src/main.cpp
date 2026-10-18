@@ -186,6 +186,7 @@ struct CliArgs {
     double adaptiveSkeletonBiasRate = 0.0;
     double secondArrayBias = 0.0;
     double recursionCallBias = 0.0;
+    double dcShellBias = 0.0;  // section 119
     std::string adaptiveBiasLog;
     std::string output = "solutions.json";
     std::string checkpointPath;
@@ -300,6 +301,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-prefix-split") args.prefixSplit = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
+        else if (arg == "--dc-shell") args.dcShellBias = std::stod(next("--dc-shell"));
         else if (arg == "--recursion-call-bias") args.recursionCallBias = std::stod(next("--recursion-call-bias"));
         else if (arg == "--adaptive-bias-log") args.adaptiveBiasLog = next("--adaptive-bias-log");
         else if (arg == "--output") args.output = next("--output");
@@ -330,7 +332,7 @@ void printUsage() {
                  "[--annealing-temperature 0.0] [--behavior-niche-rate 0.0] [--score-band-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
                  "[--index-increment-bias 0.0] [--bare-swap-penalty 0.0] [--control-flow-bias 0.0] [--composite-bias 0.0] [--expr-mutation-rate 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--nested-canonical-tests] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--nested-place] [--nested-place-option] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
-                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] "
+                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
@@ -579,6 +581,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.combinatorDistinct = args.combinatorDistinct;
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
+        config.genConfig.dcShellBias = args.dcShellBias;
 
         std::cout << "[benchmark] seed " << (i + 1) << "/" << args.benchmarkSeeds << " (" << seed << ")...\n";
         BeamSearch search(*problem, config);
@@ -1234,6 +1237,7 @@ int main(int argc, char** argv) {
     config.genConfig.adaptiveSkeletonBiasRate = args.adaptiveSkeletonBiasRate;
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;
+    config.genConfig.dcShellBias = args.dcShellBias;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;
     config.checkpointPath = args.checkpointPath;
     config.restartOnStall = args.restartOnStall;

@@ -9197,3 +9197,23 @@ combine drawn from the combinator's two-operand relations.
 **Decision rule, fixed now.** Merge policy: it stays opt-in unless it adds
 a family on a problem where the control had none and costs nothing elsewhere.
 A new family, even a slower or odd one, counts: that is the project's goal.
+
+## 119 (amendment, before the A/B). The smoke run shows the loop wins the size race
+
+Smoke (sum, seed 3001, 120 s cap): solved in 0.07 s by the plain accumulator
+loop (`--scalar-loop`, 18 nodes). The shell is larger, so a one-pass search
+never reaches it, the same size-ordered race that closes Kadane (section 96).
+Amended A/B, still matched seeds 3001-3010, 120 s per run, problems sum, min,
+max, single_number, contains:
+
+| arm | flags (all share `--recursion-call-bias 0.1 --post-solve-sizes 150 --profile-novelty 0.5 --profile-ban`) |
+|---|---|
+| ctrl | none extra |
+| shell | `--dc-shell 0.15` |
+| shell_noloop | `--dc-shell 0.15 --no-scalar-loop --combinator-bias 0` |
+
+The ban (section 118) is used here as the lever it was built for: it removes
+the loop's profile from the race once it is archived. Verdict by text: a
+SUCCESS record (adversarial all passed) that contains `call(` and no `while`.
+Predictions 1-3 stand with "verified recursive reduction" read that way, and
+arm shell_noloop is the pure reachability test (loop pieces off).
