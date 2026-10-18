@@ -9566,3 +9566,30 @@ default would need a battery run; (2) the engine's adversarial set missed a
 wrong variant. Next steps, none run: add boundary-key instances to the
 adversarial set of contains_ordered/ascending; battery A/B of the piece with
 the key share on for the whole existing set.
+
+## 122. Step 1 of 3 toward a readable result: adversarial haystacks of every size -- registered before running
+
+Diagnosis of the three wrong "hits" of section 121c (seeds 59004, 59008,
+59009): every failing input has a ONE-element haystack with the key absent.
+`--start-level 2` means the run never trains on a one-element haystack, and
+`ContainsOrderedProblem::generateAdversarialInstances` only used structural
+arrays of the level's size, so the checker never saw it. It is a hole of the
+start-level 2 convention, not of boundary keys in general. Fix
+(`make test` 239/239): the adversarial set now also holds, for every haystack
+size 1..level, the key at every position and in every gap (the existing
+`addEveryPositionCases`, both directions, filtered to ascending for
+contains_ascending).
+
+Adversarial instances are diagnostic only (never used for scoring or
+promotion), so the search trajectory is unchanged; only `final_status` can
+differ. Protocol: rerun arm searchkey on contains_ascending, same seeds
+59000-59009 and settings (`ARMS=searchkey`).
+
+**Predictions.**
+1. The three size-42 variants of 121c are now rejected by the engine
+   (final_status not SUCCESS or adversarial failing), and the engine-verified
+   hit seeds equal the outside-verified ones: exactly 5 (59001-59003, 59006,
+   59007), assuming the trajectory is identical.
+2. If the trajectory is not identical (non-determinism in threads), the
+   engine hit count equals the outside-check count in the new run, whatever it is.
+Falsified if the engine still accepts a program the outside check rejects.

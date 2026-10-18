@@ -151,3 +151,13 @@ TEST(section_121c_contains_ascending_has_only_ascending_haystacks) {
         for (const auto& inst : instances) CHECK(std::is_sorted(inst.input.begin() + 1, inst.input.end()));
     }
 }
+
+TEST(section_122_contains_ordered_adversarial_covers_one_element_haystacks) {
+    ContainsOrderedProblem p;
+    bool singleAbsent = false, singlePresent = false;
+    for (const auto& inst : p.generateAdversarialInstances(4)) {
+        if (inst.input.size() == 2) (inst.expectedOutput[0] ? singlePresent : singleAbsent) = true;
+    }
+    CHECK(singleAbsent);
+    CHECK(singlePresent);
+}
