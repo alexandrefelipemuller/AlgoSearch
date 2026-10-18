@@ -95,6 +95,10 @@ std::vector<Instance> ContainsOrderedProblem::generateAdversarialInstances(int l
     for (auto& haystack : generateStructuralArrays(level, seed_, /*seedOffset=*/999983ULL, /*wideRangeSamples=*/8)) {
         addSortedBothDirections(std::move(haystack), instances);
     }
+    // Section 122: every haystack size up to `level` with the key at every position and in every gap. A run that
+    // starts at --start-level 2 never trains on a one-element haystack, and a halving search that is wrong only
+    // there (section 121c: three of eight "hits") passed the structural arrays above.
+    for (int m = 1; m <= level; ++m) addEveryPositionCases(m, instances);
     return instances;
 }
 

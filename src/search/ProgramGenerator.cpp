@@ -2724,6 +2724,70 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
         }
     }
 
+    // Section 119: generic divide-and-conquer shell. Names only the shape
+    // (recursion over the halves of [v1, v2)); the combine step is whatever
+    // the ordinary grammar draws, generated inside an if so it can not itself
+    // draw a skeleton.
+    if (!insideIf && !insideWhile && cfg.dcShellBias > 0.0 && cfg.recursionCallBias > 0.0 && cfg.numVars >= 5 &&
+        depthBudget > 0 && rng.chance(cfg.dcShellBias)) {
+        const int lo = 1, hi = 2, mid = 3;
+        std::vector<StmtPtr> body;
+        body.push_back(makeAssign(
+            mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                           makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+        body.push_back(makeCall(makeVar(lo), makeVar(mid)));
+        body.push_back(makeCall(makeVar(mid), makeVar(hi)));
+        auto combine = genBlockStmts(rng, std::max(1, depthBudget - 1), cfg, loopsUsed, 2, /*insideIf=*/true,
+                                      /*insideWhile=*/false);
+        for (auto& c : combine) body.push_back(std::move(c));
+        return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
+                      std::move(body));
+    }
+
+    // Section 121: one-call interval shell (binary-search shape). Guard on
+    // [v1, v2), midpoint, a comparison of arr[mid] with a neighbour picks which
+    // half to recurse into (offsets and comparison drawn at random), and the
+    // else branch writes a position of the interval to arr[0]. Same gating as
+    // the two-call shell.
+    if (!insideIf && !insideWhile && cfg.dcShellSearchBias > 0.0 && cfg.recursionCallBias > 0.0 && cfg.numVars >= 5 &&
+        depthBudget > 0 && rng.chance(cfg.dcShellSearchBias)) {
+        const int lo = 1, hi = 2, mid = 3;
+        auto midPlus = [&](int offset) {
+            return offset == 0 ? makeVar(mid) : makeBinOp(ExprKind::Add, makeVar(mid), makeIntConst(offset));
+        };
+        const int neighbour = rng.chance(0.5) ? 1 : -1;
+        // Key mode (section 121c): compare arr[mid] with the key arr[0], clamp the seeded interval to the haystack
+        // (v1 >= 1) and end with a membership flag instead of an index.
+        const bool keyMode = cfg.dcShellSearchKey > 0.0 && rng.chance(cfg.dcShellSearchKey);
+        // End mode (section 123): compare arr[mid] with the interval's last cell arr[hi - 1] and end by writing a
+        // value, arr[0] = arr[lo | hi - 1] (the minimum of a rotated sorted array).
+        const bool endMode = !keyMode && cfg.dcShellSearchEnd > 0.0 && rng.chance(cfg.dcShellSearchEnd);
+        static const ExprKind ops[] = {ExprKind::Lt, ExprKind::Le, ExprKind::Gt, ExprKind::Ge};
+        const ExprKind op = ops[rng.uniformInt(0, 3)];
+        std::vector<StmtPtr> body, thenCall, elseCall, base;
+        if (keyMode) {
+            std::vector<StmtPtr> clamp;
+            clamp.push_back(makeAssign(lo, makeIntConst(1)));
+            body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(lo), makeIntConst(1)), std::move(clamp)));
+        }
+        body.push_back(makeAssign(
+            mid, makeBinOp(ExprKind::Add, makeVar(lo),
+                           makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
+        thenCall.push_back(makeCall(midPlus(rng.uniformInt(0, 1)), makeVar(hi)));
+        elseCall.push_back(makeCall(makeVar(lo), midPlus(rng.uniformInt(0, 1))));
+        body.push_back(makeIf(makeCompare(op, makeArrayAccess(makeVar(mid)),
+                                          keyMode ? makeArrayAccess(makeIntConst(0))
+                                          : endMode ? makeArrayAccess(makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1)))
+                                                    : makeArrayAccess(midPlus(neighbour))),
+                              std::move(thenCall), std::move(elseCall)));
+        ExprPtr baseIndex = rng.chance(0.5) ? makeVar(lo) : makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1));
+        base.push_back(makeAssignArray(
+            makeIntConst(0), endMode ? makeArrayAccess(std::move(baseIndex)) : keyMode ? makeCompare(ExprKind::Eq, makeArrayAccess(std::move(baseIndex)), makeArrayAccess(makeIntConst(0)))
+                                     : std::move(baseIndex)));
+        return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
+                      std::move(body), std::move(base));
+    }
+
     // Composite primitives (Moção 2, Etapa 3): independent of the skeleton
     // draw above, so it can fire even at loopAccumulatorBias=0.0. Opt-in via
     // GenConfig::compositeBias. Needs 2 free loop slots (canNestedLoop) and 6

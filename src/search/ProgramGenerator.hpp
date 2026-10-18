@@ -375,6 +375,17 @@ struct GenConfig {
     // numVars >= 3 to be meaningful (silently has no effect below that,
     // same "never breaks, just inert" pattern as the other opt-in biases).
     double recursionCallBias = 0.0;
+    // Section 119: probability that a top-level statement draw is the generic
+    // divide-and-conquer shell (guard, midpoint, two half calls, then a combine
+    // step drawn from the ordinary grammar). Needs recursionCallBias > 0 (for
+    // the lo/hi seeding) and numVars >= 5. 0 = off, byte-identical.
+    double dcShellBias = 0.0;
+    // Section 121: probability of the one-call interval (binary-search) shell. Same gating as dcShellBias.
+    double dcShellSearchBias = 0.0;
+    // Section 121c: share of those shells that compare arr[mid] with the key arr[0] and end in a membership flag.
+    double dcShellSearchKey = 0.0;
+    // Section 123: share (of those not in key mode) comparing arr[mid] with arr[hi - 1] and writing a value.
+    double dcShellSearchEnd = 0.0;
 
     // These are NOT separate opt-in flags one problem-by-problem run has
     // to be told to turn on (an earlier version of this file did exactly

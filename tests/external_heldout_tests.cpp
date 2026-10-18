@@ -6,7 +6,12 @@
 #include "search/Benchmark.hpp"
 
 #include "problems/EquilibriumPointProblem.hpp"
+#include "problems/AnyDuplicateProblem.hpp"
+#include "problems/AnyPeakProblem.hpp"
+#include "problems/ContainsAscendingProblem.hpp"
+#include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
+#include "problems/RotatedMinProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
 #include "test_framework.hpp"
 
@@ -96,4 +101,77 @@ TEST(equilibrium_point_has_a_two_pass_reference_solution) {
     p->body.push_back(makeWhile(cmp(ExprKind::Lt, var(1), var(0)), std::move(body)));
     p->body.push_back(makeAssignArray(lit(0), var(3)));
     CHECK(solvesEverything(EquilibriumPointProblem(), *p));
+}
+
+TEST(section_120_open_specification_checkers_accept_every_valid_answer) {
+    AnyPeakProblem peak;
+    CHECK(peak.isSolution({1, 3, 2, 5}, {1, 0, 0, 0}));
+    CHECK(peak.isSolution({1, 3, 2, 5}, {3, 0, 0, 0}));
+    CHECK(!peak.isSolution({1, 3, 2, 5}, {0, 0, 0, 0}));
+    CHECK(!peak.isSolution({1, 3, 2, 5}, {4, 0, 0, 0}));
+    AnyDuplicateProblem dup;
+    CHECK(dup.isSolution({2, 5, 2, 5}, {2, 0, 0, 0}));
+    CHECK(dup.isSolution({2, 5, 2, 5}, {5, 0, 0, 0}));
+    CHECK(!dup.isSolution({2, 5, 2, 7}, {5, 0, 0, 0}));
+    CHECK(dup.isSolution({1, 2, 3}, {-1, 0, 0}));
+    CHECK(!dup.isSolution({1, 1, 3}, {-1, 0, 0}));
+}
+
+TEST(section_120_instance_labels_pass_their_own_checkers) {
+    AnyPeakProblem peak;
+    AnyDuplicateProblem dup;
+    for (int level = 1; level <= 6; ++level) {
+        for (const ScalarFromArrayProblem* p : std::vector<const ScalarFromArrayProblem*>{&peak, &dup}) {
+            for (const auto& inst : p->generateInstances(level)) {
+                std::vector<int> out = inst.input;
+                out[0] = inst.expectedOutput[0];
+                CHECK(p->isSolution(inst.input, out));
+            }
+        }
+    }
+}
+
+TEST(section_121_any_valley_accepts_every_local_minimum) {
+    AnyValleyProblem valley;
+    CHECK(valley.isSolution({3, 1, 2, 0}, {1, 0, 0, 0}));
+    CHECK(valley.isSolution({3, 1, 2, 0}, {3, 0, 0, 0}));
+    CHECK(!valley.isSolution({3, 1, 2, 0}, {0, 0, 0, 0}));
+    CHECK(!valley.isSolution({3, 1, 2, 0}, {2, 0, 0, 0}));
+    for (const auto& inst : valley.generateInstances(5)) {
+        std::vector<int> out = inst.input;
+        out[0] = inst.expectedOutput[0];
+        CHECK(valley.isSolution(inst.input, out));
+    }
+}
+
+TEST(section_121c_contains_ascending_has_only_ascending_haystacks) {
+    ContainsAscendingProblem p;
+    for (int level = 2; level <= 5; ++level) {
+        auto instances = p.generateInstances(level);
+        CHECK(!instances.empty());
+        for (const auto& inst : instances) CHECK(std::is_sorted(inst.input.begin() + 1, inst.input.end()));
+    }
+}
+
+TEST(section_122_contains_ordered_adversarial_covers_one_element_haystacks) {
+    ContainsOrderedProblem p;
+    bool singleAbsent = false, singlePresent = false;
+    for (const auto& inst : p.generateAdversarialInstances(4)) {
+        if (inst.input.size() == 2) (inst.expectedOutput[0] ? singlePresent : singleAbsent) = true;
+    }
+    CHECK(singleAbsent);
+    CHECK(singlePresent);
+}
+
+TEST(section_123_rotated_min_instances_are_rotations_with_distinct_values) {
+    RotatedMinProblem p;
+    for (int level = 1; level <= 6; ++level) {
+        for (const auto& inst : p.generateInstances(level)) {
+            std::vector<int> sorted = inst.input;
+            std::sort(sorted.begin(), sorted.end());
+            CHECK(std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end());
+            CHECK_EQ(inst.expectedOutput[0], sorted.front());
+        }
+    }
+    CHECK(!p.generateAdversarialInstances(4).empty());
 }

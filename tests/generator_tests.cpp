@@ -249,3 +249,98 @@ TEST(role_typed_vars_keep_indices_and_values_apart) {
     CHECK(subscripts > 0);
     CHECK_EQ(violations, 0);
 }
+
+TEST(dc_shell_bias_emits_the_guarded_two_call_shape_only_when_enabled) {
+    GenConfig on;
+    on.numVars = 7;
+    on.maxLoops = 2;
+    on.maxBlockDepth = 3;
+    on.maxStatementsPerBlock = 3;
+    on.loopAccumulatorBias = 0.0;
+    on.recursionCallBias = 0.1;
+    on.dcShellBias = 1.0;
+    GenConfig off = on;
+    off.dcShellBias = 0.0;
+
+    auto countShells = [&](const GenConfig& cfg) {
+        Random rng(11);
+        int shells = 0;
+        for (int attempt = 0; attempt < 30; ++attempt) {
+            Program p = generateRandomProgram(rng, 25, cfg);
+            std::string text = p->toString();
+            if (text.find("(v2 - v1) > 1") != std::string::npos && text.find("call(v1, v3)") != std::string::npos &&
+                text.find("call(v3, v2)") != std::string::npos)
+                shells++;
+        }
+        return shells;
+    };
+    CHECK(countShells(on) >= 5);
+    CHECK_EQ(countShells(off), 0);
+}
+
+TEST(dc_shell_search_bias_emits_the_one_call_interval_shape_only_when_enabled) {
+    GenConfig on;
+    on.numVars = 7;
+    on.maxLoops = 2;
+    on.maxBlockDepth = 3;
+    on.maxStatementsPerBlock = 3;
+    on.loopAccumulatorBias = 0.0;
+    on.recursionCallBias = 0.1;
+    on.dcShellSearchBias = 1.0;
+    GenConfig off = on;
+    off.dcShellSearchBias = 0.0;
+
+    auto countShells = [&](const GenConfig& cfg) {
+        Random rng(11);
+        int shells = 0;
+        for (int attempt = 0; attempt < 30; ++attempt) {
+            std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+            if (text.find("(v2 - v1) > 1") != std::string::npos && text.find("v3 = (v1 + ((v2 - v1) / 2))") != std::string::npos &&
+                text.find("call(v1, ") != std::string::npos && text.find("arr[0] = ") != std::string::npos)
+                shells++;
+        }
+        return shells;
+    };
+    CHECK(countShells(on) >= 5);
+    CHECK_EQ(countShells(off), 0);
+}
+
+TEST(dc_shell_search_key_mode_compares_with_the_key_and_ends_in_a_membership_flag) {
+    GenConfig cfg;
+    cfg.numVars = 7;
+    cfg.maxLoops = 2;
+    cfg.maxBlockDepth = 3;
+    cfg.maxStatementsPerBlock = 3;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.recursionCallBias = 0.1;
+    cfg.dcShellSearchBias = 1.0;
+    cfg.dcShellSearchKey = 1.0;
+    Random rng(11);
+    int keyShells = 0;
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+        if (text.find("arr[v3] ") != std::string::npos && text.find("arr[0])") != std::string::npos &&
+            text.find("(v1 < 1)") != std::string::npos)
+            keyShells++;
+    }
+    CHECK(keyShells >= 5);
+}
+
+TEST(dc_shell_search_end_mode_compares_with_the_interval_end_and_writes_a_value) {
+    GenConfig cfg;
+    cfg.numVars = 7;
+    cfg.maxLoops = 2;
+    cfg.maxBlockDepth = 3;
+    cfg.maxStatementsPerBlock = 3;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.recursionCallBias = 0.1;
+    cfg.dcShellSearchBias = 1.0;
+    cfg.dcShellSearchEnd = 1.0;
+    Random rng(11);
+    int endShells = 0;
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+        if (text.find("arr[(v2 - 1)])") != std::string::npos && text.find("arr[0] = arr[") != std::string::npos) endShells++;
+    }
+    CHECK(endShells >= 5);
+}
