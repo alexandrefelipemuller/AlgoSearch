@@ -304,3 +304,24 @@ TEST(dc_shell_search_bias_emits_the_one_call_interval_shape_only_when_enabled) {
     CHECK(countShells(on) >= 5);
     CHECK_EQ(countShells(off), 0);
 }
+
+TEST(dc_shell_search_key_mode_compares_with_the_key_and_ends_in_a_membership_flag) {
+    GenConfig cfg;
+    cfg.numVars = 7;
+    cfg.maxLoops = 2;
+    cfg.maxBlockDepth = 3;
+    cfg.maxStatementsPerBlock = 3;
+    cfg.loopAccumulatorBias = 0.0;
+    cfg.recursionCallBias = 0.1;
+    cfg.dcShellSearchBias = 1.0;
+    cfg.dcShellSearchKey = 1.0;
+    Random rng(11);
+    int keyShells = 0;
+    for (int attempt = 0; attempt < 30; ++attempt) {
+        std::string text = generateRandomProgram(rng, 25, cfg)->toString();
+        if (text.find("arr[v3] ") != std::string::npos && text.find("arr[0])") != std::string::npos &&
+            text.find("(v1 < 1)") != std::string::npos)
+            keyShells++;
+    }
+    CHECK(keyShells >= 5);
+}

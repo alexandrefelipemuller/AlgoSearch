@@ -9459,3 +9459,55 @@ reported as a peak-search piece. The registered next lever, not run here:
 let the shell's comparison operand be drawn from {neighbour, arr[0]} with a
 membership base case. That widens the piece toward a skeleton of binary search
 and needs its own registration.
+
+## 121b (results). contains_ordered 0 hits as predicted; any_valley 9/10 hits
+
+`data/dc_search_ab_cord_20261018/`, `data/dc_search_ab_valley_20261018/`
+(engine records: SUCCESS, adversarial all passed, `call(` and no `while`;
+the fitted exponent was not re-measured for any_valley).
+
+| problem | arm | solved | hits |
+|---|---|---|---|
+| contains_ordered | base | 1/10 | 0 |
+| contains_ordered | search | 1/10 | 0 |
+| any_valley | base | 9/10 | 0 |
+| any_valley | search | 9/10 | 9 |
+
+Prediction 1 (contains_ordered 0 hits, no loss): **held**. Prediction 2
+(any_valley >= 7 hits, base 0): **held**. any_valley is the mirror of any_peak
+and not a second shape: by the rule fixed above the piece is NOT promoted.
+
+## 121c. Key-based interval shell (`--dc-shell-search-key`) -- design and predictions registered before running
+
+The lever registered in 121b, built now. `--dc-shell-search-key P` makes a
+share P of the one-call shells use "key mode": the comparison is
+arr[mid] OP arr[0] (the key), the body starts with `if (v1 < 1) v1 = 1`
+(the seeded interval [0, n) contains the key cell itself), and the base case
+writes the membership flag `arr[0] = (arr[X] == arr[0])`, X in {v1, v2 - 1}
+(the one of the five draws, operator, two offsets, base index, is the rest of
+the piece, still random). Caveat, stated before the result: this puts the
+key, the clamp and the flag into the piece, i.e. much of a binary-search
+skeleton; a hit says the search can assemble the remaining five choices, not
+that it discovered the key comparison. A correct assembly exists: op `<=`, right half
+[mid, hi), left half [lo, mid), base arr[lo].
+
+New problem `contains_ascending` (contains_ordered restricted to ascending
+haystacks, because no single comparison covers both directions; `make test`
+238/238). Runner arm `searchkey` = `--dc-shell-search 0.15
+--dc-shell-search-key 0.5`; arms base / search / searchkey on
+contains_ascending, and base / searchkey on contains_ordered as the negative
+control; seeds 59000-59009, settings of 121. Hit = engine SUCCESS, adversarial
+all passed, `call(` and no `while`, plus step exponent < 0.5 re-measured
+on an ascending array of n = 32..1024.
+
+**Predictions.**
+1. contains_ascending: searchkey >= 1 hit of 10 (my uncertainty is large, about
+   even odds: only about 1 of 32 key-mode draws is correct); base and search
+   (key share 0): 0 hits.
+2. contains_ordered (both directions): 0 hits in searchkey (no direction test).
+3. No loss in solved count for searchkey versus base (tolerance -1 of 10).
+
+**Decision rule.** A hit on contains_ascending, a different search shape from
+the neighbour comparison, makes the piece a candidate for promotion as the
+generic interval-search piece, reported with the caveat above. 0 hits closes
+the interval-shell line as a peak-search piece.

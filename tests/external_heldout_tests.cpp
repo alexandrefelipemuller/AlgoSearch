@@ -8,6 +8,7 @@
 #include "problems/EquilibriumPointProblem.hpp"
 #include "problems/AnyDuplicateProblem.hpp"
 #include "problems/AnyPeakProblem.hpp"
+#include "problems/ContainsAscendingProblem.hpp"
 #include "problems/AnyValleyProblem.hpp"
 #include "problems/PeakElementProblem.hpp"
 #include "problems/SearchRotatedProblem.hpp"
@@ -139,5 +140,14 @@ TEST(section_121_any_valley_accepts_every_local_minimum) {
         std::vector<int> out = inst.input;
         out[0] = inst.expectedOutput[0];
         CHECK(valley.isSolution(inst.input, out));
+    }
+}
+
+TEST(section_121c_contains_ascending_has_only_ascending_haystacks) {
+    ContainsAscendingProblem p;
+    for (int level = 2; level <= 5; ++level) {
+        auto instances = p.generateInstances(level);
+        CHECK(!instances.empty());
+        for (const auto& inst : instances) CHECK(std::is_sorted(inst.input.begin() + 1, inst.input.end()));
     }
 }

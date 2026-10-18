@@ -2756,19 +2756,29 @@ StmtPtr genStmt(Random& rng, int depthBudget, const GenConfig& cfg, int& loopsUs
             return offset == 0 ? makeVar(mid) : makeBinOp(ExprKind::Add, makeVar(mid), makeIntConst(offset));
         };
         const int neighbour = rng.chance(0.5) ? 1 : -1;
+        // Key mode (section 121c): compare arr[mid] with the key arr[0], clamp the seeded interval to the haystack
+        // (v1 >= 1) and end with a membership flag instead of an index.
+        const bool keyMode = cfg.dcShellSearchKey > 0.0 && rng.chance(cfg.dcShellSearchKey);
         static const ExprKind ops[] = {ExprKind::Lt, ExprKind::Le, ExprKind::Gt, ExprKind::Ge};
         const ExprKind op = ops[rng.uniformInt(0, 3)];
         std::vector<StmtPtr> body, thenCall, elseCall, base;
+        if (keyMode) {
+            std::vector<StmtPtr> clamp;
+            clamp.push_back(makeAssign(lo, makeIntConst(1)));
+            body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(lo), makeIntConst(1)), std::move(clamp)));
+        }
         body.push_back(makeAssign(
             mid, makeBinOp(ExprKind::Add, makeVar(lo),
                            makeBinOp(ExprKind::Div, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(2)))));
         thenCall.push_back(makeCall(midPlus(rng.uniformInt(0, 1)), makeVar(hi)));
         elseCall.push_back(makeCall(makeVar(lo), midPlus(rng.uniformInt(0, 1))));
-        body.push_back(makeIf(makeCompare(op, makeArrayAccess(makeVar(mid)), makeArrayAccess(midPlus(neighbour))),
+        body.push_back(makeIf(makeCompare(op, makeArrayAccess(makeVar(mid)),
+                                          keyMode ? makeArrayAccess(makeIntConst(0)) : makeArrayAccess(midPlus(neighbour))),
                               std::move(thenCall), std::move(elseCall)));
-        base.push_back(makeAssignArray(makeIntConst(0), rng.chance(0.5)
-                                                            ? makeVar(lo)
-                                                            : makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1))));
+        ExprPtr baseIndex = rng.chance(0.5) ? makeVar(lo) : makeBinOp(ExprKind::Sub, makeVar(hi), makeIntConst(1));
+        base.push_back(makeAssignArray(
+            makeIntConst(0), keyMode ? makeCompare(ExprKind::Eq, makeArrayAccess(std::move(baseIndex)), makeArrayAccess(makeIntConst(0)))
+                                     : std::move(baseIndex)));
         return makeIf(makeCompare(ExprKind::Gt, makeBinOp(ExprKind::Sub, makeVar(hi), makeVar(lo)), makeIntConst(1)),
                       std::move(body), std::move(base));
     }
