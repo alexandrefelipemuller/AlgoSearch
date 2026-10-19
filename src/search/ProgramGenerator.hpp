@@ -176,10 +176,14 @@ struct GenConfig {
     // Section 127: in a loop Sum, the probability that the term arr[i] is replaced by a small arithmetic
     // expression of it, drawn uniformly from the enumerated set x/c, x%c, x*c, x+-c, x/c1+-c2, x*c1+-c2 (c in
     // 1..maxConst). 0 draws nothing and is byte-identical.
-    double termExprBias = 0.0;
+    double termExprBias = 0.3;  // default since section 130
     // Section 128: probability that a single combinator loop is a prefix-sum crossing (first index where the
     // running sum passes a threshold). 0 = off, no RNG draw.
-    double prefixCrossBias = 0.0;
+    double prefixCrossBias = 0.3;  // default since section 130
+    // Section 130: probability that a combinator block is the positional-sum block (index-parity-conditional
+    // transform with an optional fold), and the pair-find block. 0 = off, no RNG draw.
+    double parityTermBias = 0.0;
+    double pairFindBias = 0.0;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

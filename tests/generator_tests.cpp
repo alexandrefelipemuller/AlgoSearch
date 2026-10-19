@@ -318,3 +318,33 @@ TEST(prefix_cross_bias_draws_the_first_index_where_the_running_sum_crosses_a_thr
     CHECK(withBias >= 3);
     CHECK(withBias > countCross(off));
 }
+
+TEST(parity_term_and_pair_find_biases_draw_their_blocks_only_when_on) {
+    GenConfig on;
+    on.numVars = 8;
+    on.combinatorBias = 1.0;
+    on.parityTermBias = 1.0;
+    GenConfig off = on;
+    off.parityTermBias = 0.0;
+    auto countParity = [&](const GenConfig& cfg) {
+        Random rng(5);
+        int n = 0;
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            if (generateRandomProgram(rng, 40, cfg)->toString().find(" % 2) == ") != std::string::npos) n++;
+        }
+        return n;
+    };
+    CHECK(countParity(on) >= 20);
+    CHECK(countParity(off) < countParity(on));
+
+    GenConfig pair = on;
+    pair.parityTermBias = 0.0;
+    pair.pairFindBias = 1.0;
+    Random rng(5);
+    int found = 0;
+    for (int attempt = 0; attempt < 200; ++attempt) {
+        std::string text = generateRandomProgram(rng, 80, pair)->toString();
+        if (text.find("arr[1] = ") != std::string::npos && text.find("== 0)") != std::string::npos) found++;
+    }
+    CHECK(found >= 20);
+}

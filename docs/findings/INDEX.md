@@ -237,3 +237,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 129. Term run results (fuel_cost 29/30, paired_digits 2/30) and the joint battery, registered before running | 11_sections_121-125.md | 562 |
 | 129r. Joint battery: 755/770 in both arms, no drop of 2+; pieces cost nothing on the suite | 11_sections_121-125.md | 581 |
 | 129p. PSB2 with both pieces: gcd 30, fuel_cost 29, basement 30, paired_digits 2, rest 0 (91/210 vs 34/210) | 11_sections_121-125.md | 595 |
+| 130. Promote term/prefix to default; new --pair-find and --parity-term pieces (find_pair 4/4, luhn 5/8 in screens) | 11_sections_121-125.md | 614 |

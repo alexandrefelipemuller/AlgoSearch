@@ -1828,6 +1828,76 @@ StmtPtr genTripleBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     return block;
 }
 
+// Section 130: positional sum. acc = sum of elem(i), where on positions i % 2 == p the element goes through a small
+// arithmetic term and optionally a fold (if (t > K) t = t - K). Covers digit-checksum rules such as Luhn's
+// double-every-other-digit-and-subtract-9.
+StmtPtr genPositionalSumBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    std::vector<int> v = pickDistinctVars(rng, cfg, 3);
+    int vi = v[0], acc = v[1], t = v[2];
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(acc, makeIntConst(0)));
+    root.push_back(makeAssign(vi, makeIntConst(0)));
+    appendCountingWhile(root, vi, makeVar(0), loopsUsed, [&](std::vector<StmtPtr>& body) {
+        body.push_back(makeAssign(t, makeArrayAccess(makeVar(vi))));
+        std::vector<StmtPtr> shaped;
+        shaped.push_back(makeAssign(t, combinator::drawTermExpr(rng, cfg, *makeVar(t))));
+        if (rng.chance(0.5)) {
+            std::vector<StmtPtr> fold;
+            int k = rng.uniformInt(5, 9);
+            fold.push_back(makeAssign(t, makeBinOp(ExprKind::Sub, makeVar(t), makeIntConst(k))));
+            shaped.push_back(makeIf(makeCompare(ExprKind::Gt, makeVar(t), makeIntConst(k)), std::move(fold)));
+        }
+        body.push_back(makeIf(makeCompare(ExprKind::Eq, makeBinOp(ExprKind::Mod, makeVar(vi), makeIntConst(2)),
+                                          makeIntConst(rng.uniformInt(0, 1))),
+                              std::move(shaped)));
+        body.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeVar(t))));
+    });
+    root.push_back(makeAssignArray(makeIntConst(0), makeVar(acc)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
+// Section 130: first pair (i < j) of elements whose sum (or difference) equals a target, output as two cells.
+// The target is the last element (pairs over arr[0..n-2]) or the first (pairs over arr[1..n-1]); the pair is output as
+// the two values or as the two indices, in arr[0] and arr[1]. Generic "find the pair that hits a target" search.
+StmtPtr genPairFindBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    using namespace combinator;
+    std::vector<int> v = pickDistinctVars(rng, cfg, 5);
+    int vi = v[0], vj = v[1], ra = v[2], rb = v[3], flag = v[4];
+    bool targetLast = rng.chance(0.5);
+    bool difference = rng.chance(0.25);
+    bool indices = rng.chance(0.25);
+    ExprPtr base = makeIntConst(targetLast ? 0 : 1);
+    ExprPtr bound = targetLast ? makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1)) : makeVar(0);
+    ExprPtr key = targetLast ? makeArrayAccess(makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(1)))
+                             : makeArrayAccess(makeIntConst(0));
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(ra, makeIntConst(0)));
+    root.push_back(makeAssign(rb, makeIntConst(0)));
+    root.push_back(makeAssign(flag, makeIntConst(0)));
+    root.push_back(makeAssign(vi, base->clone()));
+    appendCountingWhile(root, vi, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& outer) {
+        outer.push_back(makeAssign(vj, makeBinOp(ExprKind::Add, makeVar(vi), makeIntConst(1))));
+        appendCountingWhile(outer, vj, bound->clone(), loopsUsed, [&](std::vector<StmtPtr>& inner) {
+            ExprPtr lhs = makeBinOp(difference ? ExprKind::Sub : ExprKind::Add, makeArrayAccess(makeVar(vi)),
+                                    makeArrayAccess(makeVar(vj)));
+            std::vector<StmtPtr> hit;
+            hit.push_back(makeAssign(ra, indices ? makeVar(vi) : makeArrayAccess(makeVar(vi))));
+            hit.push_back(makeAssign(rb, indices ? makeVar(vj) : makeArrayAccess(makeVar(vj))));
+            hit.push_back(makeAssign(flag, makeIntConst(1)));
+            std::vector<StmtPtr> unset;
+            unset.push_back(makeIf(makeCompare(ExprKind::Eq, std::move(lhs), key->clone()), std::move(hit)));
+            inner.push_back(makeIf(makeCompare(ExprKind::Eq, makeVar(flag), makeIntConst(0)), std::move(unset)));
+        });
+    });
+    root.push_back(makeAssignArray(makeIntConst(0), makeVar(ra)));
+    root.push_back(makeAssignArray(makeIntConst(1), makeVar(rb)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 // Section 104: fixed-point relaxation over a square matrix. Layout
 // [V, S[0..V-1], M[0..V*V-1]]; V rounds of
 //   for i, j: if (guard(S[i]) && edge(w = M[i][j])) update(S[j], S[i], w);
@@ -1976,6 +2046,12 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     }
     if (cfg.combinatorTriple && (cfg.maxLoops - loopsUsed) >= 3 && rng.uniformInt(0, 7) == 0) {
         return genTripleBlock(rng, cfg, loopsUsed);
+    }
+    if (cfg.parityTermBias > 0.0 && (cfg.maxLoops - loopsUsed) >= 1 && rng.chance(cfg.parityTermBias)) {
+        return genPositionalSumBlock(rng, cfg, loopsUsed);
+    }
+    if (cfg.pairFindBias > 0.0 && (cfg.maxLoops - loopsUsed) >= 2 && rng.chance(cfg.pairFindBias)) {
+        return genPairFindBlock(rng, cfg, loopsUsed);
     }
     if (cfg.combinatorState && rng.uniformInt(0, 3) == 0) return genStatefulBlock(rng, cfg, loopsUsed);
     if (cfg.combinatorFollow && (!cfg.followPointerInputsOnly || cfg.pointerInput) && rng.uniformInt(0, 7) == 0) {
