@@ -1342,7 +1342,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, FirstIndex };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, FirstIndex, PrefixCross };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -2042,6 +2042,8 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     Relation rel = loop == Loop::Single ? singleRel[rng.uniformInt(0, 4)] : pairRel[rng.uniformInt(0, 4)];
     // Section 117: FirstIndex joins the single-loop relations one time in six.
     if (cfg.firstIndex && loop == Loop::Single && rng.uniformInt(0, 5) == 0) rel = Relation::FirstIndex;
+    // Section 128: with the flag on, a single loop becomes a prefix-sum crossing with probability prefixCrossBias.
+    if (cfg.prefixCrossBias > 0.0 && loop == Loop::Single && rng.chance(cfg.prefixCrossBias)) rel = Relation::PrefixCross;
     if (layout == Layout::Pair && (rel == Relation::SwapIf || rel == Relation::Swap)) rel = Relation::Forall;
     // Section 52: on an adjacent pass, the two step relations join the five
     // pair relations as equals (2 of 7). Drawn only with the flag on, so the
@@ -2144,6 +2146,20 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             take.push_back(makeAssign(found, makeVar(vi)));
             std::vector<StmtPtr> unset;
             unset.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(take)));
+            inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(unset)));
+            resultVar = found;
+            argInit = makeIntConst(-1);
+            break;
+        }
+        case Relation::PrefixCross: {
+            // Section 128: acc = acc + a; if (r < 0) { if (acc CMP t) r = i; }, t = 0 or the key, CMP in {<, >}.
+            inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), a->clone())));
+            std::vector<StmtPtr> take;
+            take.push_back(makeAssign(found, makeVar(vi)));
+            ExprKind crossCmp = rng.chance(0.5) ? ExprKind::Lt : ExprKind::Gt;
+            ExprPtr threshold = rng.chance(0.75) ? makeIntConst(0) : key->clone();
+            std::vector<StmtPtr> unset;
+            unset.push_back(makeIf(makeCompare(crossCmp, makeVar(acc), std::move(threshold)), std::move(take)));
             inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(unset)));
             resultVar = found;
             argInit = makeIntConst(-1);

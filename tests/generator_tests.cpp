@@ -296,3 +296,25 @@ TEST(term_expr_bias_wraps_the_loop_sum_term_in_a_small_arithmetic_expression) {
     CHECK(withBias >= 3);
     CHECK(withBias > countTerms(off));
 }
+
+TEST(prefix_cross_bias_draws_the_first_index_where_the_running_sum_crosses_a_threshold) {
+    GenConfig on;
+    on.numVars = 8;
+    on.combinatorBias = 1.0;
+    on.prefixCrossBias = 1.0;
+    GenConfig off = on;
+    off.prefixCrossBias = 0.0;
+    // Shape: acc = acc + arr[..]; if (r < 0) { if (acc < 0) { r = i; } }, with r initialised to -1.
+    auto countCross = [&](const GenConfig& cfg) {
+        Random rng(5);
+        int crosses = 0;
+        for (int attempt = 0; attempt < 400; ++attempt) {
+            std::string text = generateRandomProgram(rng, 40, cfg)->toString();
+            if (text.find(" < 0)) {\n    if ((") != std::string::npos && text.find("= -1;") != std::string::npos) crosses++;
+        }
+        return crosses;
+    };
+    int withBias = countCross(on);
+    CHECK(withBias >= 3);
+    CHECK(withBias > countCross(off));
+}

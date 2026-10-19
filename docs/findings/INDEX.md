@@ -233,3 +233,5 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 126b. Fuel cost diagnosis: known solution passes, search never composes x/3-2 | 11_sections_121-125.md | 507 |
 | 127. Term-expression piece (`--term-expr P`), opt-in; screen 4/8, predictions registered | 11_sections_121-125.md | 520 |
 | 128. Other unsolved PSB2 problems: known solutions pass, search stuck on a plateau (diagnosis) | 11_sections_121-125.md | 532 |
+| 128b. Prefix-crossing piece (`--prefix-cross P`), opt-in; basement 0/30 -> 30/30 | 11_sections_121-125.md | 550 |
+| 129. Term run results (fuel_cost 29/30, paired_digits 2/30) and the joint battery, registered before running | 11_sections_121-125.md | 562 |

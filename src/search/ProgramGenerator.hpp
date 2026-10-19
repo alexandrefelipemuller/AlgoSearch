@@ -177,6 +177,9 @@ struct GenConfig {
     // expression of it, drawn uniformly from the enumerated set x/c, x%c, x*c, x+-c, x/c1+-c2, x*c1+-c2 (c in
     // 1..maxConst). 0 draws nothing and is byte-identical.
     double termExprBias = 0.0;
+    // Section 128: probability that a single combinator loop is a prefix-sum crossing (first index where the
+    // running sum passes a threshold). 0 = off, no RNG draw.
+    double prefixCrossBias = 0.0;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first
