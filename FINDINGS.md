@@ -73,6 +73,7 @@ system generalizes.
 | `--recursion-call-bias`, `--second-array-bias` | -- | recursion seeding (`v1/v2 = 0/n`) and the `aux` array; off unless a problem needs them |
 | `--dc-shell-search` (+`-key`, `-end`) | 121-124 | assembles O(log n) search on three specifications; costs nothing on the 73-problem battery; no measured gain in solved counts, so not promoted |
 | `--max-executions N` | 126 | execution cap in PSB2 units; `Psb2Problem` + `scripts/run_psb2.sh` run seven integer PSB2 problems under the suite's protocol |
+| `--term-expr P` | 126b, 127 | enumerated `x op c1 op c2` term in loop sums; fuel_cost screen 4/8, full run pending; opt-in |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)

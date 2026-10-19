@@ -64,3 +64,69 @@ TEST(psb2_fuel_cost_known_loop_solution_passes_the_official_cases) {
     (void)total;
     CHECK_EQ(bad, 0);
 }
+
+namespace {
+int psb2FailuresOn(algosearch::Psb2Problem& prob, const algosearch::Stmt& program) {
+    using namespace algosearch;
+    Interpreter interp(20000);
+    int bad = 0;
+    for (const auto& inst : prob.generateAdversarialInstances(1)) {
+        if (prob.evaluate(program, inst, interp).status != ExecStatus::SUCCESS) ++bad;
+    }
+    return bad;
+}
+}  // namespace
+
+TEST(psb2_basement_known_loop_solution_passes_the_official_cases) {
+    using namespace algosearch;
+    // v6 = 0; v4 = 0; v5 = 0 - 1;
+    // while (v4 < v0) { v6 = v6 + arr[v4]; if (v6 < 0) { v5 = v4; break; } v4 = v4 + 1; } arr[0] = v5;
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(6, makeIntConst(0)));
+    p->body.push_back(makeAssign(4, makeIntConst(0)));
+    p->body.push_back(makeAssign(5, makeBinOp(ExprKind::Sub, makeIntConst(0), makeIntConst(1))));
+    std::vector<StmtPtr> hit;
+    hit.push_back(makeAssign(5, makeVar(4)));
+    hit.push_back(makeBreak());
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(6, makeBinOp(ExprKind::Add, makeVar(6), makeArrayAccess(makeVar(4)))));
+    body.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(6), makeIntConst(0)), std::move(hit)));
+    body.push_back(makeAssign(4, makeBinOp(ExprKind::Add, makeVar(4), makeIntConst(1))));
+    p->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(4), makeVar(0)), std::move(body)));
+    p->body.push_back(makeAssignArray(makeIntConst(0), makeVar(5)));
+    Psb2Problem prob(Psb2Problem::Kind::Basement, 7, 1);
+    CHECK_EQ(psb2FailuresOn(prob, *p), 0);
+}
+
+TEST(psb2_find_pair_known_nested_loop_solution_passes_the_official_cases) {
+    using namespace algosearch;
+    // v3 = arr[v0-1]; v1 = 0; v5 = 0; v6 = 0;
+    // while (v1 < v0-2) { v2 = v1+1; while (v2 < v0-1) {
+    //   if (arr[v1] + arr[v2] == v3) { v5 = arr[v1]; v6 = arr[v2]; v1 = v0; break; } v2 = v2+1; } v1 = v1+1; }
+    // arr[0] = v5; arr[1] = v6;
+    auto p = makeBlock();
+    auto lenMinus = [](int k) { return makeBinOp(ExprKind::Sub, makeVar(0), makeIntConst(k)); };
+    p->body.push_back(makeAssign(3, makeArrayAccess(lenMinus(1))));
+    p->body.push_back(makeAssign(1, makeIntConst(0)));
+    p->body.push_back(makeAssign(5, makeIntConst(0)));
+    p->body.push_back(makeAssign(6, makeIntConst(0)));
+    std::vector<StmtPtr> hit;
+    hit.push_back(makeAssign(5, makeArrayAccess(makeVar(1))));
+    hit.push_back(makeAssign(6, makeArrayAccess(makeVar(2))));
+    hit.push_back(makeAssign(1, makeVar(0)));
+    hit.push_back(makeBreak());
+    std::vector<StmtPtr> inner;
+    inner.push_back(makeIf(makeCompare(ExprKind::Eq,
+        makeBinOp(ExprKind::Add, makeArrayAccess(makeVar(1)), makeArrayAccess(makeVar(2))), makeVar(3)),
+        std::move(hit)));
+    inner.push_back(makeAssign(2, makeBinOp(ExprKind::Add, makeVar(2), makeIntConst(1))));
+    std::vector<StmtPtr> outer;
+    outer.push_back(makeAssign(2, makeBinOp(ExprKind::Add, makeVar(1), makeIntConst(1))));
+    outer.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(2), lenMinus(1)), std::move(inner)));
+    outer.push_back(makeAssign(1, makeBinOp(ExprKind::Add, makeVar(1), makeIntConst(1))));
+    p->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(1), lenMinus(2)), std::move(outer)));
+    p->body.push_back(makeAssignArray(makeIntConst(0), makeVar(5)));
+    p->body.push_back(makeAssignArray(makeIntConst(1), makeVar(6)));
+    Psb2Problem prob(Psb2Problem::Kind::FindPair, 8, 1);
+    CHECK_EQ(psb2FailuresOn(prob, *p), 0);
+}

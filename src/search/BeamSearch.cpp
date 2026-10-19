@@ -18,6 +18,7 @@
 
 #include "core/Random.hpp"
 #include "interpreter/Interpreter.hpp"
+#include "language/PrettyPrinter.hpp"
 #include "search/Dedup.hpp"
 #include "search/Logger.hpp"
 #include "search/TailFiller.hpp"
@@ -497,6 +498,7 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
     Interpreter probeInterp(config_.stepLimit * 50, /*maxRecursionDepth=*/200, config_.genConfig.recursionCallBias > 0.0);
     long profileBonusesGiven = 0;
 
+    int debugBestPrinted = -1;
     for (int size = 1; sizeSteps < config_.maxProgramSize && currentLevel <= config_.maxLevel; ++size, ++sizeSteps) {
         if (config_.wallSeconds > 0.0 &&
             std::chrono::duration<double>(std::chrono::steady_clock::now() - searchStart).count() >= config_.wallSeconds) {
@@ -760,6 +762,13 @@ std::vector<SolutionRecord> BeamSearch::run(std::vector<Program>* outPrograms) {
                        << "/" << instances.size() << " raw=" << rawSz << " simplified=" << simplifiedSz
                        << " dead_frac=" << (rawSz > 0 ? 1.0 - static_cast<double>(simplifiedSz) / rawSz : 0.0)
                        << "\n";
+        }
+
+        // Diagnostic only (section 128): print the best program of a size step whenever the best score improves.
+        if (std::getenv("ALGOSEARCH_DEBUG_BEST") != nullptr && scored.front().program && scored.front().score > debugBestPrinted) {
+            debugBestPrinted = scored.front().score;
+            std::cerr << "[best-debug] size_step=" << size << " score=" << scored.front().score << "/" << instances.size()
+                      << "\n" << printStmt(*scored.front().program) << "\n";
         }
 
         int immigrantCount = 0;

@@ -230,3 +230,6 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 125c. Cleanup, groups 3 and 4: four closed experiments removed, the rest kept on evidence | 11_sections_121-125.md | 410 |
 | 126. PSB2, the comparable baseline -- design and predictions registered before running | 11_sections_121-125.md | 437 |
 | 126r. PSB2 first full run: gcd 30/30 (contaminated), paired_digits 4/30, other five 0/30; fuel_cost gap vs PushGP | 11_sections_121-125.md | 456 |
+| 126b. Fuel cost diagnosis: known solution passes, search never composes x/3-2 | 11_sections_121-125.md | 507 |
+| 127. Term-expression piece (`--term-expr P`), opt-in; screen 4/8, predictions registered | 11_sections_121-125.md | 520 |
+| 128. Other unsolved PSB2 problems: known solutions pass, search stuck on a plateau (diagnosis) | 11_sections_121-125.md | 584 |
