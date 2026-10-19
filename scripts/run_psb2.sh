@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FINDINGS section 126: seven integer problems of PSB2 under the suite's protocol (200 training cases, 2,000 unseen test
 # cases, 60,000,000 program executions per run, success = every training and test case passes). Current default config.
-# Usage: scripts/run_psb2.sh output_root   Env: SEEDS (30), SEED_BASE (70000), JOBS (8), WALL (900), PROBLEMS, DATA (data/psb2).
+# Usage: scripts/run_psb2.sh output_root   Env: EXTRA (extra algosearch flags), SEEDS (30), SEED_BASE (70000), JOBS (8), WALL (900), PROBLEMS, DATA (data/psb2).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 D="${1:?output_root}"
@@ -16,7 +16,7 @@ done; done | xargs -P "$JOBS" -L1 sh -c '
   mkdir -p '"$D"'/$problem
   timeout $(( '"$WALL"' + 60 )) ./algosearch --problem $problem --max-n 1 --num-vars 7 --seed $seed --threads 1 \
     --beam-width 500 --candidates 1500 --max-program-size 150 --step-limit 20000 \
-    --max-executions 60000000 --wall-seconds '"$WALL"' \
+    --max-executions 60000000 ${EXTRA:-} --wall-seconds '"$WALL"' \
     --output '"$D"'/$problem/seed_$seed.json > '"$D"'/$problem/seed_$seed.log 2>&1
   echo "$problem $seed exit=$? $(date +%T)" >> '"$D"'/driver.log'
 echo "PSB2_DONE $(date +%T)" >> "$D/driver.log"

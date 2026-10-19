@@ -185,6 +185,7 @@ struct CliArgs {
     double secondArrayBias = 0.0;
     double recursionCallBias = 0.0;
     double dcShellSearchBias = 0.0;  // section 121
+    double termExprBias = 0.0;       // section 127
     double dcShellSearchKey = 0.0;  // section 121c
     double dcShellSearchEnd = 0.0;  // section 123
     std::string adaptiveBiasLog;
@@ -276,6 +277,7 @@ bool parseArgs(int argc, char** argv, CliArgs& args) {
         else if (arg == "--no-prefix-split") args.prefixSplit = false;
         else if (arg == "--adaptive-skeleton-bias-rate") args.adaptiveSkeletonBiasRate = std::stod(next("--adaptive-skeleton-bias-rate"));
         else if (arg == "--second-array-bias") args.secondArrayBias = std::stod(next("--second-array-bias"));
+        else if (arg == "--term-expr") args.termExprBias = std::stod(next("--term-expr"));
         else if (arg == "--dc-shell-search") args.dcShellSearchBias = std::stod(next("--dc-shell-search"));
         else if (arg == "--dc-shell-search-end") args.dcShellSearchEnd = std::stod(next("--dc-shell-search-end"));
         else if (arg == "--dc-shell-search-key") args.dcShellSearchKey = std::stod(next("--dc-shell-search-key"));
@@ -309,7 +311,7 @@ void printUsage() {
                  "[--behavior-niche-rate 0.0] [--speed-bonus-weight 0.0] [--post-solve-sizes 0] [--tail-enum 10] [--loop-bias 0.4] "
                  "[--composite-bias 0.0] [--local-cond-mutation 0.3] [--no-local-cond-mutation] [--prune-generation] [--role-typed-vars] [--combinator-bias 0.5] [--combinator-v1] [--no-combinator-step] [--no-combinator-state] [--no-combinator-nested] [--no-combinator-frequency] [--combinator-follow] [--no-follow-pointer-inputs] [--no-combinator-orthogonal] [--no-combinator-argbest] [--no-combinator-distinct] [--regression-guard 12] [--no-follow-extended] [--no-scalar-loop] [--no-scalar-loop-index-range] [--no-combinator-triple] [--no-combinator-relax] [--no-combinator-grid] [--no-combinator-transform] [--no-distinct-aggregate] [--no-arg-sentinel] [--first-index] [--prefix-split] "
                  "[--adaptive-skeleton-bias-rate 0.0] [--adaptive-bias-log path.csv] "
-                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
+                 "[--second-array-bias 0.0] [--recursion-call-bias 0.0] [--term-expr 0.0] [--dc-shell-search 0.0] [--dc-shell-search-key 0.0] [--dc-shell-search-end 0.0] "
                  "[--output solutions.json] [--checkpoint-path path.json] [--restart-on-stall K] [--wall-seconds S] [--max-executions N] [--confirm-reseed L] [--profile-novelty W] [--profile-ban] [--forbid-stmt swap|call|assignarray] "
                  "[--benchmark] [--benchmark-seeds 5] [--fill-tsp-guard [--soundness-labels] [--metamorphic [--rank-worst-scale]]] [--fill-bsearch-hole [--bsearch-stage 3]] [--ablate-skeleton NAME]\n";
 }
@@ -562,6 +564,7 @@ void runBenchmarkMode(const CliArgs& args) {
         config.genConfig.secondArrayBias = args.secondArrayBias;
         config.genConfig.recursionCallBias = args.recursionCallBias;
         config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
+        config.genConfig.termExprBias = args.termExprBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
     config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;
 
@@ -1211,6 +1214,7 @@ int main(int argc, char** argv) {
     config.genConfig.secondArrayBias = args.secondArrayBias;
     config.genConfig.recursionCallBias = args.recursionCallBias;
     config.genConfig.dcShellSearchBias = args.dcShellSearchBias;
+        config.genConfig.termExprBias = args.termExprBias;
     config.genConfig.dcShellSearchKey = args.dcShellSearchKey;
     config.genConfig.dcShellSearchEnd = args.dcShellSearchEnd;
     config.adaptiveBiasLogPath = args.adaptiveBiasLog;

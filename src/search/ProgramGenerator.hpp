@@ -173,6 +173,10 @@ struct GenConfig {
     // a single-loop Sum the term elem(i) - elem(start) under {id, |.|, max(0,.)}.
     // Opt-in (`--combinator-transform`); false is byte-identical.
     bool combinatorTransform = false;
+    // Section 127: in a loop Sum, the probability that the term arr[i] is replaced by a small arithmetic
+    // expression of it, drawn uniformly from the enumerated set x/c, x%c, x*c, x+-c, x/c1+-c2, x*c1+-c2 (c in
+    // 1..maxConst). 0 draws nothing and is byte-identical.
+    double termExprBias = 0.0;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

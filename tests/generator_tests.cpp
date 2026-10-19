@@ -275,3 +275,24 @@ TEST(dc_shell_search_end_mode_compares_with_the_interval_end_and_writes_a_value)
     }
     CHECK(endShells >= 5);
 }
+
+TEST(term_expr_bias_wraps_the_loop_sum_term_in_a_small_arithmetic_expression) {
+    GenConfig on;
+    on.numVars = 8;
+    on.combinatorBias = 1.0;
+    on.termExprBias = 1.0;
+    GenConfig off = on;
+    off.termExprBias = 0.0;
+    auto countTerms = [&](const GenConfig& cfg) {
+        Random rng(5);
+        int terms = 0;
+        for (int attempt = 0; attempt < 400; ++attempt) {
+            std::string text = generateRandomProgram(rng, 30, cfg)->toString();
+            if (text.find(" + ((arr[") != std::string::npos) terms++;
+        }
+        return terms;
+    };
+    int withBias = countTerms(on);
+    CHECK(withBias >= 3);
+    CHECK(withBias > countTerms(off));
+}

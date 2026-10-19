@@ -1349,6 +1349,41 @@ ExprKind drawComparator(Random& rng) {
     return kinds[rng.uniformInt(0, 5)];
 }
 
+// Section 127: x under one of the small arithmetic forms of the enumerated term set (see GenConfig::termExprBias).
+ExprPtr drawTermExpr(Random& rng, const GenConfig& cfg, const Expr& x) {
+    const int maxC = std::max(cfg.maxConst, 2);
+    struct Form { int shape; int c1; int c2; };
+    std::vector<Form> forms;
+    for (int c1 = 1; c1 <= maxC; ++c1) {
+        forms.push_back({3, c1, 0});  // x + c1
+        forms.push_back({4, c1, 0});  // x - c1
+        if (c1 < 2) continue;
+        forms.push_back({0, c1, 0});  // x / c1
+        forms.push_back({1, c1, 0});  // x % c1
+        forms.push_back({2, c1, 0});  // x * c1
+        for (int c2 = 1; c2 <= maxC; ++c2) {
+            forms.push_back({5, c1, c2});  // x / c1 + c2
+            forms.push_back({6, c1, c2});  // x / c1 - c2
+            forms.push_back({7, c1, c2});  // x * c1 + c2
+            forms.push_back({8, c1, c2});  // x * c1 - c2
+        }
+    }
+    const Form f = forms[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(forms.size()) - 1))];
+    auto bin = [](ExprKind k, ExprPtr l, ExprPtr r) { return makeBinOp(k, std::move(l), std::move(r)); };
+    ExprPtr v = x.clone();
+    switch (f.shape) {
+        case 0: return bin(ExprKind::Div, std::move(v), makeIntConst(f.c1));
+        case 1: return bin(ExprKind::Mod, std::move(v), makeIntConst(f.c1));
+        case 2: return bin(ExprKind::Mul, std::move(v), makeIntConst(f.c1));
+        case 3: return bin(ExprKind::Add, std::move(v), makeIntConst(f.c1));
+        case 4: return bin(ExprKind::Sub, std::move(v), makeIntConst(f.c1));
+        case 5: return bin(ExprKind::Add, bin(ExprKind::Div, std::move(v), makeIntConst(f.c1)), makeIntConst(f.c2));
+        case 6: return bin(ExprKind::Sub, bin(ExprKind::Div, std::move(v), makeIntConst(f.c1)), makeIntConst(f.c2));
+        case 7: return bin(ExprKind::Add, bin(ExprKind::Mul, std::move(v), makeIntConst(f.c1)), makeIntConst(f.c2));
+        default: return bin(ExprKind::Sub, bin(ExprKind::Mul, std::move(v), makeIntConst(f.c1)), makeIntConst(f.c2));
+    }
+}
+
 // arr[base + x], with `base` a literal or capA + literal.
 ExprPtr elemAt(const ExprPtr& base, ExprPtr x) { return makeArrayAccess(makeBinOp(ExprKind::Add, base->clone(), std::move(x))); }
 
@@ -2075,6 +2110,10 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
                     inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(fix)));
                 }
                 inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeVar(found))));
+                break;
+            }
+            if (cfg.termExprBias > 0.0 && rng.chance(cfg.termExprBias)) {
+                inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), drawTermExpr(rng, cfg, *a))));
                 break;
             }
             inner.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), a->clone())));
