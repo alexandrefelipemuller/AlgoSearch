@@ -40,3 +40,27 @@ TEST(psb2_problem_reports_a_disagreeing_official_case) {
     Psb2Problem p(Psb2Problem::Kind::FuelCost, 7, 1, edge, edge, 1, 1);
     CHECK(p.mismatchesAgainstOfficial() > 0);
 }
+
+TEST(psb2_fuel_cost_known_loop_solution_passes_the_official_cases) {
+    using namespace algosearch;
+    // v6 = 0; v4 = 0; while (v4 < v0) { v6 = v6 + (arr[v4] / 3 - 2); v4 = v4 + 1; } arr[0] = v6;
+    auto p = makeBlock();
+    p->body.push_back(makeAssign(6, makeIntConst(0)));
+    p->body.push_back(makeAssign(4, makeIntConst(0)));
+    std::vector<StmtPtr> body;
+    body.push_back(makeAssign(6, makeBinOp(ExprKind::Add, makeVar(6),
+        makeBinOp(ExprKind::Sub, makeBinOp(ExprKind::Div, makeArrayAccess(makeVar(4)), makeIntConst(3)), makeIntConst(2)))));
+    body.push_back(makeAssign(4, makeBinOp(ExprKind::Add, makeVar(4), makeIntConst(1))));
+    p->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(4), makeVar(0)), std::move(body)));
+    p->body.push_back(makeAssignArray(makeIntConst(0), makeVar(6)));
+    Psb2Problem prob(Psb2Problem::Kind::FuelCost, 7, 1);
+    Interpreter interp(20000);
+    int bad = 0, total = 0;
+    for (const auto& inst : prob.generateAdversarialInstances(1)) {
+        ++total;
+        auto r = prob.evaluate(*p, inst, interp);
+        if (r.status != ExecStatus::SUCCESS) ++bad;
+    }
+    (void)total;
+    CHECK_EQ(bad, 0);
+}
