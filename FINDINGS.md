@@ -151,7 +151,7 @@ system generalizes.
 | external held-out sets and diagnosis | 114, 116 |
 | restarts, confirm-reseed, cost-profile novelty | 94-98 |
 | open specification and interval shells | 119-124 |
-| comparison with published work (`docs/literature.md`), PSB2 | 126 |
+| comparison with published work (`docs/literature.md`), PSB2 (results: 4/180 held-out solved) | 126 |
 | cleanup | 125-125c |
 
 The per-section list with chunk and line is `docs/findings/INDEX.md`.

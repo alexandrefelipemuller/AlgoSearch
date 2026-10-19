@@ -229,3 +229,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 125b. Cleanup, group 2: six dead levers removed (and a correction to the proposal) | 11_sections_121-125.md | 388 |
 | 125c. Cleanup, groups 3 and 4: four closed experiments removed, the rest kept on evidence | 11_sections_121-125.md | 410 |
 | 126. PSB2, the comparable baseline -- design and predictions registered before running | 11_sections_121-125.md | 437 |
+| 126r. PSB2 first full run: gcd 30/30 (contaminated), paired_digits 4/30, other five 0/30; fuel_cost gap vs PushGP | 11_sections_121-125.md | 456 |
