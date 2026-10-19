@@ -74,7 +74,7 @@ system generalizes.
 | `--dc-shell-search` (+`-key`, `-end`) | 121-124 | assembles O(log n) search on three specifications; costs nothing on the 73-problem battery; no measured gain in solved counts, so not promoted |
 | `--max-executions N` | 126 | execution cap in PSB2 units; `Psb2Problem` + `scripts/run_psb2.sh` run seven integer PSB2 problems under the suite's protocol |
 | `--term-expr P` | 126b, 127, 129 | enumerated `x op c1 op c2` term in loop sums; fuel_cost 0/30 -> 29/30 (paired_digits 4 -> 2); opt-in |
-| `--prefix-cross P` | 128, 128b, 129 | first index where a running sum crosses a threshold; basement 0/30 -> 30/30; opt-in, joint battery running |
+| `--prefix-cross P` | 128, 128b, 129 | first index where a running sum crosses a threshold; basement 0/30 -> 30/30; opt-in; joint battery with --term-expr: 755/770 both arms (129r) |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)
