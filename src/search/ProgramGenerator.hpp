@@ -182,12 +182,12 @@ struct GenConfig {
     double prefixCrossBias = 0.3;  // default since section 130
     // Section 130: probability that a combinator block is the positional-sum block (index-parity-conditional
     // transform with an optional fold), and the pair-find block. 0 = off, no RNG draw.
-    double parityTermBias = 0.0;
-    double pairFindBias = 0.0;
+    double parityTermBias = 0.03;  // default since section 131
+    double pairFindBias = 0.05;  // default since section 131
     // Section 131: probability that a single or adjacent combinator loop is a conditional sum, and that a combinator
     // block is the mixed-radix decomposition of arr[0]. 0 = off, no RNG draw.
-    double sumIfBias = 0.0;
-    double radixBias = 0.0;
+    double sumIfBias = 0.05;  // default since section 131
+    double radixBias = 0.03;  // default since section 131
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first
