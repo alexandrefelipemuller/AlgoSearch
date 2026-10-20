@@ -40,12 +40,14 @@ std::map<std::string, std::vector<long>> parseLine(const std::string& line) {
             }
             i = close + 1;
         } else if (p < line.size() && line[p] == '"') {
-            size_t close = line.find('"', p + 1);
-            for (size_t k = p + 1; k < close; ++k) {
+            size_t k = p + 1;
+            while (k < line.size() && line[k] != '"') {
                 char ch = line[k];
+                if (ch == '\\' && k + 1 < line.size()) ch = line[++k];  // an escaped character stands for itself
                 values.push_back(std::isdigit(static_cast<unsigned char>(ch)) ? ch - '0' : static_cast<long>(ch));
+                ++k;
             }
-            i = close + 1;
+            i = k + 1;
         } else {
             char* end = nullptr;
             values.push_back(std::strtol(line.c_str() + p, &end, 10));
@@ -80,6 +82,10 @@ std::string Psb2Problem::datasetName(Kind kind) {
         case Kind::CutVector: return "cut-vector";
         case Kind::FizzBuzz: return "fizz-buzz";
         case Kind::Mastermind: return "mastermind";
+        case Kind::Twitter: return "twitter";
+        case Kind::MiddleChar: return "middle-character";
+        case Kind::SolveBoolean: return "solve-boolean";
+        case Kind::Leaders: return "leaders";
     }
     return "";
 }
@@ -175,6 +181,39 @@ std::vector<int> Psb2Problem::reference(Kind kind, const std::vector<int>& arr) 
             for (const auto& kv : a) common += std::min(kv.second, b.count(kv.first) ? b[kv.first] : 0);
             return {common - exact, exact};
         }
+        case Kind::Twitter: {
+            int n = static_cast<int>(arr.size());
+            return {n == 0 ? -1 : n > 140 ? -2 : n};
+        }
+        case Kind::MiddleChar: {
+            size_t n = arr.size();
+            if (n == 0) return {0};
+            if (n % 2 == 1) return {arr[n / 2]};
+            return {arr[n / 2 - 1], arr[n / 2]};
+        }
+        case Kind::SolveBoolean: {
+            // Evaluated strictly left to right, as in the official data.
+            if (arr.empty()) return {0};
+            bool v = arr[0] == 't';
+            for (size_t i = 1; i + 1 < arr.size(); i += 2) {
+                bool x = arr[i + 1] == 't';
+                v = arr[i] == '&' ? (v && x) : (v || x);
+            }
+            return {v ? 1 : 0};
+        }
+        case Kind::Leaders: {
+            std::vector<int> flags(arr.size(), 0);
+            long best = 0;
+            bool first = true;
+            for (size_t i = arr.size(); i-- > 0;) {
+                if (first || arr[i] >= best) {  // the official data keeps equal values (not strictly greater)
+                    flags[i] = 1;
+                    best = arr[i];
+                }
+                first = false;
+            }
+            return flags;
+        }
         case Kind::PairedDigits: {
             int sum = 0;
             for (size_t i = 0; i + 1 < arr.size(); ++i) {
@@ -214,7 +253,37 @@ bool Psb2Problem::parseCase(const std::string& line, Instance& out) const {
         arr.assign(1, arr.empty() ? 0 : arr[0]);
     }
     std::vector<int> expected;
-    if (kind_ == Kind::CutVector) {
+    if (kind_ == Kind::Twitter || kind_ == Kind::MiddleChar) {
+        const auto* o1 = get("output1");
+        if (!o1 || o1->empty() || arr.empty()) return false;  // an empty input has no cell to write the answer in
+        if (kind_ == Kind::MiddleChar) {
+            for (long v : *o1) expected.push_back(static_cast<int>(v));
+        } else if ((*o1)[0] == 'T') {
+            expected.push_back(-2);
+        } else if (o1->size() > 3 && (*o1)[3] == ' ') {
+            expected.push_back(-1);
+        } else {
+            long value = 0;
+            for (long d : *o1) {
+                if (d >= 0 && d <= 9) value = value * 10 + d;
+            }
+            expected.push_back(static_cast<int>(value));
+        }
+    } else if (kind_ == Kind::SolveBoolean) {
+        if (arr.empty()) return false;
+        expected.push_back(line.find("\"output1\":true") != std::string::npos ? 1 : 0);
+    } else if (kind_ == Kind::Leaders) {
+        const auto* o1 = get("output1");
+        if (!o1 || arr.empty()) return false;
+        expected.assign(arr.size(), 0);
+        size_t k = o1->size();
+        for (size_t i = arr.size(); i-- > 0 && k > 0;) {
+            if (arr[i] == (*o1)[k - 1]) {
+                expected[i] = 1;
+                --k;
+            }
+        }
+    } else if (kind_ == Kind::CutVector) {
         const auto* o1 = get("output1");
         if (!o1 || arr.empty()) return false;
         expected.push_back(static_cast<int>(o1->size()));
@@ -230,7 +299,10 @@ bool Psb2Problem::parseCase(const std::string& line, Instance& out) const {
         }
     }
     for (const char* key : {"output1", "output2", "output3", "output4"}) {
-        if (kind_ == Kind::CutVector || kind_ == Kind::FizzBuzz) break;
+        if (kind_ == Kind::CutVector || kind_ == Kind::FizzBuzz || kind_ == Kind::Twitter ||
+            kind_ == Kind::MiddleChar || kind_ == Kind::SolveBoolean || kind_ == Kind::Leaders) {
+            break;
+        }
         const auto* o = get(key);
         if (!o) break;
         expected.push_back(static_cast<int>((*o).empty() ? 0 : (*o)[0]));

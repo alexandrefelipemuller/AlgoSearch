@@ -243,3 +243,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 131r. Four low-P pieces: battery 759 vs 755, no drop of 2+; PSB2 178/210 vs 34/210 (coin_sums 2/30, missed by one); promoted to default | 11_sections_121-125.md | 679 |
 | 132. PSB2 problems not looked at (cut_vector, fizz_buzz, mastermind): adapter, ON/OFF protocol and predictions registered | 11_sections_121-125.md | 707 |
 | 132r. Unseen PSB2: ON = OFF (cut_vector 30/30 both but degenerate: output1 always length 1; fizz_buzz, mastermind 0/30 both); no evidence either way | 11_sections_121-125.md | 737 |
+| 133. Second unseen test: twitter, middle_character, solve_boolean, leaders; OFF screen (only middle_character 1/5); protocol and predictions registered | 11_sections_121-125.md | 760 |

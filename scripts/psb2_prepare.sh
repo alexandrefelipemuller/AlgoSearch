@@ -4,7 +4,7 @@
 # Usage: scripts/psb2_prepare.sh [dir]   (default data/psb2; point ALGOSEARCH_PSB2_DIR at it)
 set -euo pipefail
 D="${1:-data/psb2}"
-for p in fuel-cost basement gcd find-pair coin-sums luhn paired-digits cut-vector fizz-buzz mastermind; do
+for p in fuel-cost basement gcd find-pair coin-sums luhn paired-digits cut-vector fizz-buzz mastermind twitter middle-character solve-boolean leaders; do
   mkdir -p "$D/$p"
   base="https://psb2-datasets.s3.amazonaws.com/PSB2/datasets/$p/$p"
   curl -sf -o "$D/$p/$p-edge.json" "$base-edge.json"

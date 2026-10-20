@@ -25,10 +25,18 @@ namespace algosearch {
 //   fizz_buzz: arr = {n}; arr[0] = n if neither, -1 for "Fizz", -2 for "Buzz", -3 for "FizzBuzz".
 //   mastermind: arr = guess(4) ++ code(4) with the letters as their ASCII codes; arr[0] = right colour in the wrong
 //     place, arr[1] = right colour in the right place.
+//   Section 133 (screened for a non-trivial solve rate, then run as an ON/OFF test):
+//   twitter: arr = the tweet as ASCII; arr[0] = its length n (1..140), -2 when n > 140 ("Too many characters"); an empty
+//     tweet ("You didn't tweet") has no cell to write in and is dropped from the cases.
+//   middle_character: arr = the string; arr[0] = the middle character, or arr[0], arr[1] = the two middle ones.
+//   solve_boolean: arr = the expression as ASCII, evaluated left to right; arr[0] = 1 if true, else 0.
+//   leaders: arr = the vector; arr[i] = 1 if arr[i] is a leader (at least everything to its right), else 0
+//     (the official output lists the leaders in order, so the flags carry the same information).
 // The reference functions are checked against every loaded official case; a mismatch is reported on stderr.
 class Psb2Problem : public Problem {
 public:
-    enum class Kind { FuelCost, Basement, Gcd, FindPair, CoinSums, Luhn, PairedDigits, CutVector, FizzBuzz, Mastermind };
+    enum class Kind { FuelCost, Basement, Gcd, FindPair, CoinSums, Luhn, PairedDigits, CutVector, FizzBuzz, Mastermind, Twitter, MiddleChar,
+                      SolveBoolean, Leaders };
 
     // Loads <dir>/<name>/<name>-edge.json and <name>-random.json; the seed picks the sample (a different one each
     // run, as in PSB2).

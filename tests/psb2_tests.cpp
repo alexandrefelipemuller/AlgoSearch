@@ -158,3 +158,22 @@ TEST(psb2_fizz_buzz_parses_words_and_numbers_into_codes) {
     CHECK_EQ(p.mismatchesAgainstOfficial(), static_cast<size_t>(0));
     CHECK_EQ(p.generateInstances(1).size(), static_cast<size_t>(4));
 }
+
+TEST(psb2_section_133_problems_parse_and_match_their_references) {
+    using K = Psb2Problem::Kind;
+    std::vector<std::string> tw = {R"({"input1":"a\"b\/c","output1":"Your tweet has 5 characters"})",
+                                   R"({"input1":"abc","output1":"Your tweet has 3 characters"})"};
+    CHECK_EQ(Psb2Problem(K::Twitter, 7, 1, tw, tw, 2, 2).mismatchesAgainstOfficial(), static_cast<size_t>(0));
+    std::vector<std::string> mid = {R"({"input1":"abc","output1":"b"})", R"({"input1":"abcd","output1":"bc"})"};
+    CHECK_EQ(Psb2Problem(K::MiddleChar, 7, 1, mid, mid, 2, 2).mismatchesAgainstOfficial(), static_cast<size_t>(0));
+    std::vector<std::string> sb = {R"({"input1":"t|f&f","output1":false})", R"({"input1":"f|t&t","output1":true})"};
+    CHECK_EQ(Psb2Problem(K::SolveBoolean, 7, 1, sb, sb, 2, 2).mismatchesAgainstOfficial(), static_cast<size_t>(0));
+    std::vector<std::string> ld = {R"({"input1":[5,1,5,2],"output1":[5,5,2]})"};
+    Psb2Problem lp(K::Leaders, 7, 1, ld, ld, 1, 1);
+    CHECK_EQ(lp.mismatchesAgainstOfficial(), static_cast<size_t>(0));
+    auto flags = Psb2Problem::reference(K::Leaders, {5, 1, 5, 2});
+    CHECK_EQ(flags[0], 1);
+    CHECK_EQ(flags[1], 0);
+    CHECK_EQ(flags[2], 1);
+    CHECK_EQ(flags[3], 1);
+}
