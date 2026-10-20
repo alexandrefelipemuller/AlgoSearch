@@ -245,3 +245,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 132r. Unseen PSB2: ON = OFF (cut_vector 30/30 both but degenerate: output1 always length 1; fizz_buzz, mastermind 0/30 both); no evidence either way | 11_sections_121-125.md | 737 |
 | 133. Second unseen test: twitter, middle_character, solve_boolean, leaders; OFF screen (only middle_character 1/5); protocol and predictions registered | 11_sections_121-125.md | 760 |
 | 133r. Unseen test 2: middle_character ON 2/20 vs OFF 0/20 (noise, base-grammar core), others 0/20 both; no evidence of generalization | 11_sections_121-125.md | 785 |
+| 134. Third unseen test: ten PSB1-style problems (own generators), ON/OFF, predictions registered | 11_sections_121-125.md | 808 |
