@@ -1342,7 +1342,7 @@ namespace combinator {
 
 enum class Layout { Whole, KeyPrefixed, LengthPrefixed, Pair };
 enum class Loop { Single, NestedFull, NestedTriangular, Converging, Adjacent };
-enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, FirstIndex, PrefixCross };
+enum class Relation { Sum, Best, CountIf, Exists, Forall, Xor, SwapIf, Swap, BestStep, CountSegments, Nested, SumStep, FirstIndex, PrefixCross, SumIf };
 
 ExprKind drawComparator(Random& rng) {
     static const ExprKind kinds[] = {ExprKind::Lt, ExprKind::Gt, ExprKind::Eq, ExprKind::Ne, ExprKind::Le, ExprKind::Ge};
@@ -1858,6 +1858,36 @@ StmtPtr genPositionalSumBlock(Random& rng, const GenConfig& cfg, int& loopsUsed)
     return block;
 }
 
+// Section 131: mixed-radix decomposition of arr[0]. For d = 1..3 decreasing divisors c1 > ... > cd (each 2..30):
+//   v = arr[0]; cell(k) = v / ck; v = v % ck; ...; cell(d) = v
+// with the d + 1 cells in ascending or descending order. Generic greedy change-making / unit conversion.
+StmtPtr genRadixBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
+    (void)loopsUsed;
+    std::vector<int> v1 = pickDistinctVars(rng, cfg, 1);
+    int v = v1[0];
+    int d = rng.uniformInt(1, 3);
+    std::vector<int> divisors;
+    while (static_cast<int>(divisors.size()) < d) {
+        int c = rng.uniformInt(2, 30);
+        bool dup = false;
+        for (int x : divisors) dup = dup || x == c;
+        if (!dup) divisors.push_back(c);
+    }
+    std::sort(divisors.begin(), divisors.end(), [](int x, int y) { return x > y; });
+    bool descending = rng.chance(0.5);
+    auto cell = [&](int k) { return descending ? d - k : k; };
+    std::vector<StmtPtr> root;
+    root.push_back(makeAssign(v, makeArrayAccess(makeIntConst(0))));
+    for (int k = 0; k < d; ++k) {
+        root.push_back(makeAssignArray(makeIntConst(cell(k)), makeBinOp(ExprKind::Div, makeVar(v), makeIntConst(divisors[k]))));
+        root.push_back(makeAssign(v, makeBinOp(ExprKind::Mod, makeVar(v), makeIntConst(divisors[k]))));
+    }
+    root.push_back(makeAssignArray(makeIntConst(cell(d)), makeVar(v)));
+    auto block = makeBlock();
+    block->body = std::move(root);
+    return block;
+}
+
 // Section 130: first pair (i < j) of elements whose sum (or difference) equals a target, output as two cells.
 // The target is the last element (pairs over arr[0..n-2]) or the first (pairs over arr[1..n-1]); the pair is output as
 // the two values or as the two indices, in arr[0] and arr[1]. Generic "find the pair that hits a target" search.
@@ -2050,6 +2080,7 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
     if (cfg.parityTermBias > 0.0 && (cfg.maxLoops - loopsUsed) >= 1 && rng.chance(cfg.parityTermBias)) {
         return genPositionalSumBlock(rng, cfg, loopsUsed);
     }
+    if (cfg.radixBias > 0.0 && rng.chance(cfg.radixBias)) return genRadixBlock(rng, cfg, loopsUsed);
     if (cfg.pairFindBias > 0.0 && (cfg.maxLoops - loopsUsed) >= 2 && rng.chance(cfg.pairFindBias)) {
         return genPairFindBlock(rng, cfg, loopsUsed);
     }
@@ -2138,6 +2169,11 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         (layout == Layout::Whole || layout == Layout::LengthPrefixed) && rng.uniformInt(0, 6) >= 5) {
         rel = Relation::Nested;
     }
+    // Section 131: conditional sum on a single loop (elements passing a test against the key) or an adjacent pass
+    // (elem(i-1) when it compares to elem(i)). Drawn only with the flag on.
+    if (cfg.sumIfBias > 0.0 && (loop == Loop::Single || loop == Loop::Adjacent) && rng.chance(cfg.sumIfBias)) {
+        rel = Relation::SumIf;
+    }
     ExprKind cmp = drawComparator(rng);
 
     // Operands for this loop shape.
@@ -2225,6 +2261,14 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             inner.push_back(makeIf(makeCompare(ExprKind::Lt, makeVar(found), makeIntConst(0)), std::move(unset)));
             resultVar = found;
             argInit = makeIntConst(-1);
+            break;
+        }
+        case Relation::SumIf: {
+            // Section 131: if (a CMP rhs) acc = acc + a (or + b on an adjacent pass, 30%).
+            std::vector<StmtPtr> then;
+            ExprPtr addend = (b && rng.chance(0.3)) ? b->clone() : a->clone();
+            then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), std::move(addend))));
+            inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
             break;
         }
         case Relation::PrefixCross: {

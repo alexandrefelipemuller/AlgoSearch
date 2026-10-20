@@ -184,6 +184,10 @@ struct GenConfig {
     // transform with an optional fold), and the pair-find block. 0 = off, no RNG draw.
     double parityTermBias = 0.0;
     double pairFindBias = 0.0;
+    // Section 131: probability that a single or adjacent combinator loop is a conditional sum, and that a combinator
+    // block is the mixed-radix decomposition of arr[0]. 0 = off, no RNG draw.
+    double sumIfBias = 0.0;
+    double radixBias = 0.0;
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first

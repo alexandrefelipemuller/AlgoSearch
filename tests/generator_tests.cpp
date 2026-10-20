@@ -348,3 +348,36 @@ TEST(parity_term_and_pair_find_biases_draw_their_blocks_only_when_on) {
     }
     CHECK(found >= 20);
 }
+
+TEST(sum_if_and_radix_biases_draw_their_blocks_only_when_on) {
+    GenConfig on;
+    on.numVars = 8;
+    on.combinatorBias = 1.0;
+    on.sumIfBias = 1.0;
+    GenConfig off = on;
+    off.sumIfBias = 0.0;
+    auto countSumIf = [&](const GenConfig& cfg) {
+        Random rng(5);
+        int n = 0;
+        for (int attempt = 0; attempt < 300; ++attempt) {
+            std::string text = generateRandomProgram(rng, 30, cfg)->toString();
+            // conditional sum: the accumulator grows only inside an if testing the same element
+            if (text.find("arr[(0 + v") != std::string::npos && text.find(") {\n    v") != std::string::npos &&
+                text.find(" = (v") != std::string::npos && text.find(" + arr[") != std::string::npos)
+                n++;
+        }
+        return n;
+    };
+    CHECK(countSumIf(on) > countSumIf(off));
+
+    GenConfig radix = on;
+    radix.sumIfBias = 0.0;
+    radix.radixBias = 1.0;
+    Random rng(5);
+    int hits = 0;
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        std::string text = generateRandomProgram(rng, 30, radix)->toString();
+        if (text.find("arr[1] = ") != std::string::npos && text.find(" % ") != std::string::npos) hits++;
+    }
+    CHECK(hits >= 10);
+}
