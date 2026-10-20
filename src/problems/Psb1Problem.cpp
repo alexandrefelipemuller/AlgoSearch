@@ -32,7 +32,7 @@ std::string Psb1Problem::name(Kind kind) {
     return "";
 }
 
-std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr) {
+std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr, bool medium) {
     switch (kind) {
         case Kind::LastIndexOfZero: {
             for (size_t i = arr.size(); i-- > 0;) {
@@ -72,7 +72,7 @@ std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr) 
         }
         case Kind::SmallOrLarge: {
             int n = arr.empty() ? 0 : arr[0];
-            return {n < 1000 ? 1 : n >= 2000 ? 2 : 0};
+            return {n < (medium ? 10 : 1000) ? 1 : n >= (medium ? 20 : 2000) ? 2 : 0};
         }
         case Kind::MirrorImage: {
             size_t half = arr.size() / 2;
@@ -99,36 +99,37 @@ std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr) 
     return {0};
 }
 
-std::vector<int> Psb1Problem::randomInput(Kind kind, Random& rng) {
+std::vector<int> Psb1Problem::randomInput(Kind kind, Random& rng, bool medium) {
+    const int maxLen = medium ? 8 : 50, big = medium ? 20 : 1000;
     switch (kind) {
         case Kind::LastIndexOfZero: {
-            std::vector<int> v = randomVector(rng, 1, 50, -50, 50);
+            std::vector<int> v = randomVector(rng, 1, maxLen, medium ? -5 : -50, medium ? 5 : 50);
             v[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(v.size()) - 1))] = 0;
             return v;
         }
         case Kind::CountOdds:
-        case Kind::NegativeToZero: return randomVector(rng, 1, 50, -1000, 1000);
+        case Kind::NegativeToZero: return randomVector(rng, 1, maxLen, -big, big);
         case Kind::VectorsSummed: {
-            std::vector<int> a = randomVector(rng, 1, 50, -1000, 1000);
-            std::vector<int> b = randomVector(rng, static_cast<int>(a.size()), static_cast<int>(a.size()), -1000, 1000);
+            std::vector<int> a = randomVector(rng, 1, maxLen, -big, big);
+            std::vector<int> b = randomVector(rng, static_cast<int>(a.size()), static_cast<int>(a.size()), -big, big);
             a.insert(a.end(), b.begin(), b.end());
             return a;
         }
-        case Kind::SumOfSquares: return {rng.uniformInt(1, 100)};
-        case Kind::CollatzSteps: return {rng.uniformInt(1, 2000)};
-        case Kind::SmallOrLarge: return {rng.uniformInt(-10000, 10000)};
+        case Kind::SumOfSquares: return {rng.uniformInt(1, medium ? 10 : 100)};
+        case Kind::CollatzSteps: return {rng.uniformInt(1, medium ? 30 : 2000)};
+        case Kind::SmallOrLarge: return {rng.uniformInt(medium ? -100 : -10000, medium ? 100 : 10000)};
         case Kind::MirrorImage: {
-            std::vector<int> a = randomVector(rng, 1, 50, -1000, 1000);
+            std::vector<int> a = randomVector(rng, 1, maxLen, -big, big);
             std::vector<int> b(a.rbegin(), a.rend());
             if (rng.uniformInt(0, 1) == 0) {
-                b[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(b.size()) - 1))] = rng.uniformInt(-1000, 1000);
+                b[static_cast<size_t>(rng.uniformInt(0, static_cast<int>(b.size()) - 1))] = rng.uniformInt(-big, big);
             }
             a.insert(a.end(), b.begin(), b.end());
             return a;
         }
         case Kind::Digits: {
             std::vector<int> v(7, 0);
-            v[0] = rng.uniformInt(1, 999999);
+            v[0] = rng.uniformInt(1, medium ? 9999 : 999999);
             return v;
         }
         case Kind::Grade: {
@@ -143,14 +144,15 @@ std::vector<int> Psb1Problem::randomInput(Kind kind, Random& rng) {
     return {0};
 }
 
-Psb1Problem::Psb1Problem(Kind kind, int numVars, uint64_t seed) : kind_(kind), numVars_(numVars) {
+Psb1Problem::Psb1Problem(Kind kind, int numVars, uint64_t seed, bool medium)
+    : kind_(kind), medium_(medium), numVars_(numVars) {
     Random rng(seed);
     auto make = [&](size_t count, std::vector<Instance>& out) {
         while (out.size() < count) {
             Instance inst;
-            inst.input = randomInput(kind_, rng);
+            inst.input = randomInput(kind_, rng, medium_);
             inst.expectedOutput = inst.input;
-            std::vector<int> ref = reference(kind_, inst.input);
+            std::vector<int> ref = reference(kind_, inst.input, medium_);
             for (size_t i = 0; i < ref.size(); ++i) inst.expectedOutput[i] = ref[i];
             out.push_back(std::move(inst));
         }
@@ -161,12 +163,12 @@ Psb1Problem::Psb1Problem(Kind kind, int numVars, uint64_t seed) : kind_(kind), n
 
 std::string Psb1Problem::describeLevel(int level) const {
     (void)level;
-    return "PSB1-style " + name(kind_) + ", " + std::to_string(train_.size()) + " training cases";
+    return std::string(medium_ ? "PSB1-style (medium) " : "PSB1-style ") + name(kind_) + ", " + std::to_string(train_.size()) + " training cases";
 }
 
 bool Psb1Problem::isSolution(const std::vector<int>& input, const std::vector<int>& output) const {
     if (output.size() != input.size()) return false;
-    std::vector<int> ref = reference(kind_, input);
+    std::vector<int> ref = reference(kind_, input, medium_);
     for (size_t i = 0; i < ref.size(); ++i) {
         if (output[i] != ref[i]) return false;
     }
@@ -175,7 +177,7 @@ bool Psb1Problem::isSolution(const std::vector<int>& input, const std::vector<in
 
 double Psb1Problem::partialScore(const std::vector<int>& input, const std::vector<int>& output) const {
     if (output.size() != input.size()) return 0.0;
-    std::vector<int> ref = reference(kind_, input);
+    std::vector<int> ref = reference(kind_, input, medium_);
     size_t good = 0;
     for (size_t i = 0; i < ref.size(); ++i) good += output[i] == ref[i];
     return static_cast<double>(good) / static_cast<double>(ref.size());

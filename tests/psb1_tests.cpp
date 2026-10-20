@@ -39,3 +39,16 @@ TEST(psb1_problem_builds_train_and_test_sets_that_its_references_solve) {
         for (const auto& inst : p.generateInstances(1)) CHECK(p.isSolution(inst.input, inst.expectedOutput));
     }
 }
+
+TEST(psb1_medium_version_uses_small_ranges_and_scaled_thresholds) {
+    using K = Psb1Problem::Kind;
+    CHECK_EQ(Psb1Problem::reference(K::SmallOrLarge, {9}, true)[0], 1);
+    CHECK_EQ(Psb1Problem::reference(K::SmallOrLarge, {15}, true)[0], 0);
+    CHECK_EQ(Psb1Problem::reference(K::SmallOrLarge, {20}, true)[0], 2);
+    Psb1Problem p(K::CountOdds, 7, 1, true);
+    for (const auto& inst : p.generateAdversarialInstances(1)) {
+        CHECK(inst.input.size() <= static_cast<size_t>(8));
+        for (int x : inst.input) CHECK(x >= -20 && x <= 20);
+        CHECK(p.isSolution(inst.input, inst.expectedOutput));
+    }
+}

@@ -26,6 +26,11 @@ namespace algosearch {
 //   digits: arr = {n, 0, 0, 0, 0, 0, 0}, n in 1..999999; arr[0..k-1] = the digits of n, last digit first.
 //   grade: arr = {A, B, C, D, score}, thresholds A > B > C > D in 0..100; arr[0] = 4 if score >= A, 3 if >= B, 2 if >= C,
 //     1 if >= D, else 0.
+// Section 135 (medium): section 134 left eight of ten problems at 0/20 because the PSB1 ranges (vectors of up to 50 items in
+// [-1000, 1000]) are far harder than the suite's own problems. The medium version, fixed before running, changes only the
+// ranges: vectors of 1..8 items; last_index_of_zero in [-5, 5]; count_odds, negative_to_zero, vectors_summed and
+// mirror_image in [-20, 20]; sum_of_squares n in 1..10; collatz_steps n in 1..30; small_or_large n in [-100, 100] with the
+// thresholds 10 and 20 in place of 1000 and 2000; digits n in 1..9999; grade unchanged. Names: psb1m_<name>.
 class Psb1Problem : public Problem {
 public:
     enum class Kind {
@@ -33,12 +38,13 @@ public:
         MirrorImage, Digits, Grade
     };
 
-    Psb1Problem(Kind kind, int numVars, uint64_t seed);
+    // medium = the section 135 version: the same ten problems with small vectors and small values (see below).
+    Psb1Problem(Kind kind, int numVars, uint64_t seed, bool medium = false);
 
     static std::string name(Kind kind);
-    static std::vector<int> reference(Kind kind, const std::vector<int>& arr);
+    static std::vector<int> reference(Kind kind, const std::vector<int>& arr, bool medium = false);
     // One random case of the given kind (the encoded input).
-    static std::vector<int> randomInput(Kind kind, class Random& rng);
+    static std::vector<int> randomInput(Kind kind, class Random& rng, bool medium = false);
 
     std::vector<Instance> generateInstances(int level) const override { (void)level; return train_; }
     std::string describeLevel(int level) const override;
@@ -52,6 +58,7 @@ public:
 
 private:
     Kind kind_;
+    bool medium_;
     int numVars_;
     std::vector<Instance> train_, test_;
 };

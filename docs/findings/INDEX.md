@@ -247,3 +247,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 133r. Unseen test 2: middle_character ON 2/20 vs OFF 0/20 (noise, base-grammar core), others 0/20 both; no evidence of generalization | 11_sections_121-125.md | 785 |
 | 134. Third unseen test: ten PSB1-style problems (own generators), ON/OFF, predictions registered | 11_sections_121-125.md | 808 |
 | 134r. PSB1-style: ON = OFF = 40/200 (2 problems at 20/20, 8 at 0/20); no information about the pieces | 11_sections_121-125.md | 829 |
+| 135. Fourth unseen test: medium version of the ten PSB1-style problems; definition and predictions registered | 11_sections_121-125.md | 853 |
