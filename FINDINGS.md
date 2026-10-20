@@ -76,6 +76,7 @@ system generalizes.
 | `--term-expr P` | 126b, 127, 129, 130 | enumerated `x op c1 op c2` term in loop sums; fuel_cost 0/30 -> 29/30 (paired_digits 4 -> 2); DEFAULT 0.3 since 130 |
 | `--prefix-cross P` | 128, 128b, 129, 130 | first index where a running sum crosses a threshold; basement 0/30 -> 30/30; DEFAULT 0.3 since 130; joint battery with --term-expr: 755/770 both arms (129r) |
 | `--pair-find P`, `--parity-term P` | 130 | pair-that-hits-a-target block; positional (parity) digit-fold sum; opt-in (not promoted: battery elements_twice 10 -> 8); PSB2 find_pair 30/30, luhn 29/30 (130r) |
+| `--sum-if P`, `--radix P` | 131 | conditional sum; mixed-radix decomposition (divisor cap 30 tuned to coins); opt-in, paired_digits 4/4, coin_sums 1/4 in screens |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)

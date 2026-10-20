@@ -239,3 +239,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 129p. PSB2 with both pieces: gcd 30, fuel_cost 29, basement 30, paired_digits 2, rest 0 (91/210 vs 34/210) | 11_sections_121-125.md | 595 |
 | 130. Promote term/prefix to default; new --pair-find and --parity-term pieces (find_pair 4/4, luhn 5/8 in screens) | 11_sections_121-125.md | 614 |
 | 130r. Battery with parity/pair pieces: 755/755 but elements_twice 10 -> 8 (rule missed, not promoted); PSB2 119/210 vs 34/210 | 11_sections_121-125.md | 634 |
+| 131. --sum-if and --radix pieces; pieces cost 29 -> 24/30 on elements_twice at high P, back to 29/30 at low P; battery and PSB2 registered | 11_sections_121-125.md | 659 |
