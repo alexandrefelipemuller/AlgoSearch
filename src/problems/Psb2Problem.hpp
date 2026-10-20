@@ -20,10 +20,15 @@ namespace algosearch {
 //   gcd: arr = {a, b}; arr[0] = gcd.
 //   find_pair: arr = vector ++ {target}; arr[0], arr[1] = the first pair (i < j) summing to the target.
 //   coin_sums: arr = {amount, 0, 0, 0}; arr[0..3] = pennies, nickels, dimes, quarters.
+//   Section 132 (problems chosen after the pieces were frozen, to test them on problems not looked at):
+//   cut_vector: arr = the vector; arr[0] = the length of output1 (output2 is the rest, so nothing is lost).
+//   fizz_buzz: arr = {n}; arr[0] = n if neither, -1 for "Fizz", -2 for "Buzz", -3 for "FizzBuzz".
+//   mastermind: arr = guess(4) ++ code(4) with the letters as their ASCII codes; arr[0] = right colour in the wrong
+//     place, arr[1] = right colour in the right place.
 // The reference functions are checked against every loaded official case; a mismatch is reported on stderr.
 class Psb2Problem : public Problem {
 public:
-    enum class Kind { FuelCost, Basement, Gcd, FindPair, CoinSums, Luhn, PairedDigits };
+    enum class Kind { FuelCost, Basement, Gcd, FindPair, CoinSums, Luhn, PairedDigits, CutVector, FizzBuzz, Mastermind };
 
     // Loads <dir>/<name>/<name>-edge.json and <name>-random.json; the seed picks the sample (a different one each
     // run, as in PSB2).

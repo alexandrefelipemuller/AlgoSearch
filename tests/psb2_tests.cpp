@@ -130,3 +130,31 @@ TEST(psb2_find_pair_known_nested_loop_solution_passes_the_official_cases) {
     Psb2Problem prob(Psb2Problem::Kind::FindPair, 8, 1);
     CHECK_EQ(psb2FailuresOn(prob, *p), 0);
 }
+
+TEST(psb2_section_132_references_match_hand_checked_examples) {
+    using K = Psb2Problem::Kind;
+    CHECK_EQ(Psb2Problem::reference(K::CutVector, {10})[0], 1);
+    CHECK_EQ(Psb2Problem::reference(K::CutVector, {0})[0], 1);
+    CHECK_EQ(Psb2Problem::reference(K::CutVector, {1, 2, 3, 4})[0], 3);  // 1+2+3 = 6 vs 4 (diff 2) beats 1+2 vs 7
+    CHECK_EQ(Psb2Problem::reference(K::CutVector, {5, 5})[0], 1);        // equal halves
+    CHECK_EQ(Psb2Problem::reference(K::FizzBuzz, {15})[0], -3);
+    CHECK_EQ(Psb2Problem::reference(K::FizzBuzz, {9})[0], -1);
+    CHECK_EQ(Psb2Problem::reference(K::FizzBuzz, {10})[0], -2);
+    CHECK_EQ(Psb2Problem::reference(K::FizzBuzz, {7})[0], 7);
+    // BOYG vs GYOB: all four colours right, none in place; RRRR vs RRRR: all in place.
+    auto wrong = Psb2Problem::reference(K::Mastermind, {'B', 'O', 'Y', 'G', 'G', 'Y', 'O', 'B'});
+    CHECK_EQ(wrong[0], 4);
+    CHECK_EQ(wrong[1], 0);
+    auto right = Psb2Problem::reference(K::Mastermind, {'R', 'R', 'R', 'R', 'R', 'R', 'R', 'R'});
+    CHECK_EQ(right[0], 0);
+    CHECK_EQ(right[1], 4);
+}
+
+TEST(psb2_fizz_buzz_parses_words_and_numbers_into_codes) {
+    using K = Psb2Problem::Kind;
+    std::vector<std::string> edge = {R"({"input1":15,"output1":"FizzBuzz"})", R"({"input1":9,"output1":"Fizz"})",
+                                     R"({"input1":10,"output1":"Buzz"})", R"({"input1":7,"output1":"7"})"};
+    Psb2Problem p(K::FizzBuzz, 7, 1, edge, edge, 4, 4);
+    CHECK_EQ(p.mismatchesAgainstOfficial(), static_cast<size_t>(0));
+    CHECK_EQ(p.generateInstances(1).size(), static_cast<size_t>(4));
+}

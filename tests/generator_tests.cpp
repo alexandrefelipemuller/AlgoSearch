@@ -281,6 +281,8 @@ TEST(term_expr_bias_wraps_the_loop_sum_term_in_a_small_arithmetic_expression) {
     on.numVars = 8;
     on.combinatorBias = 1.0;
     on.termExprBias = 1.0;
+    // The other pieces are defaults since sections 130-131 and take combinator blocks; isolate this one.
+    on.prefixCrossBias = on.pairFindBias = on.parityTermBias = on.sumIfBias = on.radixBias = 0.0;
     GenConfig off = on;
     off.termExprBias = 0.0;
     auto countTerms = [&](const GenConfig& cfg) {

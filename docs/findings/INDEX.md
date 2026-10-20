@@ -241,3 +241,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 130r. Battery with parity/pair pieces: 755/755 but elements_twice 10 -> 8 (rule missed, not promoted); PSB2 119/210 vs 34/210 | 11_sections_121-125.md | 634 |
 | 131. --sum-if and --radix pieces; pieces cost 29 -> 24/30 on elements_twice at high P, back to 29/30 at low P; battery and PSB2 registered | 11_sections_121-125.md | 659 |
 | 131r. Four low-P pieces: battery 759 vs 755, no drop of 2+; PSB2 178/210 vs 34/210 (coin_sums 2/30, missed by one); promoted to default | 11_sections_121-125.md | 679 |
+| 132. PSB2 problems not looked at (cut_vector, fizz_buzz, mastermind): adapter, ON/OFF protocol and predictions registered | 11_sections_121-125.md | 707 |

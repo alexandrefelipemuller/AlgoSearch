@@ -41,7 +41,10 @@ std::map<std::string, std::vector<long>> parseLine(const std::string& line) {
             i = close + 1;
         } else if (p < line.size() && line[p] == '"') {
             size_t close = line.find('"', p + 1);
-            for (size_t k = p + 1; k < close; ++k) values.push_back(line[k] - '0');
+            for (size_t k = p + 1; k < close; ++k) {
+                char ch = line[k];
+                values.push_back(std::isdigit(static_cast<unsigned char>(ch)) ? ch - '0' : static_cast<long>(ch));
+            }
             i = close + 1;
         } else {
             char* end = nullptr;
@@ -74,6 +77,9 @@ std::string Psb2Problem::datasetName(Kind kind) {
         case Kind::CoinSums: return "coin-sums";
         case Kind::Luhn: return "luhn";
         case Kind::PairedDigits: return "paired-digits";
+        case Kind::CutVector: return "cut-vector";
+        case Kind::FizzBuzz: return "fizz-buzz";
+        case Kind::Mastermind: return "mastermind";
     }
     return "";
 }
@@ -134,6 +140,41 @@ std::vector<int> Psb2Problem::reference(Kind kind, const std::vector<int>& arr) 
             }
             return {sum};
         }
+        case Kind::CutVector: {
+            // Left part arr[0..k-1], k in 1..n; the smallest |left - right|, the smallest k on ties.
+            long total = 0;
+            for (int x : arr) total += x;
+            long left = 0, best = -1;
+            int bestK = 0;
+            for (size_t k = 1; k <= arr.size(); ++k) {
+                left += arr[k - 1];
+                long diff = std::labs(left - (total - left));
+                if (best < 0 || diff < best) {
+                    best = diff;
+                    bestK = static_cast<int>(k);
+                }
+            }
+            return {bestK};
+        }
+        case Kind::FizzBuzz: {
+            int n = arr.empty() ? 0 : arr[0];
+            if (n % 15 == 0) return {-3};
+            if (n % 3 == 0) return {-1};
+            if (n % 5 == 0) return {-2};
+            return {n};
+        }
+        case Kind::Mastermind: {
+            if (arr.size() < 8) return {0, 0};
+            int exact = 0, common = 0;
+            for (int i = 0; i < 4; ++i) exact += arr[i] == arr[4 + i];
+            std::map<int, int> a, b;
+            for (int i = 0; i < 4; ++i) {
+                a[arr[i]]++;
+                b[arr[4 + i]]++;
+            }
+            for (const auto& kv : a) common += std::min(kv.second, b.count(kv.first) ? b[kv.first] : 0);
+            return {common - exact, exact};
+        }
         case Kind::PairedDigits: {
             int sum = 0;
             for (size_t i = 0; i + 1 < arr.size(); ++i) {
@@ -165,9 +206,31 @@ bool Psb2Problem::parseCase(const std::string& line, Instance& out) const {
         arr.push_back(static_cast<int>((*in2)[0]));
     } else if (kind_ == Kind::CoinSums) {
         arr.resize(4, 0);
+    } else if (kind_ == Kind::Mastermind) {
+        const auto* in2 = get("input2");
+        if (!in2 || in2->size() != 4 || arr.size() != 4) return false;
+        for (long v : *in2) arr.push_back(static_cast<int>(v));
+    } else if (kind_ == Kind::FizzBuzz) {
+        arr.assign(1, arr.empty() ? 0 : arr[0]);
     }
     std::vector<int> expected;
+    if (kind_ == Kind::CutVector) {
+        const auto* o1 = get("output1");
+        if (!o1 || arr.empty()) return false;
+        expected.push_back(static_cast<int>(o1->size()));
+    } else if (kind_ == Kind::FizzBuzz) {
+        const auto* o1 = get("output1");
+        if (!o1 || o1->empty()) return false;
+        if ((*o1)[0] > 9) {  // a word: Fizz, Buzz or FizzBuzz
+            expected.push_back((*o1)[0] == 'F' ? (o1->size() == 4 ? -1 : -3) : -2);
+        } else {
+            long value = 0;
+            for (long d : *o1) value = value * 10 + d;
+            expected.push_back(static_cast<int>(value));
+        }
+    }
     for (const char* key : {"output1", "output2", "output3", "output4"}) {
+        if (kind_ == Kind::CutVector || kind_ == Kind::FizzBuzz) break;
         const auto* o = get(key);
         if (!o) break;
         expected.push_back(static_cast<int>((*o).empty() ? 0 : (*o)[0]));
