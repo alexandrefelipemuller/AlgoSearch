@@ -78,6 +78,7 @@ system generalizes.
 | `--pair-find P`, `--parity-term P` | 130, 131 | pair-that-hits-a-target block; positional (parity) digit-fold sum; DEFAULT 0.05 / 0.03 since 131 (high P cost elements_twice 29 -> 24); PSB2 find_pair 30/30, luhn 28/30 |
 | `--sum-if P`, `--radix P` | 131 | conditional sum; mixed-radix decomposition (divisor cap 30 tuned to coins); DEFAULT 0.05 / 0.03; PSB2 paired_digits 30/30, coin_sums 2/30 |
 | unseen PSB2 test | 132 | six pieces ON vs OFF on cut_vector/fizz_buzz/mastermind: identical (cut_vector degenerate, others 0/30); no evidence of generalization beyond the designed-for problems |
+| unseen PSB2 test 2 | 133 | twitter, middle_character, solve_boolean, leaders: ON 2/20 vs OFF 0/20 on middle_character only (noise); still no evidence of generalization |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)
