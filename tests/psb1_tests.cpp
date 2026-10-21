@@ -1,4 +1,6 @@
+#include "ast/Stmt.hpp"
 #include "core/Random.hpp"
+#include "interpreter/Interpreter.hpp"
 #include "problems/Psb1Problem.hpp"
 #include "test_framework.hpp"
 
@@ -51,4 +53,45 @@ TEST(psb1_medium_version_uses_small_ranges_and_scaled_thresholds) {
         for (int x : inst.input) CHECK(x >= -20 && x <= 20);
         CHECK(p.isSolution(inst.input, inst.expectedOutput));
     }
+}
+
+namespace {
+int psb1FailuresOn(Psb1Problem& prob, const Stmt& program) {
+    Interpreter interp(20000);
+    int bad = 0;
+    for (const auto& inst : prob.generateAdversarialInstances(1)) {
+        if (prob.evaluate(program, inst, interp).status != ExecStatus::SUCCESS) ++bad;
+    }
+    return bad;
+}
+}  // namespace
+
+TEST(psb1_medium_count_odds_and_sum_of_squares_are_expressible_in_the_grammar) {
+    // count_odds: v6 = 0; v4 = 0; while (v4 < v0) { if (arr[v4] % 2 != 0) { v6 = v6 + 1; } v4 = v4 + 1; } arr[0] = v6;
+    auto a = makeBlock();
+    a->body.push_back(makeAssign(6, makeIntConst(0)));
+    a->body.push_back(makeAssign(4, makeIntConst(0)));
+    std::vector<StmtPtr> hit;
+    hit.push_back(makeAssign(6, makeBinOp(ExprKind::Add, makeVar(6), makeIntConst(1))));
+    std::vector<StmtPtr> body;
+    body.push_back(makeIf(makeCompare(ExprKind::Ne, makeBinOp(ExprKind::Mod, makeArrayAccess(makeVar(4)), makeIntConst(2)),
+                                      makeIntConst(0)),
+                          std::move(hit)));
+    body.push_back(makeAssign(4, makeBinOp(ExprKind::Add, makeVar(4), makeIntConst(1))));
+    a->body.push_back(makeWhile(makeCompare(ExprKind::Lt, makeVar(4), makeVar(0)), std::move(body)));
+    a->body.push_back(makeAssignArray(makeIntConst(0), makeVar(6)));
+    Psb1Problem odds(Psb1Problem::Kind::CountOdds, 7, 1, true);
+    CHECK_EQ(psb1FailuresOn(odds, *a), 0);
+
+    // sum_of_squares: v6 = 0; v4 = 1; while (v4 <= arr[0]) { v6 = v6 + v4 * v4; v4 = v4 + 1; } arr[0] = v6;
+    auto b = makeBlock();
+    b->body.push_back(makeAssign(6, makeIntConst(0)));
+    b->body.push_back(makeAssign(4, makeIntConst(1)));
+    std::vector<StmtPtr> body2;
+    body2.push_back(makeAssign(6, makeBinOp(ExprKind::Add, makeVar(6), makeBinOp(ExprKind::Mul, makeVar(4), makeVar(4)))));
+    body2.push_back(makeAssign(4, makeBinOp(ExprKind::Add, makeVar(4), makeIntConst(1))));
+    b->body.push_back(makeWhile(makeCompare(ExprKind::Le, makeVar(4), makeArrayAccess(makeIntConst(0))), std::move(body2)));
+    b->body.push_back(makeAssignArray(makeIntConst(0), makeVar(6)));
+    Psb1Problem squares(Psb1Problem::Kind::SumOfSquares, 7, 1, true);
+    CHECK_EQ(psb1FailuresOn(squares, *b), 0);
 }
