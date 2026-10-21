@@ -26,6 +26,12 @@ namespace algosearch {
 //   digits: arr = {n, 0, 0, 0, 0, 0, 0}, n in 1..999999; arr[0..k-1] = the digits of n, last digit first.
 //   grade: arr = {A, B, C, D, score}, thresholds A > B > C > D in 0..100; arr[0] = 4 if score >= A, 3 if >= B, 2 if >= C,
 //     1 if >= D, else 0.
+// Section 137: five more problems for the unseen test of the count-term / square-term options, written before those options were
+// run on anything: count_multiples_of_three (vector of 1..8 items in [-20, 20]; arr[0] = how many are multiples of 3),
+// even_squares (arr = {n}, n in 1..100; arr[0] = how many k >= 1 have k * k even and k * k < n), sum_of_cubes (arr = {n},
+// n in 1..8; arr[0] = 1^3 + ... + n^3), for_loop_index (arr = {start, end, step}, start in 0..20, end in start+1..start+30,
+// step in 1..4; arr[0] = the sum of i for i = start, start+step, ... while i < end), smallest4 (arr = 4 items in [-20, 20];
+// arr[0] = the minimum).
 // Section 135 (medium): section 134 left eight of ten problems at 0/20 because the PSB1 ranges (vectors of up to 50 items in
 // [-1000, 1000]) are far harder than the suite's own problems. The medium version, fixed before running, changes only the
 // ranges: vectors of 1..8 items; last_index_of_zero in [-5, 5]; count_odds, negative_to_zero, vectors_summed and
@@ -35,7 +41,9 @@ class Psb1Problem : public Problem {
 public:
     enum class Kind {
         LastIndexOfZero, CountOdds, NegativeToZero, VectorsSummed, SumOfSquares, CollatzSteps, SmallOrLarge,
-        MirrorImage, Digits, Grade
+        MirrorImage, Digits, Grade,
+        // Section 137, fixed before any run (names psb1n_<name>, one range only, the medium style):
+        CountMultiplesOfThree, EvenSquares, SumOfCubes, ForLoopIndex, Smallest4
     };
 
     // medium = the section 135 version: the same ten problems with small vectors and small values (see below).

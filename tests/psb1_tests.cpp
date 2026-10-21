@@ -95,3 +95,16 @@ TEST(psb1_medium_count_odds_and_sum_of_squares_are_expressible_in_the_grammar) {
     Psb1Problem squares(Psb1Problem::Kind::SumOfSquares, 7, 1, true);
     CHECK_EQ(psb1FailuresOn(squares, *b), 0);
 }
+
+TEST(psb1_section_137_references_match_hand_computed_values) {
+    using K = Psb1Problem::Kind;
+    CHECK_EQ(Psb1Problem::reference(K::CountMultiplesOfThree, {-3, 0, 4, 9, 10})[0], 3);
+    CHECK_EQ(Psb1Problem::reference(K::EvenSquares, {50})[0], 3);  // 4, 16, 36
+    CHECK_EQ(Psb1Problem::reference(K::SumOfCubes, {3})[0], 36);
+    CHECK_EQ(Psb1Problem::reference(K::ForLoopIndex, {2, 10, 3})[0], 2 + 5 + 8);
+    CHECK_EQ(Psb1Problem::reference(K::Smallest4, {5, -2, 7, 0})[0], -2);
+    for (K k : {K::CountMultiplesOfThree, K::EvenSquares, K::SumOfCubes, K::ForLoopIndex, K::Smallest4}) {
+        Psb1Problem p(k, 7, 1, true);
+        for (const auto& inst : p.generateInstances(1)) CHECK(p.isSolution(inst.input, inst.expectedOutput));
+    }
+}

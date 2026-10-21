@@ -250,3 +250,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 135. Fourth unseen test: medium version of the ten PSB1-style problems; definition and predictions registered | 11_sections_121-125.md | 853 |
 | 135r. Medium PSB1-style: OFF 65/200 vs ON 62/200; only 2 problems mid-range; no gain beyond noise on unseen problems | 11_sections_121-125.md | 877 |
 | 136. Why count_odds and sum_of_squares stay at 0/20: CountIf never tests a term of the element; scalar-loop Fold lacks an i*i term; both expressible | 11_sections_121-125.md | 903 |
+| 137. --count-term and --square-term (opt-in): reach sum_of_squares 10/10, count_odds 1/10; battery and unseen-set predictions registered | 11_sections_121-125.md | 926 |

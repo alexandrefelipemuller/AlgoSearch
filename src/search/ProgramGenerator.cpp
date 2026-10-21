@@ -1102,6 +1102,9 @@ StmtPtr genScalarLoopBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
             int term = rng.uniformInt(0, 3);
             indexRange = cfg.scalarLoopIndexRange && term == 3;
             ExprPtr t = term == 0 ? var(i) : term < 3 ? input(term - 1) : makeArrayAccess(var(i));
+            if (term == 0 && cfg.squareTermBias > 0.0 && rng.chance(cfg.squareTermBias)) {
+                t = makeBinOp(ExprKind::Mul, var(i), var(i));  // section 137
+            }
             body.push_back(makeAssign(a, makeBinOp(op, var(a), std::move(t))));
             break;
         }
@@ -2288,6 +2291,11 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         case Relation::CountIf: {
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            if (cfg.countTermBias > 0.0 && loop == Loop::Single && rng.chance(cfg.countTermBias)) {
+                // Section 137: the test is a term of the element against the key, e.g. arr[i] % 2 != 1.
+                inner.push_back(makeIf(makeCompare(cmp, drawTermExpr(rng, cfg, *a), std::move(rhs)), std::move(then)));
+                break;
+            }
             inner.push_back(makeIf(makeCompare(cmp, a->clone(), std::move(rhs)), std::move(then)));
             break;
         }

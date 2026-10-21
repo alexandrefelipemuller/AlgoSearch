@@ -28,6 +28,11 @@ std::string Psb1Problem::name(Kind kind) {
         case Kind::MirrorImage: return "mirror_image";
         case Kind::Digits: return "digits";
         case Kind::Grade: return "grade";
+        case Kind::CountMultiplesOfThree: return "count_multiples_of_three";
+        case Kind::EvenSquares: return "even_squares";
+        case Kind::SumOfCubes: return "sum_of_cubes";
+        case Kind::ForLoopIndex: return "for_loop_index";
+        case Kind::Smallest4: return "smallest4";
     }
     return "";
 }
@@ -90,6 +95,32 @@ std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr, 
             }
             return out;
         }
+        case Kind::CountMultiplesOfThree: {
+            int count = 0;
+            for (int x : arr) count += x % 3 == 0;
+            return {count};
+        }
+        case Kind::EvenSquares: {
+            int n = arr.empty() ? 0 : arr[0], count = 0;
+            for (int k = 1; k * k < n; ++k) count += (k * k) % 2 == 0;
+            return {count};
+        }
+        case Kind::SumOfCubes: {
+            int n = arr.empty() ? 0 : arr[0], sum = 0;
+            for (int i = 1; i <= n; ++i) sum += i * i * i;
+            return {sum};
+        }
+        case Kind::ForLoopIndex: {
+            if (arr.size() < 3 || arr[2] < 1) return {0};
+            int sum = 0;
+            for (int i = arr[0]; i < arr[1]; i += arr[2]) sum += i;
+            return {sum};
+        }
+        case Kind::Smallest4: {
+            int m = arr.empty() ? 0 : arr[0];
+            for (size_t i = 1; i < std::min<size_t>(4, arr.size()); ++i) m = std::min(m, arr[i]);
+            return {m};
+        }
         case Kind::Grade: {
             if (arr.size() < 5) return {0};
             int s = arr[4];
@@ -127,6 +158,14 @@ std::vector<int> Psb1Problem::randomInput(Kind kind, Random& rng, bool medium) {
             a.insert(a.end(), b.begin(), b.end());
             return a;
         }
+        case Kind::CountMultiplesOfThree: return randomVector(rng, 1, 8, -20, 20);
+        case Kind::EvenSquares: return {rng.uniformInt(1, 100)};
+        case Kind::SumOfCubes: return {rng.uniformInt(1, 8)};
+        case Kind::ForLoopIndex: {
+            int start = rng.uniformInt(0, 20);
+            return {start, start + rng.uniformInt(1, 30), rng.uniformInt(1, 4)};
+        }
+        case Kind::Smallest4: return randomVector(rng, 4, 4, -20, 20);
         case Kind::Digits: {
             std::vector<int> v(7, 0);
             v[0] = rng.uniformInt(1, medium ? 9999 : 999999);
