@@ -80,6 +80,7 @@ system generalizes.
 | unseen PSB2 test | 132 | six pieces ON vs OFF on cut_vector/fizz_buzz/mastermind: identical (cut_vector degenerate, others 0/30); no evidence of generalization beyond the designed-for problems |
 | unseen PSB2 test 2 | 133 | twitter, middle_character, solve_boolean, leaders: ON 2/20 vs OFF 0/20 on middle_character only (noise); still no evidence of generalization |
 | unseen PSB1-style test | 134 | ten own-generator problems: ON = OFF = 40/200 (mirror_image, grade at ceiling; eight at floor); 17 unseen problems in 132-134, no ON/OFF difference beyond noise |
+| medium PSB1-style test | 135 | OFF 65/200 vs ON 62/200; last_index_of_zero 15 vs 14, negative_to_zero 10 vs 8, six problems still 0/20; no gain beyond noise outside the designed-for seven |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)
