@@ -252,3 +252,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 136. Why count_odds and sum_of_squares stay at 0/20: CountIf never tests a term of the element; scalar-loop Fold lacks an i*i term; both expressible | 11_sections_121-125.md | 903 |
 | 137. --count-term and --square-term (opt-in): reach sum_of_squares 10/10, count_odds 1/10; battery and unseen-set predictions registered | 11_sections_121-125.md | 926 |
 | 137r. Battery 760 vs 758 (majority_value 5 -> 3, rule fails); unseen set: count_multiples_of_three 0/20 both arms, others within 2; options stay opt-in | 11_sections_121-125.md | 961 |
+| 138. --count-mod (opt-in): narrow arr[i] % c ==/!= 0 CountIf; reach and sibling predictions registered | 11_sections_121-125.md | 995 |

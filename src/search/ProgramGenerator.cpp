@@ -2291,6 +2291,13 @@ StmtPtr genCombinatorBlock(Random& rng, const GenConfig& cfg, int& loopsUsed) {
         case Relation::CountIf: {
             std::vector<StmtPtr> then;
             then.push_back(makeAssign(acc, makeBinOp(ExprKind::Add, makeVar(acc), makeIntConst(1))));
+            if (cfg.countModBias > 0.0 && loop == Loop::Single && rng.chance(cfg.countModBias)) {
+                // Section 138: arr[i] % c ==/!= 0 with c in 2..9.
+                ExprPtr rem = makeBinOp(ExprKind::Mod, a->clone(), makeIntConst(rng.uniformInt(2, 9)));
+                ExprKind test = rng.chance(0.5) ? ExprKind::Eq : ExprKind::Ne;
+                inner.push_back(makeIf(makeCompare(test, std::move(rem), makeIntConst(0)), std::move(then)));
+                break;
+            }
             if (cfg.countTermBias > 0.0 && loop == Loop::Single && rng.chance(cfg.countTermBias)) {
                 // Section 137: the test is a term of the element against the key, e.g. arr[i] % 2 != 1.
                 inner.push_back(makeIf(makeCompare(cmp, drawTermExpr(rng, cfg, *a), std::move(rhs)), std::move(then)));

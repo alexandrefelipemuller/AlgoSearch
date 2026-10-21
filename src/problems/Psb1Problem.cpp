@@ -33,6 +33,9 @@ std::string Psb1Problem::name(Kind kind) {
         case Kind::SumOfCubes: return "sum_of_cubes";
         case Kind::ForLoopIndex: return "for_loop_index";
         case Kind::Smallest4: return "smallest4";
+        case Kind::CountEvens: return "count_evens";
+        case Kind::CountNotMultipleOfFour: return "count_not_multiple_of_four";
+        case Kind::CountModFiveIsTwo: return "count_mod_five_is_two";
     }
     return "";
 }
@@ -100,6 +103,21 @@ std::vector<int> Psb1Problem::reference(Kind kind, const std::vector<int>& arr, 
             for (int x : arr) count += x % 3 == 0;
             return {count};
         }
+        case Kind::CountEvens: {
+            int count = 0;
+            for (int x : arr) count += x % 2 == 0;
+            return {count};
+        }
+        case Kind::CountNotMultipleOfFour: {
+            int count = 0;
+            for (int x : arr) count += x % 4 != 0;
+            return {count};
+        }
+        case Kind::CountModFiveIsTwo: {
+            int count = 0;
+            for (int x : arr) count += x % 5 == 2;
+            return {count};
+        }
         case Kind::EvenSquares: {
             int n = arr.empty() ? 0 : arr[0], count = 0;
             for (int k = 1; k * k < n; ++k) count += (k * k) % 2 == 0;
@@ -158,7 +176,10 @@ std::vector<int> Psb1Problem::randomInput(Kind kind, Random& rng, bool medium) {
             a.insert(a.end(), b.begin(), b.end());
             return a;
         }
-        case Kind::CountMultiplesOfThree: return randomVector(rng, 1, 8, -20, 20);
+        case Kind::CountMultiplesOfThree:
+        case Kind::CountEvens:
+        case Kind::CountNotMultipleOfFour:
+        case Kind::CountModFiveIsTwo: return randomVector(rng, 1, 8, -20, 20);
         case Kind::EvenSquares: return {rng.uniformInt(1, 100)};
         case Kind::SumOfCubes: return {rng.uniformInt(1, 8)};
         case Kind::ForLoopIndex: {

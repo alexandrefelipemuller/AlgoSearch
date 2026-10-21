@@ -108,3 +108,14 @@ TEST(psb1_section_137_references_match_hand_computed_values) {
         for (const auto& inst : p.generateInstances(1)) CHECK(p.isSolution(inst.input, inst.expectedOutput));
     }
 }
+
+TEST(psb1_section_138_references_match_hand_computed_values) {
+    using K = Psb1Problem::Kind;
+    CHECK_EQ(Psb1Problem::reference(K::CountEvens, {-4, 3, 0, 7, 8})[0], 3);
+    CHECK_EQ(Psb1Problem::reference(K::CountNotMultipleOfFour, {4, 8, 6, -3, 0})[0], 2);
+    CHECK_EQ(Psb1Problem::reference(K::CountModFiveIsTwo, {2, 7, -3, 12, 3})[0], 3);  // -3 % 5 is -3 in C
+    for (K k : {K::CountEvens, K::CountNotMultipleOfFour, K::CountModFiveIsTwo}) {
+        Psb1Problem p(k, 7, 1, true);
+        for (const auto& inst : p.generateInstances(1)) CHECK(p.isSolution(inst.input, inst.expectedOutput));
+    }
+}

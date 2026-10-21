@@ -43,7 +43,9 @@ public:
         LastIndexOfZero, CountOdds, NegativeToZero, VectorsSummed, SumOfSquares, CollatzSteps, SmallOrLarge,
         MirrorImage, Digits, Grade,
         // Section 137, fixed before any run (names psb1n_<name>, one range only, the medium style):
-        CountMultiplesOfThree, EvenSquares, SumOfCubes, ForLoopIndex, Smallest4
+        CountMultiplesOfThree, EvenSquares, SumOfCubes, ForLoopIndex, Smallest4,
+        // Section 138, fixed before the runs: three more modular-count siblings (vector of 1..8 items in [-20, 20])
+        CountEvens, CountNotMultipleOfFour, CountModFiveIsTwo
     };
 
     // medium = the section 135 version: the same ten problems with small vectors and small values (see below).
