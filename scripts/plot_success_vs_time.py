@@ -18,7 +18,10 @@ PROBLEMS = [
 ]
 INK, GRID = "#0b0b0b", "#d8d7d2"
 
-def times(problem):
+D2 = "data/psb2_1800_20261022"  # section 141: fuel_cost and luhn rerun with an 1800 s budget (panel b)
+LONG = ("fuel_cost", "luhn")
+
+def times(problem, D=D):
     out = []
     for log in sorted(glob.glob(f"{D}/psb2_{problem}/seed_*.log")):
         text = open(log, errors="ignore").read()
@@ -34,7 +37,7 @@ def curve(ts, grid):
     n = len(ts)
     return [sum(1 for t in ts if t is not None and t <= x) / n for x in grid]
 
-data = {p: times(p) for p, *_ in PROBLEMS}
+data = {p: times(p, D2 if p in LONG else D) for p, *_ in PROBLEMS}
 with open(OUT + "_data.csv", "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["problem", "seed_index", "solve_time_s"])
@@ -49,25 +52,29 @@ fast = [p for p in PROBLEMS if p[0] in ("gcd", "basement", "find_pair", "paired_
 slow = [p for p in PROBLEMS if p[0] in ("fuel_cost", "luhn", "coin_sums")]
 import numpy as np
 for ax, group, xs, log in ((a, fast, np.concatenate([[0.5], np.geomspace(1, 900, 400)]), True),
-                           (b, slow, np.linspace(0, 900, 451), False)):
+                           (b, slow, np.linspace(0, 1800, 901), False)):
     for name, color, ls, mk in group:
+        if name not in LONG and not log:
+            xs = xs[xs <= 900]  # coin_sums was run for 900 s only
         ys = curve(data[name], xs)
         lines = ax.plot(xs, ys, color=color, ls=ls, lw=1.5, drawstyle="steps-post")
         solved = sum(t is not None for t in data[name])
         k = max(1, len(xs) // 6)
         ax.plot(xs[::k][1:], np.array(ys)[::k][1:], ls="none", marker=mk, ms=3.5, color=color, mec="#fcfcfb", mew=0.5)
-        lines[-1].set_label(f"{name.replace('_', ' ')} ({solved}/100)")
+        lines[-1].set_label(f"{name.replace('_', ' ')} ({solved}/100" + (" at 1800 s)" if name in LONG else ")"))
     if log:
         ax.set_xscale("log")
         ax.set_xlim(1, 900)
     else:
-        ax.set_xlim(0, 900)
+        ax.set_xlim(0, 1800)
+        ax.axvline(900, color=GRID, lw=1, ls="--")
+        ax.text(905, 0.03, "900 s (section 139 budget)", fontsize=6.5, color=INK)
     ax.set_xlabel("time since start of the run (s)" + (", log scale" if log else ""))
     ax.set_ylim(0, 1.03)
     ax.grid(True, color=GRID, lw=0.5)
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
-    ax.legend(frameon=False, loc="lower right" if log else "upper left", fontsize=7, handlelength=2.6)
+    ax.legend(frameon=False, loc="lower right" if log else "center right", fontsize=7, handlelength=2.6)
 a.set_ylabel("fraction of 100 runs solved")
 a.set_title("(a) problems solved in seconds", fontsize=8, loc="left")
 b.set_title("(b) problems that use the budget", fontsize=8, loc="left")
