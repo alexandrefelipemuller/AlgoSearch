@@ -258,3 +258,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 139r. PSB2 integer subset, 100 seeds: 595/700 (gcd, basement, find_pair, paired_digits 100; fuel_cost 91; luhn 90; coin_sums 14); total prediction failed | 11_sections_121-125.md | 1072 |
 | 140. Why fuel_cost and luhn fail (plateau at 50/200, parity-term shape in fuel_cost; long solve-time tail); experiments E1/E2 registered | 11_sections_121-125.md | 1095 |
 | 140r. luhn failures mostly budget (8/10 solve at 1800 s); parity-term 0 makes fuel_cost worse (81 vs 91, McNemar p=0.041): both predictions failed | 11_sections_121-125.md | 1114 |
+| 141. fuel_cost and luhn at 1800 s (budget sensitivity); predictions registered | 11_sections_121-125.md | 1134 |
