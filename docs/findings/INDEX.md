@@ -255,3 +255,4 @@ Generated from the headers of `FINDINGS.md` as it stood at commit `5706b0c` (tag
 | 138. --count-mod (opt-in): narrow arr[i] % c ==/!= 0 CountIf; reach and sibling predictions registered | 11_sections_121-125.md | 995 |
 | 138r. --count-mod 0.1: count_odds, multiples_of_three, evens, not_multiple_of_four BASE 0/80 -> MOD 63/80 (control 0/20); battery 758 vs 755, max drop 1; promoted to default | 11_sections_121-125.md | 1018 |
 | 139. PSB2 integer subset, 100 seeds with current defaults; predictions registered | 11_sections_121-125.md | 1060 |
+| 139r. PSB2 integer subset, 100 seeds: 595/700 (gcd, basement, find_pair, paired_digits 100; fuel_cost 91; luhn 90; coin_sums 14); total prediction failed | 11_sections_121-125.md | 1072 |
