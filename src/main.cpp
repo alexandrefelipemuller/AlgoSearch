@@ -194,7 +194,7 @@ struct CliArgs {
     double radixBias = 0.03;         // section 131; default
     double countTermBias = 0.0;      // section 137, opt-in
     double squareTermBias = 0.0;     // section 137, opt-in
-    double countModBias = 0.0;       // section 138, opt-in
+    double countModBias = 0.1;       // section 138; default (--count-mod 0 restores the old grammar)
     double dcShellSearchKey = 0.0;  // section 121c
     double dcShellSearchEnd = 0.0;  // section 123
     std::string adaptiveBiasLog;

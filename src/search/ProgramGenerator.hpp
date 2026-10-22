@@ -195,7 +195,7 @@ struct GenConfig {
     double squareTermBias = 0.0;
     // Section 138 (opt-in): probability that a single-loop CountIf tests `arr[i] % c == 0` or `!= 0` with c drawn
     // directly in 2..9 (the narrow form section 137's whole-term-set draw reached too rarely). 0 = off, no draw.
-    double countModBias = 0.0;
+    double countModBias = 0.1;  // default since section 138
 
     // Section 87: a sixth stateful piece, DistinctCount -- per element, the
     // number of equal elements and whether one came earlier; only first
