@@ -83,6 +83,7 @@ system generalizes.
 | medium PSB1-style test | 135 | OFF 65/200 vs ON 62/200; last_index_of_zero 15 vs 14, negative_to_zero 10 vs 8, six problems still 0/20; no gain beyond noise outside the designed-for seven |
 | count-term / square-term (opt-in) | 136, 137 | close the count_odds / sum_of_squares gaps (reach 1/10, 10/10) but battery drops majority_value 5 -> 3 and count_multiples_of_three stays 0/20; not promoted |
 | `--count-mod P` | 138 | `arr[i] % c ==/!= 0` CountIf (c in 2..9); DEFAULT 0.1; modular-count family 0/80 -> 63/80, control 0/20; battery 758 vs 755 |
+| PSB2 integer subset, 100 seeds | 139-141 | 595/700 at 900 s (fuel_cost 91, luhn 90, coin_sums 14); 1800 s: fuel_cost 94, luhn 98 (luhn failures were budget; six fuel_cost failures stop at the cap); parity-term 0 hurts fuel_cost (81) |
 | `--forbid-stmt`, `--fill-bsearch-hole`, `--ablate-skeleton`, `--fill-tsp-guard` with `--soundness-labels --metamorphic --rank-worst-scale` | 63-69, 43-44, 118 | research modes; the TSP guard pipeline (43-44) is a positive result and the only code that reproduces it |
 
 ## 4. Closed as negative (do not retry without a new idea)
